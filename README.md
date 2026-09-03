@@ -90,6 +90,53 @@ Same operators and semantics as `webmcp-evals`: `$pattern` (with `(?i)` style in
 
 Trajectory reconciliation, which `webmcp-evals` does not expose as a library, follows these rules: the top level list is ordered, `{ unordered: [...] }` groups may match in any order, `optional: true` calls may be absent, and extra actual calls are tolerated unless `strict` is set.
 
+## On-device model runs
+
+`webmcp.promptApi` drives Chrome's Prompt API (`LanguageModel`) inside the page, offering the page's WebMCP tools to the model the way an in-page agent would. Tool results go back to the model as JSON strings with nulls stripped, which is what Chrome accepts.
+
+```ts
+test("model can add to cart", async ({ page, webmcp }) => {
+  await page.goto("/");
+  test.skip((await webmcp.promptApi.availability()) === "unavailable", "needs Chrome with the Prompt API");
+
+  const result = await webmcp.promptApi.run("Add two red shirts to my cart");
+  expect(result.status).toBe("ok");
+  expect(webmcp).toHaveCalledTool("add_to_cart", { quantity: { $gte: 2 } });
+
+  // Or run a recorded evals case straight against the on-device model:
+  await expect(webmcp).toPassEval(evalCase);
+});
+```
+
+| Method | Purpose |
+| --- | --- |
+| `exists()` | Whether `LanguageModel` is defined. |
+| `availability()` | `LanguageModel.availability()` for a tool-using session. |
+| `run(prompt \| { prompts, systemPrompt?, toolNames?, timeoutMs? })` | One session, prompts sent in order. Calls the model makes are recorded with `via: "agent"`. |
+| `evaluate(evalCase, { strict? })` | Send the case's user messages and reconcile the calls against `expectedCall`. |
+| `useFake(plan)` | Install a scripted `LanguageModel` before navigation for deterministic CI runs. |
+
+### Running against a real model
+
+Playwright launches Chrome with a fresh profile, so settings made in `chrome://flags` do not apply. Launch Chrome Canary yourself with the flags enabled in its profile and a DevTools port, then point the tests at it:
+
+1. In Chrome Canary enable `#optimization-guide-on-device-model`, `#prompt-api-for-gemini-nano`, `#prompt-api-tool-use`, and `#webmcp-for-testing`, then restart. Wait for the on-device model to finish downloading (check `chrome://components`).
+2. Start it with `--remote-debugging-port=9222`.
+3. Run `WEBMCP_CDP=http://localhost:9222 npx playwright test`.
+
+With `WEBMCP_CDP` set the fixture connects over CDP instead of launching a browser. Tests that need the model call `test.skip()` when `availability()` is `"unavailable"`, so the same suite runs everywhere.
+
+### Deterministic agent tests
+
+```ts
+await webmcp.promptApi.useFake({
+  turns: [{ match: "shirt", calls: [{ name: "search_products", args: { query: "shirt" } }], response: "Found {{result:0}}" }],
+});
+await page.goto("/");
+```
+
+The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your harness and tool wiring, not the model.
+
 ## Rules
 
 Rules see the whole page: every frame, declarative forms, and all tools together. That is why this is not an ESLint plugin.
@@ -106,7 +153,7 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | `schema-unsupported-keywords` | warning | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`. |
 | `sensitive-params` | warning | Parameter names that look like credentials or payment data. |
 | `duplicate-tool-name` | error | Same name registered more than once across frames. |
-| `similar-descriptions` | warning | Description similarity above `threshold` (0.7). Pass a `similarity` function to use embeddings. |
+| `similar-descriptions` | warning | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied. |
 | `too-many-tools` | warning | More than `max` (20) tools on a page. |
 | `no-tools` | info | Page exposes nothing. |
 | `iframe-allow-tools` | info | Cross-origin frame registers tools but its `<iframe>` lacks `allow="tools"`. |
@@ -140,9 +187,10 @@ pnpm run test:e2e   # set PW_CHROMIUM=/path/to/chrome to use a specific binary
 
 - Early. APIs will move.
 - The shim exists for tests only; it is not a production polyfill and does not implement cross-origin `exposedTo` or `requestUserInteraction`.
-- Recording covers executions that go through `modelContext` in the page. Calls driven by Chrome's own agent over CDP are not visible to page scripts; a CDP-based collector for real Chrome is a planned addition.
+- Recording covers executions that go through `modelContext` in the page, including the ones `webmcp.promptApi` triggers. Calls driven by Chrome's own built-in agent over CDP are not visible to page scripts; a CDP-based collector is a planned addition.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.
-- The similarity rule is lexical by default. Plug in an embedding function for better recall.
+- The similarity rule is lexical. Embedding-based similarity was considered and left out for now.
+- On-device runs need Chrome Canary with the flags above; the fake model covers CI.
 
 ## License
 

@@ -110,6 +110,10 @@ export interface RecordedCall {
   error?: string;
   startedAt: number;
   durationMs: number;
-  /** "api" = via modelContext.executeTool/execute; "fixture" = via webmcp.call(). */
-  via: "api" | "fixture";
+  /**
+   * "api" = executed by page code through modelContext;
+   * "fixture" = executed through webmcp.call();
+   * "agent" = executed by an on-device model run through webmcp.promptApi.
+   */
+  via: "api" | "fixture" | "agent";
 }

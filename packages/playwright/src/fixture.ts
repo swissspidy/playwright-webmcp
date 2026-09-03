@@ -1,7 +1,8 @@
-import { test as base, type Frame, type Page, type TestInfo } from "@playwright/test";
+import { test as base, type Browser, type Frame, type Page, type TestInfo } from "@playwright/test";
 import {
   collectFrame,
   lint,
+  reconcileCalls,
   toEvalCase,
   toToolsSchema,
   type EvalCase,
@@ -10,11 +11,14 @@ import {
   type LintResult,
   type PageSnapshot,
   type RecordedCall,
+  type ReconcileOptions,
   type ToEvalOptions,
   type ToolSnapshot,
 } from "webmcp-lint";
 import { SHIM_SOURCE } from "./shim.js";
 import { RECORDER_SOURCE } from "./recorder.js";
+import { normalizeRunOptions, runPromptApiInPage, type PromptApiRunOptions, type PromptApiRunResult } from "./prompt-api.js";
+import { fakeLanguageModelSource, type FakeLanguageModelPlan } from "./fake-language-model.js";
 
 export interface WebMCPOptions {
   /**
@@ -36,7 +40,77 @@ export const ATTACHMENTS = {
   lint: "webmcp-lint",
   snapshot: "webmcp-snapshot",
   calls: "webmcp-calls",
+  promptApi: "webmcp-prompt-api",
 } as const;
+
+export interface EvalRunOptions extends Omit<PromptApiRunOptions, "prompts">, ReconcileOptions {}
+
+export interface EvalRunResult extends PromptApiRunResult {
+  pass: boolean;
+  problems: string[];
+}
+
+/**
+ * Drives Chrome's on-device model (the Prompt API) against the page's tools.
+ * Available as `webmcp.promptApi`.
+ */
+export class PromptApiHarness {
+  constructor(private readonly owner: WebMCP) {}
+
+  /** Whether `LanguageModel` exists in the page. Does not trigger a download. */
+  async exists(): Promise<boolean> {
+    return this.owner.page.evaluate(() => typeof (globalThis as Record<string, unknown>).LanguageModel !== "undefined");
+  }
+
+  /** LanguageModel.availability() for a tool-using session, or "unavailable" when the API is missing. */
+  async availability(): Promise<"available" | "downloadable" | "downloading" | "unavailable"> {
+    return this.owner.page.evaluate(async () => {
+      const LM = (globalThis as Record<string, any>).LanguageModel;
+      if (!LM || typeof LM.availability !== "function") return "unavailable";
+      try {
+        return await LM.availability({
+          expectedInputs: [{ type: "text" }, { type: "tool-response" }],
+          expectedOutputs: [{ type: "text" }, { type: "tool-call" }],
+        });
+      } catch {
+        return "unavailable";
+      }
+    });
+  }
+
+  /**
+   * Install a scripted `LanguageModel` before navigation so agent tests run
+   * deterministically on browsers without an on-device model.
+   */
+  async useFake(plan: FakeLanguageModelPlan): Promise<void> {
+    await this.owner.page.addInitScript(fakeLanguageModelSource(plan));
+  }
+
+  /** Send one or more user prompts to the on-device model with the page's tools offered. */
+  async run(options: PromptApiRunOptions | string): Promise<PromptApiRunResult> {
+    const opts = normalizeRunOptions(typeof options === "string" ? { prompts: [options] } : options);
+    const result = await this.owner.page.evaluate(runPromptApiInPage, opts);
+    for (const c of result.calls) this.owner.record({ ...c, via: "agent" });
+    await this.owner.attach(ATTACHMENTS.promptApi, { url: this.owner.page.url(), prompts: opts.prompts, ...result });
+    return result;
+  }
+
+  /**
+   * Run an evals case against the on-device model and reconcile the calls it
+   * made with the case's `expectedCall`. Only user messages of type
+   * "message" are sent; other message kinds are ignored.
+   */
+  async evaluate(evalCase: EvalCase, options: EvalRunOptions = {}): Promise<EvalRunResult> {
+    const { strict, ...runOptions } = options;
+    const prompts = evalCase.messages.filter((m) => m.role === "user" && m.type === "message").map((m) => (m as { content: string }).content);
+    const result = await this.run({ ...runOptions, prompts });
+    if (result.status !== "ok") {
+      return { ...result, pass: false, problems: [`${result.status}: ${result.reason ?? "no details"}`] };
+    }
+    const reconciled = reconcileCalls(evalCase.expectedCall, result.calls.map((c) => ({ name: c.name, args: c.args, result: c.result })), { strict });
+    return { ...result, pass: reconciled.ok, problems: reconciled.problems };
+  }
+}
 
 export interface ScenarioOptions extends Omit<ToEvalOptions, "name"> {
   name?: string;
@@ -47,6 +121,7 @@ const instances = new WeakMap<Page, WebMCP>();
 export class WebMCP {
   private recorded: RecordedCall[] = [];
   private installed = false;
+  readonly promptApi: PromptApiHarness = new PromptApiHarness(this);
 
   constructor(
     readonly page: Page,
@@ -192,7 +267,13 @@ export class WebMCP {
     if (this.recorded.length) await this.attach(ATTACHMENTS.calls, this.calls());
   }
 
-  private async attach(name: string, body: unknown): Promise<void> {
+  /** @internal */
+  record(call: RecordedCall): void {
+    this.recorded.push(call);
+  }
+
+  /** @internal */
+  async attach(name: string, body: unknown): Promise<void> {
     if (!this.testInfo) return;
     await this.testInfo.attach(name, { body: JSON.stringify(body, null, 2), contentType: "application/json" });
   }
@@ -222,7 +303,23 @@ export interface WebMCPFixtureOptions {
   webmcpOptions: Partial<WebMCPOptions>;
 }
 
+/**
+ * Set WEBMCP_CDP to a DevTools endpoint (e.g. http://localhost:9222) to run
+ * tests in a Chrome you launched yourself, with the WebMCP and Prompt API
+ * flags enabled in that profile. Playwright's own launch uses a fresh profile
+ * where chrome://flags settings do not apply.
+ */
 export const test = base.extend<WebMCPFixtures & WebMCPFixtureOptions>({
+  browser: [
+    async ({ playwright, browser }, use) => {
+      const endpoint = process.env.WEBMCP_CDP;
+      if (!endpoint) return use(browser);
+      const connected: Browser = await playwright.chromium.connectOverCDP(endpoint);
+      await use(connected);
+      await connected.close();
+    },
+    { scope: "worker" },
+  ],
   webmcpOptions: [{}, { option: true }],
   webmcp: async ({ page, webmcpOptions }, use, testInfo) => {
     const instance = new WebMCP(page, testInfo, { ...DEFAULT_OPTIONS, ...webmcpOptions, lint: { ...DEFAULT_OPTIONS.lint, ...(webmcpOptions.lint ?? {}) } });

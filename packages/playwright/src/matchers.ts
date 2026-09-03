@@ -4,6 +4,7 @@ import {
   formatFindings,
   matchesArgument,
   reconcileCalls,
+  type EvalCase,
   type ExpectedCallNode,
   type LintOptions,
   type RecordedCall,
@@ -11,7 +12,7 @@ import {
   type Severity,
   type ToolSource,
 } from "webmcp-lint";
-import { WebMCP } from "./fixture.js";
+import { WebMCP, type EvalRunOptions } from "./fixture.js";
 
 export interface ToolExpectation {
   description?: string | RegExp;
@@ -102,6 +103,22 @@ export const expect = baseExpect.extend({
                 .map((c) => JSON.stringify(c.args))
                 .join("\n  ")}`
             : `Tool "${name}" was never called. Calls: ${calls.map((c) => c.name).join(", ") || "(none)"}`,
+    };
+  },
+
+  async toPassEval(received: unknown, evalCase: EvalCase, options: EvalRunOptions = {}) {
+    const webmcp = resolve(received);
+    const result = await webmcp.promptApi.evaluate(evalCase, options);
+    const label = evalCase.name ?? evalCase.messages.map((m) => ("content" in m ? m.content : m.type)).join(" / ");
+    return {
+      pass: result.pass,
+      name: "toPassEval",
+      message: () =>
+        result.pass
+          ? `Expected eval "${label}" to fail, but the model satisfied it.`
+          : `Eval "${label}" failed (${result.status}):\n  ${result.problems.join("\n  ")}\nModel calls: ${result.calls
+              .map((c) => `${c.name}(${JSON.stringify(c.args)})`)
+              .join(", ") || "(none)"}\nModel response: ${result.responses.join(" | ") || "(none)"}`,
     };
   },
 
