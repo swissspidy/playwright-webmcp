@@ -1,0 +1,75 @@
+[
+  {
+    "name": "records a scenario as an evals case › add two shirts",
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Add two red shirts to my cart"
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "search_products",
+        "arguments": {
+          "query": "red"
+        }
+      },
+      {
+        "functionName": "add_to_cart",
+        "arguments": {
+          "productId": 1,
+          "quantity": 2
+        }
+      }
+    ]
+  },
+  {
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Find hats"
+      }
+    ],
+    "expectedCall": [
+      {
+        "unordered": [
+          {
+            "functionName": "search_products",
+            "arguments": {
+              "query": {
+                "$type": "string"
+              }
+            }
+          },
+          {
+            "functionName": "list_reviews",
+            "arguments": {
+              "productId": {
+                "$type": "number"
+              }
+            }
+          }
+        ]
+      }
+    ],
+    "name": "argument modes and unordered groups"
+  },
+  {
+    "messages": [
+      {
+        "role": "user",
+        "type": "message",
+        "content": "Find hats"
+      }
+    ],
+    "expectedCall": [
+      {
+        "functionName": "search_products",
+        "arguments": null
+      }
+    ],
+    "name": "argument modes and unordered groups"
+  }
+]

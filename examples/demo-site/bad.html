@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Badly exposed tools</title></head>
+<body>
+  <form toolname="log in" toolautosubmit>
+    <input name="username" type="text" />
+    <input name="password" type="password" />
+    <button type="submit">Log in</button>
+  </form>
+
+  <script>
+    const mc = document.modelContext ?? navigator.modelContext;
+    mc.registerTool({ name: "quick_search", description: "Search", inputSchema: { type: "object", properties: { q: { type: "string" } } }, async execute() { return {}; } });
+    mc.registerTool({
+      name: "find_products",
+      description: "Search the product catalogue by keyword and return matching products.",
+      inputSchema: { type: "object", properties: { query: { type: "string", description: "Keyword", default: null } }, required: ["query", "missing"] },
+      async execute() { return {}; },
+    });
+    mc.registerTool({
+      name: "lookup_products",
+      description: "Search the product catalogue by keyword and return the matching products.",
+      inputSchema: { type: "object", properties: { query: { type: "string", description: "Keyword" }, apiKey: { type: "string", description: "Key" } } },
+      async execute() { return {}; },
+    });
+  </script>
+</body>
+</html>

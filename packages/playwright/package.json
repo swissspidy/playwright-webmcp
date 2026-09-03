@@ -1,0 +1,35 @@
+{
+  "name": "playwright-webmcp",
+  "version": "0.1.0",
+  "description": "Playwright fixture, matchers and recorder for testing WebMCP tool surfaces.",
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./dist/src/index.js",
+  "types": "./dist/src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/src/index.d.ts",
+      "default": "./dist/src/index.js"
+    }
+  },
+  "files": [
+    "dist/src"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "playwright test"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40"
+  },
+  "dependencies": {
+    "webmcp-lint": "workspace:*"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "typescript": "^5.6.0",
+    "@types/node": "^22.0.0",
+    "playwright-webmcp-evals": "workspace:*"
+  }
+}

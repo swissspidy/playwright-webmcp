@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Reviews</title></head>
+<body>
+  <h2>Reviews</h2>
+  <script>
+    const mc = document.modelContext ?? navigator.modelContext;
+    mc.registerTool({
+      name: "list_reviews",
+      description: "List customer reviews for a product id, newest first. Returns rating and text for each review.",
+      inputSchema: {
+        type: "object",
+        properties: { productId: { type: "number", description: "Product id to list reviews for" } },
+        required: ["productId"],
+      },
+      async execute({ productId }) {
+        return { reviews: [{ productId, rating: 5, text: "Great" }] };
+      },
+    });
+  </script>
+</body>
+</html>
