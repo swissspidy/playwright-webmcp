@@ -3,15 +3,22 @@ import { dirname } from "node:path";
 import { test as base, type Browser, type CDPSession, type Frame, type Page, type TestInfo } from "@playwright/test";
 import {
   collectFrame,
+  computeCoverage,
+  computeScore,
   diffContracts,
   formatChanges,
+  judgeTimeline,
   lint,
   reconcileCalls,
+  renderToolDocs,
   serializeContract,
   toContract,
   toEvalCase,
+  toPlaywrightTest,
   toToolsSchema,
+  type CodegenOptions,
   type ContractChange,
+  type CoverageReport,
   type EvalCase,
   type FrameCollectResult,
   type LintOptions,
@@ -19,7 +26,11 @@ import {
   type PageSnapshot,
   type RecordedCall,
   type ReconcileOptions,
+  type RegistrationEvent,
+  type Score,
   type SmokeReport,
+  type TimelineBudgets,
+  type TimelineReport,
   type ToEvalOptions,
   type ToolContract,
   type ToolSnapshot,
@@ -59,7 +70,17 @@ export const ATTACHMENTS = {
   promptApi: "webmcp-prompt-api",
   smoke: "webmcp-smoke",
   contract: "webmcp-contract",
+  toolSnapshots: "webmcp-tool-snapshots",
+  timeline: "webmcp-timeline",
 } as const;
+
+export type MockImplementation = ((args: Record<string, unknown>) => unknown | Promise<unknown>) | { result: unknown } | { error: string };
+
+export interface ReachableTool {
+  name: string;
+  origin: string;
+  remote: boolean;
+}
 
 export interface ContractMatchResult {
   pass: boolean;
@@ -149,6 +170,9 @@ export class WebMCP {
   private recorded: RecordedCall[] = [];
   private installed = false;
   private cdpSession: CDPSession | undefined;
+  private timelineEvents: RegistrationEvent[] = [];
+  private readonly mocks = new Map<string, (args: Record<string, unknown>) => unknown | Promise<unknown>>();
+  private lastSnapshot: PageSnapshot | undefined;
   readonly promptApi: PromptApiHarness = new PromptApiHarness(this);
   /** CDP collector; `enabled` is true only when the browser implements the WebMCP domain. */
   cdp: CdpCollector | undefined;
@@ -172,7 +196,27 @@ export class WebMCP {
     this.installed = true;
     if (this.options.record) {
       await this.page.exposeBinding("__webmcpReport", (_source, json: string) => {
-        this.recorded.push(JSON.parse(json) as RecordedCall);
+        const entry = JSON.parse(json) as { kind?: string } & Record<string, unknown>;
+        if (entry.kind === "registration") {
+          this.timelineEvents.push({ type: entry.type as RegistrationEvent["type"], name: String(entry.name), at: Number(entry.at), frameUrl: String(entry.frameUrl) });
+        } else {
+          const { kind: _kind, ...call } = entry;
+          this.recorded.push(call as unknown as RecordedCall);
+        }
+      });
+      await this.page.exposeBinding("__webmcpMock", async (_source, json: string) => {
+        const { name, args } = JSON.parse(json) as { name: string; args: Record<string, unknown> };
+        const impl = this.mocks.get(name);
+        if (!impl) return JSON.stringify({ __error: `No mock installed for ${name}` });
+        try {
+          const result = await impl(args ?? {});
+          return JSON.stringify(result === undefined ? null : result);
+        } catch (err) {
+          return JSON.stringify({ __error: String((err as Error)?.message ?? err) });
+        }
+      });
+      this.page.on("framenavigated", (frame) => {
+        if (frame === this.page.mainFrame()) this.timelineEvents = [];
       });
     }
     if (this.options.shim !== "never") {
@@ -207,6 +251,7 @@ export class WebMCP {
     const topOrigin = safeOrigin(this.page.url());
     const results = await Promise.all(frames.map((f) => collectInFrame(f)));
     const snapshot: PageSnapshot = { url: this.page.url(), capturedAt: new Date().toISOString(), frames: [], tools: [] };
+    this.lastSnapshot = snapshot;
     for (let i = 0; i < frames.length; i++) {
       const r = results[i];
       if (!r) {
@@ -249,6 +294,115 @@ export class WebMCP {
     const report = await runSmoke(tools, (name, args) => this.call(name, args), options);
     await this.attach(ATTACHMENTS.smoke, { url: this.page.url(), ...report });
     return report;
+  }
+
+  /**
+   * Tools an agent running in the given frame can actually reach through the
+   * API: its own, same-origin frames', and cross-origin frames' tools that
+   * are both allowed by the embedding <iframe> and exposed to this origin.
+   */
+  async reachableTools(options: { from?: number } = {}): Promise<ReachableTool[]> {
+    const frame = this.page.frames()[options.from ?? 0];
+    if (!frame) throw new Error(`No frame at index ${options.from}`);
+    return frame.evaluate(async () => {
+      const w = window as unknown as Record<string, any>;
+      const mc = (document as unknown as Record<string, any>).modelContext ?? w.navigator?.modelContext;
+      if (!mc) return [];
+      const origins = new Set<string>();
+      for (const el of Array.from(document.querySelectorAll("iframe"))) {
+        try {
+          const origin = new URL((el as HTMLIFrameElement).src, location.href).origin;
+          if (origin !== location.origin) origins.add(origin);
+        } catch {}
+      }
+      const listed: any[] = origins.size ? await mc.getTools({ fromOrigins: [...origins] }) : await mc.getTools();
+      return listed.map((t) => ({ name: String(t.name), origin: String(t.origin ?? location.origin), remote: Boolean(t._isRemote || (t.origin && t.origin !== location.origin)) }));
+    });
+  }
+
+  /** Replace a tool's implementation from the test. The mock runs in Node. */
+  async mock(name: string, implementation: MockImplementation): Promise<void> {
+    if (!this.options.record) throw new Error("mock() needs the recorder; set webmcpOptions.record to true");
+    const impl = typeof implementation === "function" ? implementation : "error" in implementation ? () => { throw new Error(implementation.error); } : () => implementation.result;
+    this.mocks.set(name, impl);
+    const owner = await this.ownerFrame(name);
+    await owner.evaluate((toolName) => (window as unknown as Record<string, any>).__webmcpInstallMock(toolName), name);
+  }
+
+  /** Restore a mocked tool's original implementation when the page still has it. */
+  async unmock(name: string): Promise<boolean> {
+    this.mocks.delete(name);
+    const owner = await this.ownerFrame(name);
+    return owner.evaluate((toolName) => (window as unknown as Record<string, any>).__webmcpRestoreMock(toolName), name);
+  }
+
+  async unmockAll(): Promise<void> {
+    for (const name of [...this.mocks.keys()]) await this.unmock(name).catch(() => {});
+  }
+
+  /**
+   * Mock every tool that appears in a recording so that calls with the same
+   * arguments return the recorded result (or throw the recorded error).
+   * Unmatched arguments fall back to the first recording for that tool.
+   */
+  async replay(recording: RecordedCall[], options: { strict?: boolean } = {}): Promise<void> {
+    const byName = new Map<string, RecordedCall[]>();
+    for (const c of recording) byName.set(c.name, [...(byName.get(c.name) ?? []), c]);
+    for (const [name, entries] of byName) {
+      await this.mock(name, (args) => {
+        const key = JSON.stringify(args ?? {});
+        const hit = entries.find((e) => JSON.stringify(e.args ?? {}) === key) ?? (options.strict ? undefined : entries[0]);
+        if (!hit) throw new Error(`No recording of ${name} for arguments ${key}`);
+        if (hit.error) throw new Error(hit.error);
+        return hit.result;
+      });
+    }
+  }
+
+  /** Registration timeline for the current navigation, with late-registration and churn findings. */
+  async timeline(budgets: TimelineBudgets = {}): Promise<TimelineReport> {
+    const marks = await this.page.evaluate(() => {
+      const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
+      return { domContentLoaded: nav?.domContentLoadedEventEnd, load: nav?.loadEventEnd };
+    });
+    const report = judgeTimeline(this.timelineEvents, marks, budgets);
+    await this.attach(ATTACHMENTS.timeline, { url: this.page.url(), ...report });
+    return report;
+  }
+
+  /** Which exposed tools and parameters the recorded calls exercised. */
+  async coverage(): Promise<CoverageReport> {
+    return computeCoverage(await this.tools(), this.calls());
+  }
+
+  /** Agent-readiness score from lint, optional smoke, and coverage. */
+  async score(options: { smoke?: SmokeReport | boolean } = {}): Promise<Score> {
+    const lintResult = await this.lint();
+    const smoke = options.smoke === true ? await this.smoke() : options.smoke || undefined;
+    return computeScore({ lint: lintResult, smoke, coverage: await this.coverage() });
+  }
+
+  /** Playwright test source that reproduces the recorded calls. */
+  codegen(options: Partial<CodegenOptions> & { name: string }): string {
+    let url = "/";
+    try {
+      const u = new URL(this.page.url());
+      url = u.pathname + u.search;
+    } catch {}
+    return toPlaywrightTest({ url, calls: this.calls(), ...options });
+  }
+
+  /** Markdown reference of the page's tools, with examples from recorded calls. */
+  async docs(options: { title?: string } = {}): Promise<string> {
+    return renderToolDocs(await this.contract(), { calls: this.calls(), url: this.page.url(), title: options.title });
+  }
+
+  private async ownerFrame(name: string): Promise<Frame> {
+    const frames = this.page.frames();
+    const results = await Promise.all(frames.map((f) => collectInFrame(f)));
+    const owner = frames.find((_f, i) => results[i]?.tools.some((t) => t.name === name));
+    if (!owner) throw new Error(`No WebMCP tool named "${name}" found on ${this.page.url()}`);
+    return owner;
   }
 
   /** The page's current tool contract: names, descriptions, schemas, annotations, sorted and key-stable. */
@@ -376,6 +530,8 @@ export class WebMCP {
     if (this.cdpSession) await this.cdpSession.detach().catch(() => {});
     if (!this.testInfo) return;
     if (this.recorded.length) await this.attach(ATTACHMENTS.calls, this.calls());
+    if (this.lastSnapshot) await this.attach(ATTACHMENTS.toolSnapshots, this.lastSnapshot.tools);
+    if (this.timelineEvents.length) await this.attach(ATTACHMENTS.timeline, { url: this.page.url(), events: this.timelineEvents });
   }
 
   /** @internal */

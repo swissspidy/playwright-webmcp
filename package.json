@@ -7,7 +7,7 @@
     "build": "pnpm -r --filter './packages/*' run build",
     "test": "pnpm run build && pnpm run test:unit && pnpm run test:e2e",
     "test:unit": "pnpm --filter webmcp-lint test",
-    "test:e2e": "pnpm --filter playwright-webmcp test",
+    "test:e2e": "pnpm --filter playwright-webmcp test && pnpm --filter webmcp-audit test",
     "typecheck": "pnpm -r --filter './packages/*' run typecheck"
   },
   "devDependencies": {

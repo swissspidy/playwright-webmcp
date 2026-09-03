@@ -4,6 +4,8 @@ import { descriptionLength, descriptionMissing, paramDescriptionMissing } from "
 import { schemaDepth, schemaKeywords, schemaNulls, schemaShape, sensitiveParams } from "./schema.js";
 import { duplicateToolName, iframeAllowTools, noTools, similarDescriptions, tooManyTools } from "./page.js";
 import { declarativeAutosubmit, declarativeDescription, declarativeFieldLabels } from "./declarative.js";
+import { descriptionInjection } from "./injection.js";
+import { exposedToInsecure, namingConsistency } from "./naming.js";
 
 export const builtinRules: Rule[] = [
   toolNameValid,
@@ -23,6 +25,9 @@ export const builtinRules: Rule[] = [
   declarativeDescription,
   declarativeFieldLabels,
   declarativeAutosubmit,
+  descriptionInjection,
+  namingConsistency,
+  exposedToInsecure,
 ];
 
 export const rulesById: Record<string, Rule> = Object.fromEntries(builtinRules.map((r) => [r.id, r]));

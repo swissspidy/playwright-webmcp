@@ -52,6 +52,7 @@ export async function collectFrame(): Promise<FrameCollectResult> {
       source: decl ? "declarative" : "imperative",
       hasExecute: typeof t.execute === "function" || typeof t._execute === "function" ? true : decl ? true : undefined,
       declarative: decl ? decl.info : undefined,
+      exposedTo: Array.isArray(t.exposedTo) ? t.exposedTo.map(String) : undefined,
     });
   }
   // Declarative forms the API implementation did not surface (no API at all, or native support missing).

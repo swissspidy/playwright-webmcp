@@ -1,0 +1,248 @@
+{
+  "tools": [
+    {
+      "name": "search_products",
+      "calls": 32,
+      "errors": 2,
+      "via": {
+        "api": 1,
+        "fixture": 27,
+        "agent": 4
+      },
+      "parameters": [
+        "query"
+      ],
+      "parametersSeen": [
+        "query"
+      ],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "add_to_cart",
+      "calls": 10,
+      "errors": 1,
+      "via": {
+        "api": 1,
+        "fixture": 8,
+        "agent": 1
+      },
+      "parameters": [
+        "productId",
+        "quantity"
+      ],
+      "parametersSeen": [
+        "productId",
+        "quantity"
+      ],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "subscribe_newsletter",
+      "calls": 1,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 1,
+        "agent": 0
+      },
+      "parameters": [
+        "email",
+        "frequency"
+      ],
+      "parametersSeen": [
+        "email",
+        "frequency"
+      ],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "list_reviews",
+      "calls": 8,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 5,
+        "agent": 3
+      },
+      "parameters": [
+        "productId"
+      ],
+      "parametersSeen": [
+        "productId"
+      ],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "checkout",
+      "calls": 0,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 0,
+        "agent": 0
+      },
+      "parameters": [],
+      "parametersSeen": [],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "host_tool",
+      "calls": 0,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 0,
+        "agent": 0
+      },
+      "parameters": [],
+      "parametersSeen": [],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "partner_quote",
+      "calls": 2,
+      "errors": 0,
+      "via": {
+        "api": 2,
+        "fixture": 0,
+        "agent": 0
+      },
+      "parameters": [
+        "country",
+        "weightKg"
+      ],
+      "parametersSeen": [
+        "country",
+        "weightKg"
+      ],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "partner_private",
+      "calls": 1,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 1,
+        "agent": 0
+      },
+      "parameters": [],
+      "parametersSeen": [],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "quick_search",
+      "calls": 0,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 0,
+        "agent": 0
+      },
+      "parameters": [
+        "q"
+      ],
+      "parametersSeen": [],
+      "parametersNeverSet": [
+        "q"
+      ]
+    },
+    {
+      "name": "find_products",
+      "calls": 0,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 0,
+        "agent": 0
+      },
+      "parameters": [
+        "query"
+      ],
+      "parametersSeen": [],
+      "parametersNeverSet": [
+        "query"
+      ]
+    },
+    {
+      "name": "lookup_products",
+      "calls": 0,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 0,
+        "agent": 0
+      },
+      "parameters": [
+        "query",
+        "apiKey"
+      ],
+      "parametersSeen": [],
+      "parametersNeverSet": [
+        "query",
+        "apiKey"
+      ]
+    },
+    {
+      "name": "log in",
+      "calls": 0,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 0,
+        "agent": 0
+      },
+      "parameters": [
+        "username",
+        "password"
+      ],
+      "parametersSeen": [],
+      "parametersNeverSet": [
+        "username",
+        "password"
+      ]
+    },
+    {
+      "name": "lookup",
+      "calls": 7,
+      "errors": 0,
+      "via": {
+        "api": 0,
+        "fixture": 7,
+        "agent": 0
+      },
+      "parameters": [
+        "id"
+      ],
+      "parametersSeen": [
+        "id"
+      ],
+      "parametersNeverSet": []
+    },
+    {
+      "name": "flaky",
+      "calls": 1,
+      "errors": 1,
+      "via": {
+        "api": 0,
+        "fixture": 1,
+        "agent": 0
+      },
+      "parameters": [],
+      "parametersSeen": [],
+      "parametersNeverSet": []
+    }
+  ],
+  "total": 14,
+  "called": 8,
+  "ratio": 0.5714285714285714,
+  "parameterRatio": 0.6,
+  "uncalled": [
+    "checkout",
+    "host_tool",
+    "quick_search",
+    "find_products",
+    "lookup_products",
+    "log in"
+  ]
+}

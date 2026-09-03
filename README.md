@@ -8,7 +8,8 @@ The shape is deliberately the same as axe-core: one engine that inspects the liv
 | --- | --- |
 | [`webmcp-lint`](packages/core) | Snapshot model, rules, `lint()`, and an argument matcher plus trajectory reconciler with the same semantics as `webmcp-evals`. Runs in Node against a snapshot. |
 | [`playwright-webmcp`](packages/playwright) | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, and record scenarios. Ships a test-time shim so it runs on any Chromium. |
-| [`playwright-webmcp-evals`](packages/evals-reporter) | Playwright reporter that writes `evals.json` and `tools.json` from recorded scenarios. |
+| [`playwright-webmcp-evals`](packages/evals-reporter) | Playwright reporter that writes `evals.json`, `tools.json`, `coverage.json` and `TOOLS.md` from recorded scenarios and calls. |
+| [`webmcp-audit`](packages/audit) | CLI and library that crawls a site, lints and smokes every page, detects cross-page drift, and scores agent readiness. |
 
 ## Quick start
 
@@ -74,6 +75,11 @@ npx webmcp-evals local --tools .webmcp-evals/tools.json --evals .webmcp-evals/ev
 | `smoke(options)` | Generate inputs from each tool's schema, execute them, and judge the results. |
 | `contract()`, `matchToolContract(name?)` | The page's tool contract, and a comparison against the stored one. |
 | `scenario(options, body)` | Record the calls `body` makes as an eval case and attach it. |
+| `reachableTools({ from? })` | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`. |
+| `mock(name, impl)`, `unmock(name)`, `replay(recording)` | Replace tool implementations from the test; replay recorded results. |
+| `timeline(budgets)` | Registration events since navigation, time to first tool, late and churn findings. |
+| `coverage()`, `score()` | Tool and parameter coverage; agent-readiness score. |
+| `codegen({ name })`, `docs()` | Playwright test source from the recording; Markdown tool reference. |
 | `cdp` | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`. |
 
 Options via `test.use({ webmcpOptions: { shim: "auto" \| "always" \| "never", record: true, lint: {...}, cdp: "auto" \| "never" } })`.
@@ -96,6 +102,10 @@ On browsers without the domain the collector stays off and everything falls back
 | `toPassLint({ failOn?, rules?, extraRules? })` | `webmcp` or `page` | `failOn` defaults to `"error"`. |
 | `toPassSmoke({ tools?, all?, kinds?, failOn?, ...budgets })` | `webmcp` or `page` | Runtime findings from generated inputs. |
 | `toMatchToolContract(name?)` | `webmcp` or `page` | Compares against the stored contract; honours `--update-snapshots`. |
+| `toReachTool(name, { from? })` | `webmcp` or `page` | Reachability through the API from a frame. |
+| `toHaveToolCoverage(min)` | `webmcp` or `page` | Fraction (0..1) or percent of tools called. |
+| `toHaveAgentReadinessScore(min, { smoke? })` | `webmcp` or `page` | Score at least `min`. |
+| `toRegisterToolsWithin(ms)` | `webmcp` or `page` | Time to first tool registration. |
 | `toHaveCalledTool(name, args?)` | `webmcp` or `RecordedCall[]` | `args` accepts the evals constraint operators. |
 | `toMatchCalls(expectedCall, { strict? })` | `webmcp` or `RecordedCall[]` | Full trajectory check with `ordered`, `unordered`, `optional`. |
 
@@ -152,6 +162,50 @@ await page.goto("/");
 
 The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your harness and tool wiring, not the model.
 
+## Cross-origin exposure
+
+WebMCP lets a page expose tools to embedders with `exposedTo`, and lets an embedder opt in with `<iframe allow="tools">`. The test shim implements both over `postMessage`: `getTools({ fromOrigins })` in the embedder asks each allowed cross-origin frame for the tools exposed to the embedder's origin, and remote tools execute through the same channel. `snapshot()` still sees every frame because Playwright evaluates inside them, so you can assert both what exists and what an agent can actually reach:
+
+```ts
+await expect(webmcp).toReachTool("partner_quote");
+await expect(webmcp).not.toReachTool("partner_private");
+```
+
+The `exposed-to-secure-origins` rule flags `exposedTo` entries that the API would reject, and `iframe-allow-tools` points at cross-origin frames that register tools nobody can reach.
+
+## Mocks and replay
+
+`mock(name, impl)` swaps a tool's implementation for one that runs in Node, so agent tests can exercise `add_to_cart` without side effects, and a `{ error }` mock reproduces backend failures. `replay(recording)` mocks every tool in a recording so calls with the same arguments return the recorded result, which turns any recording, including one made against the on-device model, into a deterministic fixture. Restoring the original works when the page's API exposes `execute` (the shim does; native builds may not).
+
+## Registration timeline
+
+The recorder timestamps every registration and removal relative to navigation. `timeline()` reports time to first tool, tools that appear only after the load event, and tools that flap:
+
+| Rule | Severity | Checks |
+| --- | --- | --- |
+| `tools-register-late` | warning | First tool later than `lateMs` (3000) after navigation start. |
+| `tools-after-load` | info | Tools registered after the load event. |
+| `tool-churn` | warning | A tool unregistered `churnCount` (3) or more times. |
+
+## Coverage, score, codegen, docs
+
+- **Coverage** counts tools and parameters the recorded calls exercised. The reporter aggregates it across the suite into `coverage.json`.
+- **Score** is a 0..100 number with a breakdown: declarations (weight 40) from non-safety lint findings, runtime (30) from smoke findings when a smoke run is supplied, safety (15) from the injection, sensitive-parameter, autosubmit, and exposure rules, and coverage (15). Errors cost 15 points of a category, warnings 5. Categories without input are left out and the rest renormalised.
+- **Codegen** renders a Playwright test from the recording, with `promptApi.run(prompt)` for agent-made calls when a prompt is given, and a `toMatchCalls` assertion.
+- **Docs** renders a Markdown reference of the tools with parameter tables and example calls; the reporter writes it as `TOOLS.md`.
+
+## Injection scanning
+
+Descriptions are read by every agent that visits a page, and tool results go straight into a model's context. `description-injection` (error) flags instruction overrides, role markers, exfiltration phrasing, and zero-width or bidirectional characters in tool and parameter descriptions. The smoke rule `result-suspicious-content` (warning) applies the same detector to string values in results. The CDP domain marks tool output as untrusted for the same reason.
+
+## Site audit
+
+```sh
+npx webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
+```
+
+Crawls same-origin links, lints every page, optionally runs smoke on read-only tools (`--all-tools` widens it), detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. Exit code 1 when any error-level finding exists. The same is available as `audit()` from the `webmcp-audit` package.
+
 ## Smoke: runtime checks from schemas
 
 `smoke()` derives inputs from each tool's `inputSchema` and runs them: the required parameters only, all parameters, boundary values (minimum, maximum, maxLength, empty strings and arrays, each enum value), and invalid inputs (missing required, wrong type, out of range, outside enum). Every result is judged:
@@ -166,6 +220,7 @@ The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a bui
 | `result-slow` | warning | Took longer than `maxDurationMs` (5 s). |
 | `result-accepts-invalid-input` | warning | Invalid input was accepted without an error. |
 | `result-string-json` | info | Returned JSON as a string rather than an object. |
+| `result-suspicious-content` | warning | Result text looks like an instruction to the agent or has hidden characters. |
 
 Smoke runs execute real tools. By default only tools annotated read-only (`annotations.readOnly` from the browser, or `readOnlyHint`) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it.
 
@@ -208,6 +263,9 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | `declarative-description` | error | `<form toolname>` also has `tooldescription`. |
 | `declarative-field-description` | warning | Each named field has a label or `toolparamdescription`. |
 | `declarative-autosubmit-sensitive` | error | `toolautosubmit` on forms with password or payment fields. |
+| `description-injection` | error | Instructions to the agent, role markers, or hidden characters in descriptions. |
+| `naming-consistency` | warning | Mixed naming styles across tool or parameter names. |
+| `exposed-to-secure-origins` | error | `exposedTo` lists an insecure origin. |
 
 Configure per rule: `false` disables, a severity string re-levels, an object overrides options.
 
@@ -250,7 +308,7 @@ Chrome reports declarative form problems as DevTools issues (missing tool name o
 
 - Early. APIs will move.
 - The CDP collector is written against the `WebMCP` domain in `devtools-protocol` and unit tested with a scripted session, but has not yet been exercised against a real Chrome 150 build.
-- The shim exists for tests only; it is not a production polyfill and does not implement cross-origin `exposedTo` or `requestUserInteraction`.
+- The shim exists for tests only; it is not a production polyfill. Its cross-origin bridge approximates `exposedTo` and `allow="tools"` over `postMessage`; it does not implement `requestUserInteraction`.
 - Recording covers executions that go through `modelContext` in the page, including the ones `webmcp.promptApi` triggers. Calls driven by Chrome's own built-in agent over CDP are not visible to page scripts; a CDP-based collector is a planned addition.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.
 - The similarity rule is lexical. Embedding-based similarity was considered and left out for now.

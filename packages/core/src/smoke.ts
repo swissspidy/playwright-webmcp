@@ -5,6 +5,7 @@
 import type { Finding, Severity } from "./types.js";
 import type { ArgumentKind } from "./generate.js";
 import { walk } from "./rules/helpers.js";
+import { scanValue } from "./injection.js";
 
 export interface SmokeRun {
   tool: string;
@@ -39,6 +40,7 @@ export const SMOKE_RULES = {
   "result-slow": { severity: "warning" as Severity, description: "Tool took longer than the duration budget." },
   "result-accepts-invalid-input": { severity: "warning" as Severity, description: "Tool accepted schema-invalid input without an error; validate arguments so bad calls fail loudly." },
   "result-string-json": { severity: "info" as Severity, description: "Tool returned a JSON string rather than an object; agents cope, but objects are easier to inspect." },
+  "result-suspicious-content": { severity: "warning" as Severity, description: "Result text looks like an instruction to the agent or contains hidden characters; mark the tool untrustedContent or sanitize." },
 } as const;
 
 export type SmokeRuleId = keyof typeof SMOKE_RULES;
@@ -92,6 +94,10 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
   for (const [path, value] of walk(run.result)) if (value === null) nullPaths.push(path || "/");
   if (nullPaths.length)
     out.push(make("result-contains-null", run, `${where} returned null at ${nullPaths.slice(0, 5).join(", ")}${nullPaths.length > 5 ? ", ..." : ""}.`, "Omit the key or use an empty string, zero, or false instead."));
+
+  for (const { path, hits } of scanValue(run.result)) {
+    out.push(make("result-suspicious-content", run, `${where} returned ${hits.map((h) => h.kind.replace(/-/g, " ")).join(", ")} at ${path}: ${JSON.stringify(hits[0].match)}.`, SMOKE_RULES["result-suspicious-content"].description));
+  }
 
   const bytes = new TextEncoder().encode(serialized).length;
   if (bytes > maxBytes) out.push(make("result-too-large", run, `${where} returned ${bytes} bytes; budget is ${maxBytes}.`, "Paginate or return ids plus a summary."));

@@ -40,6 +40,17 @@ export interface ToolSnapshot {
   declarative?: DeclarativeInfo;
   /** Registration site, when known (from the CDP collector). */
   location?: { url: string; line: number; column: number };
+  /** Origins the tool was explicitly exposed to (from registerTool options), when the API surfaces it. */
+  exposedTo?: string[];
+}
+
+/** A tool registration or removal observed in a frame, relative to navigation start. */
+export interface RegistrationEvent {
+  type: "registered" | "unregistered";
+  name: string;
+  /** Milliseconds since the frame's navigation start. */
+  at: number;
+  frameUrl: string;
 }
 
 export interface FrameSnapshot {

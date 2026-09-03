@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8" /><title>Partner embed</title></head>
+<body>
+  <h1>Checkout with partner shipping</h1>
+  <iframe id="partner" src="http://127.0.0.1:4173/partner.html" allow="tools" title="Partner shipping"></iframe>
+  <iframe id="partner-noallow" src="http://127.0.0.1:4173/partner.html" title="Partner shipping without permission"></iframe>
+  <script>
+    const mc = document.modelContext ?? navigator.modelContext;
+    mc.registerTool({
+      name: "host_tool",
+      description: "Return the current checkout summary including item count and subtotal for the host page.",
+      inputSchema: { type: "object", properties: {} },
+      async execute() {
+        return { items: 2, subtotal: 42 };
+      },
+    });
+  </script>
+</body>
+</html>

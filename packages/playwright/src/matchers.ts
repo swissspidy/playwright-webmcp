@@ -13,6 +13,7 @@ import {
   type Severity,
   type ToolSource,
 } from "webmcp-lint";
+import { formatScore, type TimelineBudgets } from "webmcp-lint";
 import { WebMCP, type EvalRunOptions } from "./fixture.js";
 import type { SmokeOptions } from "./smoke.js";
 
@@ -139,6 +140,58 @@ export const expect = baseExpect.extend({
         result.pass
           ? `Expected the tool contract to differ from ${result.path}, but it matched.`
           : `Tool contract differs from ${result.path}:\n${formatChanges(result.changes)}\nRun with --update-snapshots to accept the change.`,
+    };
+  },
+
+  async toReachTool(received: unknown, name: string, options: { from?: number } = {}) {
+    const webmcp = resolve(received);
+    const reachable = await webmcp.reachableTools(options);
+    const pass = reachable.some((t) => t.name === name);
+    return {
+      pass,
+      name: "toReachTool",
+      message: () =>
+        pass
+          ? `Expected tool "${name}" not to be reachable from frame ${options.from ?? 0}, but it is.`
+          : `Tool "${name}" is not reachable from frame ${options.from ?? 0}. Reachable: ${reachable.map((t) => `${t.name}${t.remote ? ` (${t.origin})` : ""}`).join(", ") || "(none)"}`,
+    };
+  },
+
+  async toHaveToolCoverage(received: unknown, minimum: number) {
+    const webmcp = resolve(received);
+    const report = await webmcp.coverage();
+    const min = minimum > 1 ? minimum / 100 : minimum;
+    const pass = report.ratio >= min;
+    return {
+      pass,
+      name: "toHaveToolCoverage",
+      message: () =>
+        `Tool coverage is ${Math.round(report.ratio * 100)}% (${report.called}/${report.total}); expected ${pass ? "less than" : "at least"} ${Math.round(min * 100)}%.${report.uncalled.length ? ` Never called: ${report.uncalled.join(", ")}` : ""}`,
+    };
+  },
+
+  async toHaveAgentReadinessScore(received: unknown, minimum: number, options: { smoke?: boolean } = {}) {
+    const webmcp = resolve(received);
+    const score = await webmcp.score(options);
+    const pass = score.score >= minimum;
+    return {
+      pass,
+      name: "toHaveAgentReadinessScore",
+      message: () => `${formatScore(score)}\nExpected ${pass ? "below" : "at least"} ${minimum}.`,
+    };
+  },
+
+  async toRegisterToolsWithin(received: unknown, ms: number, budgets: TimelineBudgets = {}) {
+    const webmcp = resolve(received);
+    const report = await webmcp.timeline(budgets);
+    const pass = report.timeToFirstTool !== undefined && report.timeToFirstTool <= ms;
+    return {
+      pass,
+      name: "toRegisterToolsWithin",
+      message: () =>
+        report.timeToFirstTool === undefined
+          ? `No tool registrations were observed on ${webmcp.page.url()}.`
+          : `First tool registered ${Math.round(report.timeToFirstTool)} ms after navigation; expected ${pass ? "more than" : "at most"} ${ms} ms.`,
     };
   },
 

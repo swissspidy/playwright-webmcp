@@ -23,7 +23,13 @@ export const SHIM_SOURCE = String.raw`(() => {
   }
 
   function publicTool(t) {
-    return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations, window: t.window, origin: t.origin, execute: t.execute };
+    return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations, window: t.window, origin: t.origin, execute: t.execute, exposedTo: t.exposedTo };
+  }
+  function remoteTool(t, win, origin) {
+    return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations, window: win, origin, _isRemote: true };
+  }
+  function exposedToOrigin(t, origin) {
+    return Array.isArray(t.exposedTo) && (t.exposedTo.includes("*") || t.exposedTo.includes(origin));
   }
 
   function normalize(tool) {
@@ -59,6 +65,12 @@ export const SHIM_SOURCE = String.raw`(() => {
     dispatchEvent: (e) => target.dispatchEvent(e),
     async registerTool(tool, options = {}) {
       const t = normalize(tool);
+      if (Array.isArray(options.exposedTo)) {
+        for (const o of options.exposedTo) {
+          if (o !== "*" && !/^https:\/\//.test(o) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)) throw new DOMException("exposedTo origins must be secure: " + o, "NotAllowedError");
+        }
+        t.exposedTo = options.exposedTo.slice();
+      }
       tools.set(t.name, t);
       if (options.signal) options.signal.addEventListener("abort", () => mc.unregisterTool(t.name), { once: true });
       fire();
@@ -81,10 +93,27 @@ export const SHIM_SOURCE = String.raw`(() => {
       for (const child of sameOriginChildContexts()) {
         try { nested.push(...(await child.getTools())); } catch {}
       }
+      const wanted = Array.isArray(options.fromOrigins) ? options.fromOrigins : [];
+      if (wanted.length) {
+        for (const f of crossOriginFrames()) {
+          if (!wanted.includes("*") && !wanted.includes(f.origin)) continue;
+          if (!allowsTools(f.element)) continue;
+          try {
+            const list = await bridgeRequest(f.element.contentWindow, f.origin, { type: "webmcp:list" });
+            for (const t of list) nested.push(remoteTool(t, f.element.contentWindow, f.origin));
+          } catch {}
+        }
+      }
       return own.concat(nested);
     },
     async executeTool(toolOrName, args, options = {}) {
       const name = typeof toolOrName === "string" ? toolOrName : toolOrName && toolOrName.name;
+      if (toolOrName && toolOrName._isRemote) {
+        const parsedRemote = typeof args === "string" ? JSON.parse(args) : (args || {});
+        const reply = await bridgeRequest(toolOrName.window, toolOrName.origin, { type: "webmcp:execute", name, args: parsedRemote });
+        if (reply && reply.__error) throw new DOMException(reply.__error, "OperationError");
+        return reply;
+      }
       let t = tools.get(name);
       if (!t) {
         for (const child of sameOriginChildContexts()) {
@@ -98,6 +127,59 @@ export const SHIM_SOURCE = String.raw`(() => {
       return await t.execute(parsed, { signal: options.signal });
     },
   };
+
+  // Cross-origin bridge. The embedder gates access with allow="tools" on the
+  // <iframe>; the embedded frame only answers for tools whose exposedTo
+  // includes the requesting origin.
+  function crossOriginFrames() {
+    const out = [];
+    for (const element of document.querySelectorAll("iframe")) {
+      let same = true;
+      try { void element.contentDocument; same = Boolean(element.contentDocument); } catch { same = false; }
+      if (same) continue;
+      let origin = null;
+      try { origin = new URL(element.src, location.href).origin; } catch {}
+      if (origin && element.contentWindow) out.push({ element, origin });
+    }
+    return out;
+  }
+  function allowsTools(element) {
+    const allow = element.getAttribute("allow") || "";
+    return allow.split(/[;\s]+/).map((s) => s.trim()).includes("tools");
+  }
+  let bridgeSeq = 0;
+  function bridgeRequest(win, origin, message, timeoutMs = 2000) {
+    return new Promise((resolve, reject) => {
+      const id = "webmcp-" + (++bridgeSeq) + "-" + Math.random().toString(36).slice(2);
+      const timer = setTimeout(() => { window.removeEventListener("message", onMessage); reject(new Error("WebMCP bridge timeout")); }, timeoutMs);
+      function onMessage(event) {
+        if (event.source !== win || !event.data || event.data.type !== "webmcp:reply" || event.data.id !== id) return;
+        clearTimeout(timer);
+        window.removeEventListener("message", onMessage);
+        resolve(event.data.payload);
+      }
+      window.addEventListener("message", onMessage);
+      win.postMessage(Object.assign({ id }, message), origin);
+    });
+  }
+  window.addEventListener("message", async (event) => {
+    const data = event.data;
+    if (!data || typeof data.type !== "string" || !data.type.startsWith("webmcp:") || data.type === "webmcp:reply") return;
+    if (!event.source || event.origin === location.origin) return;
+    const reply = (payload) => event.source.postMessage({ type: "webmcp:reply", id: data.id, payload }, event.origin);
+    if (data.type === "webmcp:list") {
+      reply([...tools.values()].filter((t) => exposedToOrigin(t, event.origin)).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations })));
+    } else if (data.type === "webmcp:execute") {
+      const t = tools.get(data.name);
+      if (!t || !exposedToOrigin(t, event.origin)) return reply({ __error: "Tool " + data.name + " is not exposed to " + event.origin });
+      try {
+        const result = await mc.executeTool(data.name, data.args || {}, {});
+        reply(result === undefined ? null : JSON.parse(JSON.stringify(result)));
+      } catch (err) {
+        reply({ __error: String((err && err.message) || err) });
+      }
+    }
+  });
 
   // Declarative forms.
   const formTools = new Map();
