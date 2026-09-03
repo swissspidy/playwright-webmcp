@@ -231,6 +231,17 @@ pnpm run test:e2e   # set PW_CHROMIUM=/path/to/chrome to use a specific binary
 
 `examples/demo-site` is the page the Playwright suite runs against.
 
+## Turning recorded usage into evals
+
+Every recording the fixture makes, whether from `scenario()`, `smoke()`, the CDP collector, or the Prompt API harness, is a list of `RecordedCall` entries: tool, arguments, result or error, timing, and who made the call. That is most of an evals case. What a recording lacks is the user request that led to it, because agents never tell the page what the user asked.
+
+Two ways to close that gap:
+
+- **Record the prompt where you have it.** In tests you do: `scenario({ prompt })` pairs the request with the calls and exports a complete case. Pages that run their own in-page agent also know the prompt and can do the same in production.
+- **Infer the prompt where you do not.** A trajectory such as `search_products({ query: "red shirt" })` followed by `add_to_cart({ productId: 1, quantity: 2 })`, together with the tools schema, is enough for a model to write a plausible user request ("Add two red shirts to my cart"). The reporter's `tools.json` and the `webmcp-calls` attachments give you both inputs. Generated prompts should be reviewed before they become fixtures, so this is a script in your repository rather than a feature of this package.
+
+Recordings without prompts are still useful as they are. The evals CLI's `smoke` mode replays tool calls deterministically without a model, so a production or test trajectory is a regression test on its own, and `toMatchCalls()` reconciles one against live calls in Playwright.
+
 ## Relationship to Lighthouse and DevTools
 
 Chrome reports declarative form problems as DevTools issues (missing tool name or description, parameters without a name, title or description), and Lighthouse has audits for form coverage, schema validity of declarative tools, and a listing of registered tools. The declarative rules here overlap with those on purpose so a Playwright suite can fail a pull request on the same findings. The imperative rules, page-level rules, smoke runs, contracts, and on-device runs have no Lighthouse counterpart.
