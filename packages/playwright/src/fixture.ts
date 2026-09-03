@@ -1,10 +1,17 @@
-import { test as base, type Browser, type Frame, type Page, type TestInfo } from "@playwright/test";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
+import { test as base, type Browser, type CDPSession, type Frame, type Page, type TestInfo } from "@playwright/test";
 import {
   collectFrame,
+  diffContracts,
+  formatChanges,
   lint,
   reconcileCalls,
+  serializeContract,
+  toContract,
   toEvalCase,
   toToolsSchema,
+  type ContractChange,
   type EvalCase,
   type FrameCollectResult,
   type LintOptions,
@@ -12,9 +19,13 @@ import {
   type PageSnapshot,
   type RecordedCall,
   type ReconcileOptions,
+  type SmokeReport,
   type ToEvalOptions,
+  type ToolContract,
   type ToolSnapshot,
 } from "webmcp-lint";
+import { CdpCollector } from "./cdp.js";
+import { runSmoke, type SmokeOptions } from "./smoke.js";
 import { SHIM_SOURCE } from "./shim.js";
 import { RECORDER_SOURCE } from "./recorder.js";
 import { normalizeRunOptions, runPromptApiInPage, type PromptApiRunOptions, type PromptApiRunResult } from "./prompt-api.js";
@@ -30,9 +41,14 @@ export interface WebMCPOptions {
   record: boolean;
   /** Default lint options for `webmcp.lint()` and `toPassLint()`. */
   lint: LintOptions;
+  /**
+   * "auto": attach to the CDP WebMCP domain when the browser has it (Chrome 150+),
+   * so calls made by Chrome's own agent are recorded too. "never": page-side hooks only.
+   */
+  cdp: "auto" | "never";
 }
 
-export const DEFAULT_OPTIONS: WebMCPOptions = { shim: "auto", record: true, lint: {} };
+export const DEFAULT_OPTIONS: WebMCPOptions = { shim: "auto", record: true, lint: {}, cdp: "auto" };
 
 export const ATTACHMENTS = {
   eval: "webmcp-eval",
@@ -41,7 +57,18 @@ export const ATTACHMENTS = {
   snapshot: "webmcp-snapshot",
   calls: "webmcp-calls",
   promptApi: "webmcp-prompt-api",
+  smoke: "webmcp-smoke",
+  contract: "webmcp-contract",
 } as const;
+
+export interface ContractMatchResult {
+  pass: boolean;
+  /** "matched" | "written" (new or updated on disk) | "changed" */
+  outcome: "matched" | "written" | "changed";
+  path: string;
+  changes: ContractChange[];
+  contract: ToolContract;
+}
 
 export interface EvalRunOptions extends Omit<PromptApiRunOptions, "prompts">, ReconcileOptions {}
 
@@ -121,7 +148,10 @@ const instances = new WeakMap<Page, WebMCP>();
 export class WebMCP {
   private recorded: RecordedCall[] = [];
   private installed = false;
+  private cdpSession: CDPSession | undefined;
   readonly promptApi: PromptApiHarness = new PromptApiHarness(this);
+  /** CDP collector; `enabled` is true only when the browser implements the WebMCP domain. */
+  cdp: CdpCollector | undefined;
 
   constructor(
     readonly page: Page,
@@ -149,6 +179,26 @@ export class WebMCP {
       await this.page.addInitScript(this.options.shim === "always" ? SHIM_SOURCE.replace("if (document.modelContext || (navigator && navigator.modelContext)) return;", "") : SHIM_SOURCE);
     }
     if (this.options.record) await this.page.addInitScript(RECORDER_SOURCE);
+    if (this.options.cdp === "auto") await this.attachCdp();
+  }
+
+  /** Try to attach the CDP WebMCP collector. Returns whether the domain is available. */
+  async attachCdp(): Promise<boolean> {
+    if (this.cdp?.enabled) return true;
+    try {
+      this.cdpSession = await this.page.context().newCDPSession(this.page);
+    } catch {
+      return false;
+    }
+    const collector = new CdpCollector(this.cdpSession, { onCall: (call) => this.recorded.push(call) });
+    const ok = await collector.enable();
+    if (!ok) {
+      await this.cdpSession.detach().catch(() => {});
+      this.cdpSession = undefined;
+      return false;
+    }
+    this.cdp = collector;
+    return true;
   }
 
   /** Collect tools and frame facts from every frame of the page. */
@@ -176,7 +226,61 @@ export class WebMCP {
       snapshot.frames.push({ ...r.frame, allow, crossOriginFromTop: i > 0 && r.frame.origin !== topOrigin });
       for (const t of r.tools) snapshot.tools.push({ ...t, frame: i });
     }
+    if (this.cdp?.enabled) {
+      await this.cdp.refreshFrames();
+      for (const tool of snapshot.tools) {
+        const frameUrl = snapshot.frames[tool.frame]?.url;
+        const native = this.cdp.list().find((c) => c.name === tool.name && (this.cdp!.frameUrl(c.frameId) ?? frameUrl) === frameUrl) ?? this.cdp.find(tool.name);
+        if (!native) continue;
+        if (native.location) tool.location = native.location;
+        if (native.annotations && !tool.annotations) tool.annotations = { ...native.annotations };
+        if (native.backendNodeId !== undefined && tool.source !== "declarative") tool.source = "declarative";
+      }
+    }
     return snapshot;
+  }
+
+  /**
+   * Execute generated inputs against tools and judge the results. Without
+   * `tools` or `all`, only tools annotated read-only are exercised.
+   */
+  async smoke(options: SmokeOptions = {}): Promise<SmokeReport & { skipped: string[] }> {
+    const tools = await this.tools();
+    const report = await runSmoke(tools, (name, args) => this.call(name, args), options);
+    await this.attach(ATTACHMENTS.smoke, { url: this.page.url(), ...report });
+    return report;
+  }
+
+  /** The page's current tool contract: names, descriptions, schemas, annotations, sorted and key-stable. */
+  async contract(): Promise<ToolContract> {
+    return toContract(await this.snapshot());
+  }
+
+  /**
+   * Compare the page's tool contract with the one stored next to the test
+   * (via testInfo.snapshotPath). Honours Playwright's --update-snapshots.
+   */
+  async matchToolContract(name = "webmcp-contract.json"): Promise<ContractMatchResult> {
+    if (!this.testInfo) throw new Error("matchToolContract() needs the test fixture");
+    const contract = await this.contract();
+    const path = this.testInfo.snapshotPath(name);
+    const mode = this.testInfo.config.updateSnapshots;
+    const exists = existsSync(path);
+    if (!exists) {
+      if (mode === "none") return { pass: false, outcome: "changed", path, changes: contract.tools.map((t) => ({ kind: "tool-added", tool: t.name, detail: "no stored contract" })), contract };
+      mkdirSync(dirname(path), { recursive: true });
+      writeFileSync(path, serializeContract(contract));
+      return { pass: true, outcome: "written", path, changes: [], contract };
+    }
+    const stored = JSON.parse(readFileSync(path, "utf8")) as ToolContract;
+    const changes = diffContracts(stored, contract);
+    if (!changes.length) return { pass: true, outcome: "matched", path, changes, contract };
+    if (mode === "all" || mode === "changed") {
+      writeFileSync(path, serializeContract(contract));
+      return { pass: true, outcome: "written", path, changes, contract };
+    }
+    await this.attach(ATTACHMENTS.contract, { path, changes: formatChanges(changes), contract });
+    return { pass: false, outcome: "changed", path, changes, contract };
   }
 
   async tools(): Promise<ToolSnapshot[]> {
@@ -203,6 +307,11 @@ export class WebMCP {
 
   /** Execute a tool through the page's modelContext and record the call. */
   async call<T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+    if (this.cdp?.enabled && this.cdp.find(name)) {
+      const outcome = await this.cdp.invoke(name, args);
+      if (!outcome.ok) throw new Error(`Tool "${name}" failed: ${outcome.error}`);
+      return outcome.result as T;
+    }
     const frames = this.page.frames();
     const results = await Promise.all(frames.map((f) => collectInFrame(f)));
     const owner = frames.find((_f, i) => results[i]?.tools.some((t) => t.name === name));
@@ -263,6 +372,8 @@ export class WebMCP {
 
   /** Attach the current snapshot and calls to the test result (done automatically at teardown). */
   async flush(): Promise<void> {
+    if (this.cdp) await this.cdp.disable();
+    if (this.cdpSession) await this.cdpSession.detach().catch(() => {});
     if (!this.testInfo) return;
     if (this.recorded.length) await this.attach(ATTACHMENTS.calls, this.calls());
   }

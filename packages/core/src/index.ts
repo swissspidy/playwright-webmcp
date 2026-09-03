@@ -8,3 +8,6 @@ export { defineRule } from "./rules/helpers.js";
 export { lexicalSimilarity, type SimilarityFn } from "./similarity.js";
 export { toEvalCase, toExpectedCalls, toToolsSchema, type ToEvalOptions, type ArgumentsMode } from "./evals.js";
 export { collectFrame, type FrameCollectResult } from "./collect.js";
+export { generateArguments, sampleValue, type GeneratedArguments, type GenerateOptions, type ArgumentKind } from "./generate.js";
+export { judgeRun, judgeRuns, SMOKE_RULES, type SmokeRun, type SmokeReport, type SmokeBudgets, type SmokeRuleId } from "./smoke.js";
+export { toContract, serializeContract, diffContracts, formatChanges, type ToolContract, type ContractTool, type ContractChange } from "./contract.js";

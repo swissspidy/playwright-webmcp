@@ -38,6 +38,8 @@ export interface ToolSnapshot {
   /** Present when the collector could tell whether an execute callback exists. */
   hasExecute?: boolean;
   declarative?: DeclarativeInfo;
+  /** Registration site, when known (from the CDP collector). */
+  location?: { url: string; line: number; column: number };
 }
 
 export interface FrameSnapshot {
@@ -116,4 +118,6 @@ export interface RecordedCall {
    * "agent" = executed by an on-device model run through webmcp.promptApi.
    */
   via: "api" | "fixture" | "agent";
+  /** Where the call was observed: page-side hooks or the CDP WebMCP domain. Default "page". */
+  source?: "page" | "cdp";
 }

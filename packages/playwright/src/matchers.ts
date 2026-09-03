@@ -1,6 +1,7 @@
 import { expect as baseExpect, type Page } from "@playwright/test";
 import {
   explainMismatch,
+  formatChanges,
   formatFindings,
   matchesArgument,
   reconcileCalls,
@@ -13,6 +14,7 @@ import {
   type ToolSource,
 } from "webmcp-lint";
 import { WebMCP, type EvalRunOptions } from "./fixture.js";
+import type { SmokeOptions } from "./smoke.js";
 
 export interface ToolExpectation {
   description?: string | RegExp;
@@ -22,6 +24,11 @@ export interface ToolExpectation {
 }
 
 export interface LintExpectation extends LintOptions {
+  /** Lowest severity that fails the assertion. Default "error". */
+  failOn?: Severity;
+}
+
+export interface SmokeExpectation extends SmokeOptions {
   /** Lowest severity that fails the assertion. Default "error". */
   failOn?: Severity;
 }
@@ -103,6 +110,35 @@ export const expect = baseExpect.extend({
                 .map((c) => JSON.stringify(c.args))
                 .join("\n  ")}`
             : `Tool "${name}" was never called. Calls: ${calls.map((c) => c.name).join(", ") || "(none)"}`,
+    };
+  },
+
+  async toPassSmoke(received: unknown, options: SmokeExpectation = {}) {
+    const { failOn = "error", ...smokeOptions } = options;
+    const webmcp = resolve(received);
+    const report = await webmcp.smoke(smokeOptions);
+    const failing = report.findings.filter((f) => RANK[f.severity] >= RANK[failOn]);
+    const pass = failing.length === 0;
+    return {
+      pass,
+      name: "toPassSmoke",
+      message: () =>
+        pass
+          ? `Expected smoke findings at severity ${failOn} or above, but there were none (${report.runs.length} run(s)).`
+          : `Smoke run (${report.runs.length} call(s)) found ${failing.length} finding(s) at severity ${failOn} or above:\n${formatFindings({ findings: failing, counts: report.counts, rulesRun: [] })}`,
+    };
+  },
+
+  async toMatchToolContract(received: unknown, name?: string) {
+    const webmcp = resolve(received);
+    const result = await webmcp.matchToolContract(name);
+    return {
+      pass: result.pass,
+      name: "toMatchToolContract",
+      message: () =>
+        result.pass
+          ? `Expected the tool contract to differ from ${result.path}, but it matched.`
+          : `Tool contract differs from ${result.path}:\n${formatChanges(result.changes)}\nRun with --update-snapshots to accept the change.`,
     };
   },
 

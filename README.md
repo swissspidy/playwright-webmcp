@@ -71,9 +71,22 @@ npx webmcp-evals local --tools .webmcp-evals/tools.json --evals .webmcp-evals/ev
 | `call(name, args)` | Execute a tool wherever it lives and record the call. |
 | `calls()`, `clearCalls()` | Recorded calls in execution order, with `via: "fixture" \| "api"`. |
 | `lint(options)` | Run the rules; the result is attached to the test. |
+| `smoke(options)` | Generate inputs from each tool's schema, execute them, and judge the results. |
+| `contract()`, `matchToolContract(name?)` | The page's tool contract, and a comparison against the stored one. |
 | `scenario(options, body)` | Record the calls `body` makes as an eval case and attach it. |
+| `cdp` | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`. |
 
-Options via `test.use({ webmcpOptions: { shim: "auto" \| "always" \| "never", record: true, lint: {...} } })`.
+Options via `test.use({ webmcpOptions: { shim: "auto" \| "always" \| "never", record: true, lint: {...}, cdp: "auto" \| "never" } })`.
+
+### Seeing what Chrome's agent does
+
+On Chrome 150 and later the fixture also attaches to the CDP `WebMCP` domain. That domain reports every registration and every invocation the browser mediates, including calls made by Chrome's built-in agent or another DevTools client, which page scripts cannot observe. When it is available:
+
+- recorded calls carry `source: "cdp"`, and calls not initiated by the fixture are recorded with `via: "agent"`;
+- `call()` invokes tools through `WebMCP.invokeTool` instead of page script;
+- snapshots gain `location` (the registration site) and the browser's own annotations such as `readOnly` and `consequential`.
+
+On browsers without the domain the collector stays off and everything falls back to the page-side hooks. Nothing in the API changes.
 
 ### Matchers
 
@@ -81,6 +94,8 @@ Options via `test.use({ webmcpOptions: { shim: "auto" \| "always" \| "never", re
 | --- | --- | --- |
 | `toHaveTool(name, { description?, inputSchema?, source? })` | `webmcp` or `page` | `inputSchema` uses subset matching, so partial schemas work. |
 | `toPassLint({ failOn?, rules?, extraRules? })` | `webmcp` or `page` | `failOn` defaults to `"error"`. |
+| `toPassSmoke({ tools?, all?, kinds?, failOn?, ...budgets })` | `webmcp` or `page` | Runtime findings from generated inputs. |
+| `toMatchToolContract(name?)` | `webmcp` or `page` | Compares against the stored contract; honours `--update-snapshots`. |
 | `toHaveCalledTool(name, args?)` | `webmcp` or `RecordedCall[]` | `args` accepts the evals constraint operators. |
 | `toMatchCalls(expectedCall, { strict? })` | `webmcp` or `RecordedCall[]` | Full trajectory check with `ordered`, `unordered`, `optional`. |
 
@@ -137,6 +152,39 @@ await page.goto("/");
 
 The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your harness and tool wiring, not the model.
 
+## Smoke: runtime checks from schemas
+
+`smoke()` derives inputs from each tool's `inputSchema` and runs them: the required parameters only, all parameters, boundary values (minimum, maximum, maxLength, empty strings and arrays, each enum value), and invalid inputs (missing required, wrong type, out of range, outside enum). Every result is judged:
+
+| Rule | Severity | Checks |
+| --- | --- | --- |
+| `result-error-on-valid-input` | error | A schema-valid call threw or reported an error. |
+| `result-contains-null` | error | Result contains `null` anywhere; Chrome's Prompt API rejects it. |
+| `result-not-serializable` | error | Result cannot be JSON serialized. |
+| `result-undefined` | warning | Tool returned nothing. |
+| `result-too-large` | warning | Serialized result above `maxResultBytes` (16 KB). |
+| `result-slow` | warning | Took longer than `maxDurationMs` (5 s). |
+| `result-accepts-invalid-input` | warning | Invalid input was accepted without an error. |
+| `result-string-json` | info | Returned JSON as a string rather than an object. |
+
+Smoke runs execute real tools. By default only tools annotated read-only (`annotations.readOnly` from the browser, or `readOnlyHint`) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it.
+
+```ts
+await expect(webmcp).toPassSmoke({ tools: ["search_products", "list_reviews"], failOn: "warning" });
+```
+
+## Tool contracts
+
+`toMatchToolContract()` stores the page's tools (names, descriptions, schemas, annotations, sorted with stable keys) next to the test using Playwright's snapshot path, and fails with a readable diff when they change:
+
+```
+description-changed   search_products: "Search the catalogue" -> "Search the catalogue by keyword and category"
+schema-changed        search_products: parameter "category" added
+tool-added            checkout: new imperative tool at http://localhost:4173
+```
+
+Accept intended changes with `npx playwright test --update-snapshots`. The stored file doubles as an agent-facing changelog in code review. Playwright suffixes the file with project and platform (for example `webmcp-contract-chromium-linux.json`); set `snapshotPathTemplate` in your config if you want one file across platforms.
+
 ## Rules
 
 Rules see the whole page: every frame, declarative forms, and all tools together. That is why this is not an ESLint plugin.
@@ -183,9 +231,14 @@ pnpm run test:e2e   # set PW_CHROMIUM=/path/to/chrome to use a specific binary
 
 `examples/demo-site` is the page the Playwright suite runs against.
 
+## Relationship to Lighthouse and DevTools
+
+Chrome reports declarative form problems as DevTools issues (missing tool name or description, parameters without a name, title or description), and Lighthouse has audits for form coverage, schema validity of declarative tools, and a listing of registered tools. The declarative rules here overlap with those on purpose so a Playwright suite can fail a pull request on the same findings. The imperative rules, page-level rules, smoke runs, contracts, and on-device runs have no Lighthouse counterpart.
+
 ## Status and limits
 
 - Early. APIs will move.
+- The CDP collector is written against the `WebMCP` domain in `devtools-protocol` and unit tested with a scripted session, but has not yet been exercised against a real Chrome 150 build.
 - The shim exists for tests only; it is not a production polyfill and does not implement cross-origin `exposedTo` or `requestUserInteraction`.
 - Recording covers executions that go through `modelContext` in the page, including the ones `webmcp.promptApi` triggers. Calls driven by Chrome's own built-in agent over CDP are not visible to page scripts; a CDP-based collector is a planned addition.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.

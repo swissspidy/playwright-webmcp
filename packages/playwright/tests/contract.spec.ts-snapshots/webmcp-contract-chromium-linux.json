@@ -1,0 +1,90 @@
+{
+  "version": 1,
+  "tools": [
+    {
+      "name": "add_to_cart",
+      "description": "Add a product to the shopping cart by product id, with an optional quantity. Returns the cart total.",
+      "inputSchema": {
+        "properties": {
+          "productId": {
+            "description": "Id of the product from search_products",
+            "type": "number"
+          },
+          "quantity": {
+            "description": "How many to add; defaults to 1",
+            "minimum": 1,
+            "type": "number"
+          }
+        },
+        "required": [
+          "productId"
+        ],
+        "type": "object"
+      },
+      "source": "imperative",
+      "origin": "http://localhost:4173"
+    },
+    {
+      "name": "list_reviews",
+      "description": "List customer reviews for a product id, newest first. Returns rating and text for each review.",
+      "inputSchema": {
+        "properties": {
+          "productId": {
+            "description": "Product id to list reviews for",
+            "type": "number"
+          }
+        },
+        "required": [
+          "productId"
+        ],
+        "type": "object"
+      },
+      "source": "imperative",
+      "origin": "http://localhost:4173"
+    },
+    {
+      "name": "search_products",
+      "description": "Search the product catalogue by keyword. Returns matching products with id, name and price.",
+      "inputSchema": {
+        "properties": {
+          "query": {
+            "description": "Keyword to search for, matched against product names",
+            "type": "string"
+          }
+        },
+        "required": [
+          "query"
+        ],
+        "type": "object"
+      },
+      "source": "imperative",
+      "origin": "http://localhost:4173"
+    },
+    {
+      "name": "subscribe_newsletter",
+      "description": "Subscribe an email address to the weekly newsletter and confirm the subscription.",
+      "inputSchema": {
+        "properties": {
+          "email": {
+            "description": "Email address to subscribe",
+            "type": "string"
+          },
+          "frequency": {
+            "description": "How often to send the newsletter",
+            "enum": [
+              "weekly",
+              "monthly"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "email"
+        ],
+        "type": "object"
+      },
+      "source": "declarative",
+      "origin": "http://localhost:4173"
+    }
+  ]
+}
