@@ -34,11 +34,10 @@ export const similarDescriptions = defineRule({
         const score = similarity(tools[i].description, tools[j].description);
         if (score >= threshold)
           out.push(
-            finding(
-              similarDescriptions,
-              `"${tools[i].name}" and "${tools[j].name}" have near-identical descriptions (similarity ${score.toFixed(2)}).`,
-              { tool: tools[i].name, help: "State what differs: scope, side effects, or the shape of the result." },
-            ),
+            finding(similarDescriptions, `"${tools[i].name}" and "${tools[j].name}" have near-identical descriptions (similarity ${score.toFixed(2)}).`, {
+              tool: tools[i].name,
+              help: "State what differs: scope, side effects, or the shape of the result.",
+            }),
           );
       }
     }
@@ -55,9 +54,11 @@ export const tooManyTools = defineRule({
     const max = opt(ctx, "max", 20);
     const n = ctx.snapshot.tools.length;
     return n > max
-      ? [finding(tooManyTools, `${n} tools are exposed on this page; consider keeping it under ${max}.`, {
-          help: "Register tools for the current view only and unregister them on navigation.",
-        })]
+      ? [
+          finding(tooManyTools, `${n} tools are exposed on this page; consider keeping it under ${max}.`, {
+            help: "Register tools for the current view only and unregister them on navigation.",
+          }),
+        ]
       : [];
   },
 });
@@ -66,15 +67,12 @@ export const noTools = defineRule({
   id: "no-tools",
   description: "Reports pages that expose no tools at all, which usually means registration failed.",
   severity: "info",
-  check: (ctx) =>
-    ctx.snapshot.tools.length === 0
-      ? [finding(noTools, `No WebMCP tools were found on ${ctx.snapshot.url}.`)]
-      : [],
+  check: (ctx) => (ctx.snapshot.tools.length === 0 ? [finding(noTools, `No WebMCP tools were found on ${ctx.snapshot.url}.`)] : []),
 });
 
 export const iframeAllowTools = defineRule({
   id: "iframe-allow-tools",
-  description: "Cross-origin iframes only expose tools when the embedding element carries allow=\"tools\".",
+  description: 'Cross-origin iframes only expose tools when the embedding element carries allow="tools".',
   severity: "info",
   check: (ctx) => {
     const out: Finding[] = [];

@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { test as base, type Browser, type CDPSession, type Frame, type Page, type TestInfo } from "@playwright/test";
 import {
+  ATTACHMENTS,
   collectFrame,
   computeCoverage,
   computeScore,
@@ -37,7 +38,7 @@ import {
 } from "webmcp-lint";
 import { CdpCollector } from "./cdp.js";
 import { runSmoke, type SmokeOptions } from "./smoke.js";
-import { SHIM_SOURCE } from "./shim.js";
+import { shimSource } from "./shim.js";
 import { RECORDER_SOURCE } from "./recorder.js";
 import { normalizeRunOptions, runPromptApiInPage, type PromptApiRunOptions, type PromptApiRunResult } from "./prompt-api.js";
 import { fakeLanguageModelSource, type FakeLanguageModelPlan } from "./fake-language-model.js";
@@ -61,18 +62,7 @@ export interface WebMCPOptions {
 
 export const DEFAULT_OPTIONS: WebMCPOptions = { shim: "auto", record: true, lint: {}, cdp: "auto" };
 
-export const ATTACHMENTS = {
-  eval: "webmcp-eval",
-  tools: "webmcp-tools",
-  lint: "webmcp-lint",
-  snapshot: "webmcp-snapshot",
-  calls: "webmcp-calls",
-  promptApi: "webmcp-prompt-api",
-  smoke: "webmcp-smoke",
-  contract: "webmcp-contract",
-  toolSnapshots: "webmcp-tool-snapshots",
-  timeline: "webmcp-timeline",
-} as const;
+export { ATTACHMENTS };
 
 export type MockImplementation = ((args: Record<string, unknown>) => unknown | Promise<unknown>) | { result: unknown } | { error: string };
 
@@ -145,17 +135,22 @@ export class PromptApiHarness {
 
   /**
    * Run an evals case against the on-device model and reconcile the calls it
-   * made with the case's `expectedCall`. Only user messages of type
-   * "message" are sent; other message kinds are ignored.
+   * made with the case's `expectedCall`, using the same positional semantics
+   * as the `webmcp-evals` CLI unless `mode: "lenient"` is passed. Only user
+   * messages of type "message" are sent; other message kinds are ignored.
    */
   async evaluate(evalCase: EvalCase, options: EvalRunOptions = {}): Promise<EvalRunResult> {
-    const { strict, ...runOptions } = options;
+    const { strict, mode = "evals", ...runOptions } = options;
     const prompts = evalCase.messages.filter((m) => m.role === "user" && m.type === "message").map((m) => (m as { content: string }).content);
     const result = await this.run({ ...runOptions, prompts });
     if (result.status !== "ok") {
       return { ...result, pass: false, problems: [`${result.status}: ${result.reason ?? "no details"}`] };
     }
-    const reconciled = reconcileCalls(evalCase.expectedCall, result.calls.map((c) => ({ name: c.name, args: c.args, result: c.result })), { strict });
+    const reconciled = reconcileCalls(
+      evalCase.expectedCall,
+      result.calls.map((c) => ({ name: c.name, args: c.args, result: c.result })),
+      { strict, mode },
+    );
     return { ...result, pass: reconciled.ok, problems: reconciled.problems };
   }
 }
@@ -198,7 +193,12 @@ export class WebMCP {
       await this.page.exposeBinding("__webmcpReport", (_source, json: string) => {
         const entry = JSON.parse(json) as { kind?: string } & Record<string, unknown>;
         if (entry.kind === "registration") {
-          this.timelineEvents.push({ type: entry.type as RegistrationEvent["type"], name: String(entry.name), at: Number(entry.at), frameUrl: String(entry.frameUrl) });
+          this.timelineEvents.push({
+            type: entry.type as RegistrationEvent["type"],
+            name: String(entry.name),
+            at: Number(entry.at),
+            frameUrl: String(entry.frameUrl),
+          });
         } else {
           const { kind: _kind, ...call } = entry;
           this.recorded.push(call as unknown as RecordedCall);
@@ -220,7 +220,7 @@ export class WebMCP {
       });
     }
     if (this.options.shim !== "never") {
-      await this.page.addInitScript(this.options.shim === "always" ? SHIM_SOURCE.replace("if (document.modelContext || (navigator && navigator.modelContext)) return;", "") : SHIM_SOURCE);
+      await this.page.addInitScript(shimSource({ force: this.options.shim === "always" }));
     }
     if (this.options.record) await this.page.addInitScript(RECORDER_SOURCE);
     if (this.options.cdp === "auto") await this.attachCdp();
@@ -275,7 +275,8 @@ export class WebMCP {
       await this.cdp.refreshFrames();
       for (const tool of snapshot.tools) {
         const frameUrl = snapshot.frames[tool.frame]?.url;
-        const native = this.cdp.list().find((c) => c.name === tool.name && (this.cdp!.frameUrl(c.frameId) ?? frameUrl) === frameUrl) ?? this.cdp.find(tool.name);
+        const native =
+          this.cdp.list().find((c) => c.name === tool.name && (this.cdp!.frameUrl(c.frameId) ?? frameUrl) === frameUrl) ?? this.cdp.find(tool.name);
         if (!native) continue;
         if (native.location) tool.location = native.location;
         if (native.annotations && !tool.annotations) tool.annotations = { ...native.annotations };
@@ -316,14 +317,25 @@ export class WebMCP {
         } catch {}
       }
       const listed: any[] = origins.size ? await mc.getTools({ fromOrigins: [...origins] }) : await mc.getTools();
-      return listed.map((t) => ({ name: String(t.name), origin: String(t.origin ?? location.origin), remote: Boolean(t._isRemote || (t.origin && t.origin !== location.origin)) }));
+      return listed.map((t) => ({
+        name: String(t.name),
+        origin: String(t.origin ?? location.origin),
+        remote: Boolean(t._isRemote || (t.origin && t.origin !== location.origin)),
+      }));
     });
   }
 
   /** Replace a tool's implementation from the test. The mock runs in Node. */
   async mock(name: string, implementation: MockImplementation): Promise<void> {
     if (!this.options.record) throw new Error("mock() needs the recorder; set webmcpOptions.record to true");
-    const impl = typeof implementation === "function" ? implementation : "error" in implementation ? () => { throw new Error(implementation.error); } : () => implementation.result;
+    const impl =
+      typeof implementation === "function"
+        ? implementation
+        : "error" in implementation
+          ? () => {
+              throw new Error(implementation.error);
+            }
+          : () => implementation.result;
     this.mocks.set(name, impl);
     const owner = await this.ownerFrame(name);
     await owner.evaluate((toolName) => (window as unknown as Record<string, any>).__webmcpInstallMock(toolName), name);
@@ -421,7 +433,14 @@ export class WebMCP {
     const mode = this.testInfo.config.updateSnapshots;
     const exists = existsSync(path);
     if (!exists) {
-      if (mode === "none") return { pass: false, outcome: "changed", path, changes: contract.tools.map((t) => ({ kind: "tool-added", tool: t.name, detail: "no stored contract" })), contract };
+      if (mode === "none")
+        return {
+          pass: false,
+          outcome: "changed",
+          path,
+          changes: contract.tools.map((t) => ({ kind: "tool-added", tool: t.name, detail: "no stored contract" })),
+          contract,
+        };
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, serializeContract(contract));
       return { pass: true, outcome: "written", path, changes: [], contract };
@@ -516,12 +535,22 @@ export class WebMCP {
   async scenario(options: ScenarioOptions, body: () => Promise<void>): Promise<EvalCase> {
     const before = this.recorded.length;
     await body();
+    await this.settle();
     const calls = this.recorded.slice(before).sort((a, b) => a.startedAt - b.startedAt);
     const evalCase = toEvalCase(calls, { ...options, name: options.name });
     const snapshot = await this.snapshot();
     await this.attach(ATTACHMENTS.eval, { url: snapshot.url, eval: evalCase });
     await this.attach(ATTACHMENTS.tools, toToolsSchema(snapshot));
     return evalCase;
+  }
+
+  /**
+   * Wait for calls reported by page scripts to reach the recorder. Binding
+   * calls are delivered in order with other protocol traffic, so one round
+   * trip to the page is enough to flush what the page has already reported.
+   */
+  async settle(): Promise<void> {
+    await this.page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0))).catch(() => {});
   }
 
   /** Attach the current snapshot and calls to the test result (done automatically at teardown). */

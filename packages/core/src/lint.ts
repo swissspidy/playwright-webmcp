@@ -35,9 +35,7 @@ export function formatFindings(result: LintResult): string {
   if (!result.findings.length) return "No findings.";
   return result.findings
     .map((f) => {
-      const where = [f.tool ? `tool ${f.tool}` : null, f.frame !== undefined ? `frame ${f.frame}` : null, f.path ?? null]
-        .filter(Boolean)
-        .join(", ");
+      const where = [f.tool ? `tool ${f.tool}` : null, f.frame !== undefined ? `frame ${f.frame}` : null, f.path ?? null].filter(Boolean).join(", ");
       return `${f.severity.padEnd(7)} ${f.ruleId}${where ? ` (${where})` : ""}: ${f.message}${f.help ? `\n        ${f.help}` : ""}`;
     })
     .join("\n");

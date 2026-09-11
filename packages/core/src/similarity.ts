@@ -4,9 +4,7 @@
  * dependency free; callers can plug in an embedding based function instead.
  */
 
-const STOP = new Set([
-  "a", "an", "the", "of", "to", "for", "and", "or", "in", "on", "with", "by", "from", "this", "that", "is", "are", "be",
-]);
+const STOP = new Set(["a", "an", "the", "of", "to", "for", "and", "or", "in", "on", "with", "by", "from", "this", "that", "is", "are", "be"]);
 
 export function tokenize(text: string): string[] {
   return text

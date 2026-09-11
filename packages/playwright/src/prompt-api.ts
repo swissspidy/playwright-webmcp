@@ -42,8 +42,7 @@ export interface PromptApiRunResult {
   usage?: { inputUsage?: number; inputQuota?: number };
 }
 
-type SerializableRunOptions = Required<Omit<PromptApiRunOptions, "systemPrompt" | "toolNames">> &
-  Pick<PromptApiRunOptions, "systemPrompt" | "toolNames">;
+type SerializableRunOptions = Required<Omit<PromptApiRunOptions, "systemPrompt" | "toolNames">> & Pick<PromptApiRunOptions, "systemPrompt" | "toolNames">;
 
 export function normalizeRunOptions(options: PromptApiRunOptions): SerializableRunOptions {
   return {
@@ -127,7 +126,7 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
     if (typeof LanguageModel.availability === "function") {
       result.availability = await LanguageModel.availability({ expectedInputs, expectedOutputs });
       if (result.availability === "unavailable") {
-        return { ...result, status: "unavailable", reason: "LanguageModel.availability() returned \"unavailable\"." };
+        return { ...result, status: "unavailable", reason: 'LanguageModel.availability() returned "unavailable".' };
       }
     }
   } catch (err) {

@@ -4,12 +4,12 @@ Testing tools for [WebMCP](https://github.com/webmachinelearning/webmcp) tool su
 
 The shape is deliberately the same as axe-core: one engine that inspects the live page, thin adapters around it.
 
-| Package | What it is |
-| --- | --- |
-| [`webmcp-lint`](packages/core) | Snapshot model, rules, `lint()`, and an argument matcher plus trajectory reconciler with the same semantics as `webmcp-evals`. Runs in Node against a snapshot. |
-| [`playwright-webmcp`](packages/playwright) | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, and record scenarios. Ships a test-time shim so it runs on any Chromium. |
-| [`playwright-webmcp-evals`](packages/evals-reporter) | Playwright reporter that writes `evals.json`, `tools.json`, `coverage.json` and `TOOLS.md` from recorded scenarios and calls. |
-| [`webmcp-audit`](packages/audit) | CLI and library that crawls a site, lints and smokes every page, detects cross-page drift, and scores agent readiness. |
+| Package                                              | What it is                                                                                                                                                                          |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`webmcp-lint`](packages/core)                       | Snapshot model, rules, `lint()`, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. Runs in Node against a snapshot. |
+| [`playwright-webmcp`](packages/playwright)           | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, and record scenarios. Ships a test-time shim so it runs on any Chromium.     |
+| [`playwright-webmcp-evals`](packages/evals-reporter) | Playwright reporter that writes `evals.json`, `tools.json`, `coverage.json` and `TOOLS.md` from recorded scenarios and calls.                                                       |
+| [`webmcp-audit`](packages/audit)                     | CLI and library that crawls a site, lints and smokes every page, detects cross-page drift, and scores agent readiness.                                                              |
 
 ## Quick start
 
@@ -37,13 +37,26 @@ test("shop exposes usable tools", async ({ page, webmcp }) => {
 });
 ```
 
-Record a scenario and it becomes an eval case:
+Pair a prompt with the calls it should produce and the reporter exports it as a `webmcp-evals` case. The calls can come from an agent run, which is where a recording earns its keep, or from `webmcp.call()` when you are pinning down a trajectory by hand:
 
 ```ts
-await webmcp.scenario({ name: "add two shirts", prompt: "Add two red shirts to my cart" }, async () => {
-  const { products } = await webmcp.call("search_products", { query: "red" });
-  await webmcp.call("add_to_cart", { productId: products[0].id, quantity: 2 });
+await webmcp.promptApi.useFake({
+  turns: [
+    {
+      calls: [
+        { name: "search_products", args: { query: "red shirt" } },
+        { name: "add_to_cart", args: { productId: 1, quantity: 2 } },
+      ],
+    },
+  ],
 });
+await page.goto("/");
+await webmcp.scenario(
+  { name: "add two shirts", prompt: "Add two red shirts to my cart", argumentsMode: "types" },
+  async () => {
+    await webmcp.promptApi.run("Add two red shirts to my cart");
+  },
+);
 ```
 
 ```ts
@@ -54,33 +67,35 @@ export default defineConfig({
 ```
 
 ```sh
-npx webmcp-evals web --url http://localhost:3000 --evals .webmcp-evals/evals.json
-npx webmcp-evals local --tools .webmcp-evals/tools.json --evals .webmcp-evals/evals.json
+npx webmcp-evals browser -u http://localhost:3000 -e .webmcp-evals/evals.json
+npx webmcp-evals local -t .webmcp-evals/tools.json -e .webmcp-evals/evals.json
+npx webmcp-evals smoke -u http://localhost:3000 -e .webmcp-evals/evals.json   # replays the calls without a model
 ```
 
 ## The fixture
 
 `webmcp` is available in every test. Before navigation it installs two init scripts:
 
-- a **shim** implementing `document.modelContext` / `navigator.modelContext` (`registerTool`, `unregisterTool`, `provideContext`, `clearContext`, `getTools`, `executeTool`, `toolchange`, and declarative `<form toolname>` tools with `SubmitEvent.respondWith` and `toolautosubmit`). It only activates when the browser has no native WebMCP, so the same tests run on plain Chromium in CI and on Chrome with `--enable-features=WebMCP`.
+- a **shim** implementing `document.modelContext` (also mirrored on `navigator.modelContext`) with `registerTool` including `signal` and `exposedTo`, `getTools` including `fromOrigins`, `executeTool`, `toolchange`, and declarative `<form toolname>` tools with `SubmitEvent.respondWith` and `toolautosubmit`. The pre-spec `unregisterTool`, `provideContext` and `clearContext` are kept for pages written against older explainers. It only activates when the browser has no native WebMCP, so the same tests run on plain Chromium in CI and on Chrome with WebMCP enabled (`chrome://flags/#enable-webmcp-testing`, or the Chrome 149 origin trial).
 - a **recorder** that wraps registration and execution so calls made by page scripts or in-page agents are captured.
 
-| Method | Purpose |
-| --- | --- |
-| `snapshot()` | Tools and frame facts from every frame, including cross-origin ones (Playwright can evaluate there). |
-| `tools()`, `tool(name)` | Convenience accessors. |
-| `call(name, args)` | Execute a tool wherever it lives and record the call. |
-| `calls()`, `clearCalls()` | Recorded calls in execution order, with `via: "fixture" \| "api"`. |
-| `lint(options)` | Run the rules; the result is attached to the test. |
-| `smoke(options)` | Generate inputs from each tool's schema, execute them, and judge the results. |
-| `contract()`, `matchToolContract(name?)` | The page's tool contract, and a comparison against the stored one. |
-| `scenario(options, body)` | Record the calls `body` makes as an eval case and attach it. |
-| `reachableTools({ from? })` | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`. |
-| `mock(name, impl)`, `unmock(name)`, `replay(recording)` | Replace tool implementations from the test; replay recorded results. |
-| `timeline(budgets)` | Registration events since navigation, time to first tool, late and churn findings. |
-| `coverage()`, `score()` | Tool and parameter coverage; agent-readiness score. |
-| `codegen({ name })`, `docs()` | Playwright test source from the recording; Markdown tool reference. |
-| `cdp` | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`. |
+| Method                                                  | Purpose                                                                                              |
+| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `snapshot()`                                            | Tools and frame facts from every frame, including cross-origin ones (Playwright can evaluate there). |
+| `tools()`, `tool(name)`                                 | Convenience accessors.                                                                               |
+| `call(name, args)`                                      | Execute a tool wherever it lives and record the call.                                                |
+| `calls()`, `clearCalls()`                               | Recorded calls in execution order, with `via: "fixture" \| "api"`.                                   |
+| `lint(options)`                                         | Run the rules; the result is attached to the test.                                                   |
+| `smoke(options)`                                        | Generate inputs from each tool's schema, execute them, and judge the results.                        |
+| `contract()`, `matchToolContract(name?)`                | The page's tool contract, and a comparison against the stored one.                                   |
+| `scenario(options, body)`                               | Record the calls `body` makes as an eval case and attach it.                                         |
+| `settle()`                                              | Wait until calls reported by page scripts have reached the recorder.                                 |
+| `reachableTools({ from? })`                             | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`.     |
+| `mock(name, impl)`, `unmock(name)`, `replay(recording)` | Replace tool implementations from the test; replay recorded results.                                 |
+| `timeline(budgets)`                                     | Registration events since navigation, time to first tool, late and churn findings.                   |
+| `coverage()`, `score()`                                 | Tool and parameter coverage; agent-readiness score.                                                  |
+| `codegen({ name })`, `docs()`                           | Playwright test source from the recording; Markdown tool reference.                                  |
+| `cdp`                                                   | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`.                     |
 
 Options via `test.use({ webmcpOptions: { shim: "auto" \| "always" \| "never", record: true, lint: {...}, cdp: "auto" \| "never" } })`.
 
@@ -90,30 +105,33 @@ On Chrome 150 and later the fixture also attaches to the CDP `WebMCP` domain. Th
 
 - recorded calls carry `source: "cdp"`, and calls not initiated by the fixture are recorded with `via: "agent"`;
 - `call()` invokes tools through `WebMCP.invokeTool` instead of page script;
-- snapshots gain `location` (the registration site) and the browser's own annotations such as `readOnly` and `consequential`.
+- snapshots gain `location` (the registration site) and the browser's own annotations. The CDP domain spells them `readOnly`, `consequential`, `untrustedContent` and `autosubmit`, while the specification uses `readOnlyHint`, `consequentialHint` and `untrustedContentHint`; `toolHints()` from `webmcp-lint` reads both, and everything here goes through it.
 
 On browsers without the domain the collector stays off and everything falls back to the page-side hooks. Nothing in the API changes.
 
 ### Matchers
 
-| Matcher | Receiver | Notes |
-| --- | --- | --- |
-| `toHaveTool(name, { description?, inputSchema?, source? })` | `webmcp` or `page` | `inputSchema` uses subset matching, so partial schemas work. |
-| `toPassLint({ failOn?, rules?, extraRules? })` | `webmcp` or `page` | `failOn` defaults to `"error"`. |
-| `toPassSmoke({ tools?, all?, kinds?, failOn?, ...budgets })` | `webmcp` or `page` | Runtime findings from generated inputs. |
-| `toMatchToolContract(name?)` | `webmcp` or `page` | Compares against the stored contract; honours `--update-snapshots`. |
-| `toReachTool(name, { from? })` | `webmcp` or `page` | Reachability through the API from a frame. |
-| `toHaveToolCoverage(min)` | `webmcp` or `page` | Fraction (0..1) or percent of tools called. |
-| `toHaveAgentReadinessScore(min, { smoke? })` | `webmcp` or `page` | Score at least `min`. |
-| `toRegisterToolsWithin(ms)` | `webmcp` or `page` | Time to first tool registration. |
-| `toHaveCalledTool(name, args?)` | `webmcp` or `RecordedCall[]` | `args` accepts the evals constraint operators. |
-| `toMatchCalls(expectedCall, { strict? })` | `webmcp` or `RecordedCall[]` | Full trajectory check with `ordered`, `unordered`, `optional`. |
+| Matcher                                                      | Receiver                     | Notes                                                               |
+| ------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------- |
+| `toHaveTool(name, { description?, inputSchema?, source? })`  | `webmcp` or `page`           | `inputSchema` uses subset matching, so partial schemas work.        |
+| `toPassLint({ failOn?, rules?, extraRules? })`               | `webmcp` or `page`           | `failOn` defaults to `"error"`.                                     |
+| `toPassSmoke({ tools?, all?, kinds?, failOn?, ...budgets })` | `webmcp` or `page`           | Runtime findings from generated inputs.                             |
+| `toMatchToolContract(name?)`                                 | `webmcp` or `page`           | Compares against the stored contract; honours `--update-snapshots`. |
+| `toReachTool(name, { from? })`                               | `webmcp` or `page`           | Reachability through the API from a frame.                          |
+| `toHaveToolCoverage(min)`                                    | `webmcp` or `page`           | Fraction (0..1) or percent of tools called.                         |
+| `toHaveAgentReadinessScore(min, { smoke? })`                 | `webmcp` or `page`           | Score at least `min`.                                               |
+| `toRegisterToolsWithin(ms)`                                  | `webmcp` or `page`           | Time to first tool registration.                                    |
+| `toHaveCalledTool(name, args?)`                              | `webmcp` or `RecordedCall[]` | `args` accepts the evals constraint operators.                      |
+| `toMatchCalls(expectedCall, { strict? })`                    | `webmcp` or `RecordedCall[]` | Full trajectory check with `ordered`, `unordered`, `optional`.      |
 
 ### Argument matching
 
 Same operators and semantics as `webmcp-evals`: `$pattern` (with `(?i)` style inline flags), `$contains`, `$gt`, `$gte`, `$lt`, `$lte`, `$type`, `$any`. Objects match as subsets, arrays positionally with equal length.
 
-Trajectory reconciliation, which `webmcp-evals` does not expose as a library, follows these rules: the top level list is ordered, `{ unordered: [...] }` groups may match in any order, `optional: true` calls may be absent, and extra actual calls are tolerated unless `strict` is set.
+Trajectory matching comes in two modes, because a Playwright assertion and an eval case want different things:
+
+- **Lenient** (default for `toMatchCalls()`): the expectation is a subsequence of what happened. The top level list is ordered, `{ unordered: [...] }` groups may match in any order, `optional: true` calls may be absent, and extra actual calls are tolerated unless `strict` is set. Good for "the agent did at least this".
+- **`mode: "evals"`** (default for `promptApi.evaluate()` and `toPassEval()`): a port of the CLI's own algorithm. Calls are matched positionally, an unordered group draws from a pool of exactly its size, and every actual call the expectation does not explain fails the case. A case that passes here passes in `webmcp-evals`, and vice versa. `evaluateTrajectory()` returns the same per-call rows the CLI reports.
 
 ## On-device model runs
 
@@ -122,7 +140,10 @@ Trajectory reconciliation, which `webmcp-evals` does not expose as a library, fo
 ```ts
 test("model can add to cart", async ({ page, webmcp }) => {
   await page.goto("/");
-  test.skip((await webmcp.promptApi.availability()) === "unavailable", "needs Chrome with the Prompt API");
+  test.skip(
+    (await webmcp.promptApi.availability()) === "unavailable",
+    "needs Chrome with the Prompt API",
+  );
 
   const result = await webmcp.promptApi.run("Add two red shirts to my cart");
   expect(result.status).toBe("ok");
@@ -133,13 +154,13 @@ test("model can add to cart", async ({ page, webmcp }) => {
 });
 ```
 
-| Method | Purpose |
-| --- | --- |
-| `exists()` | Whether `LanguageModel` is defined. |
-| `availability()` | `LanguageModel.availability()` for a tool-using session. |
+| Method                                                              | Purpose                                                                                     |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
+| `exists()`                                                          | Whether `LanguageModel` is defined.                                                         |
+| `availability()`                                                    | `LanguageModel.availability()` for a tool-using session.                                    |
 | `run(prompt \| { prompts, systemPrompt?, toolNames?, timeoutMs? })` | One session, prompts sent in order. Calls the model makes are recorded with `via: "agent"`. |
-| `evaluate(evalCase, { strict? })` | Send the case's user messages and reconcile the calls against `expectedCall`. |
-| `useFake(plan)` | Install a scripted `LanguageModel` before navigation for deterministic CI runs. |
+| `evaluate(evalCase, { strict? })`                                   | Send the case's user messages and reconcile the calls against `expectedCall`.               |
+| `useFake(plan)`                                                     | Install a scripted `LanguageModel` before navigation for deterministic CI runs.             |
 
 ### Running against a real model
 
@@ -155,7 +176,13 @@ With `WEBMCP_CDP` set the fixture connects over CDP instead of launching a brows
 
 ```ts
 await webmcp.promptApi.useFake({
-  turns: [{ match: "shirt", calls: [{ name: "search_products", args: { query: "shirt" } }], response: "Found {{result:0}}" }],
+  turns: [
+    {
+      match: "shirt",
+      calls: [{ name: "search_products", args: { query: "shirt" } }],
+      response: "Found {{result:0}}",
+    },
+  ],
 });
 await page.goto("/");
 ```
@@ -181,11 +208,11 @@ The `exposed-to-secure-origins` rule flags `exposedTo` entries that the API woul
 
 The recorder timestamps every registration and removal relative to navigation. `timeline()` reports time to first tool, tools that appear only after the load event, and tools that flap:
 
-| Rule | Severity | Checks |
-| --- | --- | --- |
-| `tools-register-late` | warning | First tool later than `lateMs` (3000) after navigation start. |
-| `tools-after-load` | info | Tools registered after the load event. |
-| `tool-churn` | warning | A tool unregistered `churnCount` (3) or more times. |
+| Rule                  | Severity | Checks                                                        |
+| --------------------- | -------- | ------------------------------------------------------------- |
+| `tools-register-late` | warning  | First tool later than `lateMs` (3000) after navigation start. |
+| `tools-after-load`    | info     | Tools registered after the load event.                        |
+| `tool-churn`          | warning  | A tool unregistered `churnCount` (3) or more times.           |
 
 ## Coverage, score, codegen, docs
 
@@ -204,25 +231,25 @@ Descriptions are read by every agent that visits a page, and tool results go str
 npx webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
 ```
 
-Crawls same-origin links, lints every page, optionally runs smoke on read-only tools (`--all-tools` widens it), detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. Exit code 1 when any error-level finding exists. The same is available as `audit()` from the `webmcp-audit` package.
+Crawls same-origin links, lints every page, optionally runs smoke on read-only tools (`--all-tools` widens it), detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. Exit code 1 when any page failed to load or any error-level finding exists, 2 on usage errors. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses the Markdown on stdout, and `--help` lists everything. The same is available as `audit()` from the `webmcp-audit` package.
 
 ## Smoke: runtime checks from schemas
 
 `smoke()` derives inputs from each tool's `inputSchema` and runs them: the required parameters only, all parameters, boundary values (minimum, maximum, maxLength, empty strings and arrays, each enum value), and invalid inputs (missing required, wrong type, out of range, outside enum). Every result is judged:
 
-| Rule | Severity | Checks |
-| --- | --- | --- |
-| `result-error-on-valid-input` | error | A schema-valid call threw or reported an error. |
-| `result-contains-null` | error | Result contains `null` anywhere; Chrome's Prompt API rejects it. |
-| `result-not-serializable` | error | Result cannot be JSON serialized. |
-| `result-undefined` | warning | Tool returned nothing. |
-| `result-too-large` | warning | Serialized result above `maxResultBytes` (16 KB). |
-| `result-slow` | warning | Took longer than `maxDurationMs` (5 s). |
-| `result-accepts-invalid-input` | warning | Invalid input was accepted without an error. |
-| `result-string-json` | info | Returned JSON as a string rather than an object. |
-| `result-suspicious-content` | warning | Result text looks like an instruction to the agent or has hidden characters. |
+| Rule                           | Severity | Checks                                                                       |
+| ------------------------------ | -------- | ---------------------------------------------------------------------------- |
+| `result-error-on-valid-input`  | error    | A schema-valid call threw or reported an error.                              |
+| `result-contains-null`         | error    | Result contains `null` anywhere; Chrome's Prompt API rejects it.             |
+| `result-not-serializable`      | error    | Result cannot be JSON serialized.                                            |
+| `result-undefined`             | warning  | Tool returned nothing.                                                       |
+| `result-too-large`             | warning  | Serialized result above `maxResultBytes` (16 KB).                            |
+| `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                      |
+| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error.                                 |
+| `result-string-json`           | info     | Returned JSON as a string rather than an object.                             |
+| `result-suspicious-content`    | warning  | Result text looks like an instruction to the agent or has hidden characters. |
 
-Smoke runs execute real tools. By default only tools annotated read-only (`annotations.readOnly` from the browser, or `readOnlyHint`) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it.
+Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it.
 
 ```ts
 await expect(webmcp).toPassSmoke({ tools: ["search_products", "list_reviews"], failOn: "warning" });
@@ -244,28 +271,28 @@ Accept intended changes with `npx playwright test --update-snapshots`. The store
 
 Rules see the whole page: every frame, declarative forms, and all tools together. That is why this is not an ESLint plugin.
 
-| Rule | Severity | Checks |
-| --- | --- | --- |
-| `tool-name-valid` | error | Name is 1-128 chars of `[A-Za-z0-9_.-]`. |
-| `description-missing` | error | Imperative tools have a description. |
-| `description-length` | warning | Between `min` (20) and `max` (600) characters. |
-| `param-description-missing` | warning | Every input property has a description. |
-| `schema-shape` | error | Object schema; `required` entries exist in `properties`. |
-| `schema-no-null-literals` | error | No `null` anywhere in the schema (Chrome's Prompt API rejects it). |
-| `schema-depth` | warning | Property nesting at most `max` (3) levels. |
-| `schema-unsupported-keywords` | warning | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`. |
-| `sensitive-params` | warning | Parameter names that look like credentials or payment data. |
-| `duplicate-tool-name` | error | Same name registered more than once across frames. |
-| `similar-descriptions` | warning | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied. |
-| `too-many-tools` | warning | More than `max` (20) tools on a page. |
-| `no-tools` | info | Page exposes nothing. |
-| `iframe-allow-tools` | info | Cross-origin frame registers tools but its `<iframe>` lacks `allow="tools"`. |
-| `declarative-description` | error | `<form toolname>` also has `tooldescription`. |
-| `declarative-field-description` | warning | Each named field has a label or `toolparamdescription`. |
-| `declarative-autosubmit-sensitive` | error | `toolautosubmit` on forms with password or payment fields. |
-| `description-injection` | error | Instructions to the agent, role markers, or hidden characters in descriptions. |
-| `naming-consistency` | warning | Mixed naming styles across tool or parameter names. |
-| `exposed-to-secure-origins` | error | `exposedTo` lists an insecure origin. |
+| Rule                               | Severity | Checks                                                                                           |
+| ---------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
+| `tool-name-valid`                  | error    | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                         |
+| `description-missing`              | error    | Imperative tools have a description.                                                             |
+| `description-length`               | warning  | Between `min` (20) and `max` (600) characters.                                                   |
+| `param-description-missing`        | warning  | Every input property has a description.                                                          |
+| `schema-shape`                     | error    | Object schema; `required` entries exist in `properties`.                                         |
+| `schema-no-null-literals`          | error    | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                               |
+| `schema-depth`                     | warning  | Property nesting at most `max` (3) levels.                                                       |
+| `schema-unsupported-keywords`      | warning  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.         |
+| `sensitive-params`                 | warning  | Parameter names that look like credentials or payment data.                                      |
+| `duplicate-tool-name`              | error    | Same name registered more than once across frames.                                               |
+| `similar-descriptions`             | warning  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied. |
+| `too-many-tools`                   | warning  | More than `max` (20) tools on a page.                                                            |
+| `no-tools`                         | info     | Page exposes nothing.                                                                            |
+| `iframe-allow-tools`               | info     | Cross-origin frame registers tools but its `<iframe>` lacks `allow="tools"`.                     |
+| `declarative-description`          | error    | `<form toolname>` also has `tooldescription`.                                                    |
+| `declarative-field-description`    | warning  | Each named field has a label or `toolparamdescription`.                                          |
+| `declarative-autosubmit-sensitive` | error    | `toolautosubmit` on forms with password or payment fields.                                       |
+| `description-injection`            | error    | Instructions to the agent, role markers, or hidden characters in descriptions.                   |
+| `naming-consistency`               | warning  | Mixed naming styles across tool or parameter names.                                              |
+| `exposed-to-secure-origins`        | error    | `exposedTo` lists an insecure origin.                                                            |
 
 Configure per rule: `false` disables, a severity string re-levels, an object overrides options.
 
@@ -282,23 +309,27 @@ Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRu
 
 ```sh
 pnpm install
-pnpm run build
+pnpm run build           # typecheck resolves workspace packages through their built declarations, so build first
+pnpm run typecheck
 pnpm run test:unit
-pnpm run test:e2e   # set PW_CHROMIUM=/path/to/chrome to use a specific binary
+pnpm run test:e2e        # set PW_CHROMIUM=/path/to/chrome to use a specific binary
+pnpm run format          # Prettier; CI runs format:check
+pnpm run lint:publish    # publint on every package
 ```
 
-`examples/demo-site` is the page the Playwright suite runs against.
+`examples/demo-site` is the page the Playwright suite runs against. The four packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance.
 
 ## Turning recorded usage into evals
 
 Every recording the fixture makes, whether from `scenario()`, `smoke()`, the CDP collector, or the Prompt API harness, is a list of `RecordedCall` entries: tool, arguments, result or error, timing, and who made the call. That is most of an evals case. What a recording lacks is the user request that led to it, because agents never tell the page what the user asked.
 
-Two ways to close that gap:
+`scenario({ prompt }, body)` closes that gap by pairing a prompt with the calls `body` produces, and it is worth being clear about what that does and does not give you:
 
-- **Record the prompt where you have it.** In tests you do: `scenario({ prompt })` pairs the request with the calls and exports a complete case. Pages that run their own in-page agent also know the prompt and can do the same in production.
-- **Infer the prompt where you do not.** A trajectory such as `search_products({ query: "red shirt" })` followed by `add_to_cart({ productId: 1, quantity: 2 })`, together with the tools schema, is enough for a model to write a plausible user request ("Add two red shirts to my cart"). The reporter's `tools.json` and the `webmcp-calls` attachments give you both inputs. Generated prompts should be reviewed before they become fixtures, so this is a script in your repository rather than a feature of this package.
+- **When `body` drives an agent** (`promptApi.run()`, or a real agent observed through CDP), the trajectory is model-produced and the prompt is known. Exporting that as a case, reviewing it, and replaying it with `webmcp-evals` or `toPassEval()` turns one good run into a regression test. This is the use the feature is designed for.
+- **When `body` calls tools by hand**, the case is a transcription of what you typed. It is validated against the live page, which a hand-written `evals.json` is not, and it captures `tools.json` for free, but the expectation is only as good as your guess at what an agent would do. Prefer `argumentsMode: "types"` or edit the exported arguments into constraints (`{ $contains: "shirt" }`) before treating exact literals as the expected behaviour, since a model will rarely reproduce `query: "red"` verbatim.
+- **Without a prompt**, a recording is still a regression test: the CLI's `smoke` mode and `toMatchCalls()` replay and reconcile trajectories without a model. Inferring a prompt from a trajectory with a model is possible but the output needs review, so it stays a script in your repository rather than a feature here.
 
-Recordings without prompts are still useful as they are. The evals CLI's `smoke` mode replays tool calls deterministically without a model, so a production or test trajectory is a regression test on its own, and `toMatchCalls()` reconciles one against live calls in Playwright.
+`codegen()` is the inverse direction: a recording, agent-made or not, rendered as a Playwright test that reproduces it.
 
 ## Relationship to Lighthouse and DevTools
 
@@ -306,10 +337,10 @@ Chrome reports declarative form problems as DevTools issues (missing tool name o
 
 ## Status and limits
 
-- Early. APIs will move.
-- The CDP collector is written against the `WebMCP` domain in `devtools-protocol` and unit tested with a scripted session, but has not yet been exercised against a real Chrome 150 build.
-- The shim exists for tests only; it is not a production polyfill. Its cross-origin bridge approximates `exposedTo` and `allow="tools"` over `postMessage`; it does not implement `requestUserInteraction`.
-- Recording covers executions that go through `modelContext` in the page, including the ones `webmcp.promptApi` triggers. Calls driven by Chrome's own built-in agent over CDP are not visible to page scripts; a CDP-based collector is a planned addition.
+- Pre-1.0. APIs will move, and the WebMCP specification itself is still changing (Chrome 149 runs an origin trial).
+- The CDP collector is written against the `WebMCP` domain in `devtools-protocol` and unit tested with a scripted session, but has not yet been exercised against a real Chrome build that ships the domain.
+- The shim exists for tests only; it is not a production polyfill. Its cross-origin bridge approximates `exposedTo` and `allow="tools"` over `postMessage`; it does not implement `requestUserInteraction`, `toolcanceled`, or the `content` array result shape the specification describes.
+- Page-side recording covers executions that go through `modelContext` in the page, including the ones `webmcp.promptApi` triggers. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.
 - The similarity rule is lexical. Embedding-based similarity was considered and left out for now.
 - On-device runs need Chrome Canary with the flags above; the fake model covers CI.

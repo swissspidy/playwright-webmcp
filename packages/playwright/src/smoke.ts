@@ -1,5 +1,6 @@
 import {
   generateArguments,
+  isReadOnlyTool,
   judgeRuns,
   type GenerateOptions,
   type SmokeBudgets,
@@ -17,12 +18,8 @@ export interface SmokeOptions extends GenerateOptions, SmokeBudgets {
   kinds?: Array<SmokeRun["kind"]>;
 }
 
-const READ_ONLY_KEYS = ["readOnly", "readOnlyHint"];
-
-export function isReadOnly(tool: ToolSnapshot): boolean {
-  const a = tool.annotations ?? {};
-  return READ_ONLY_KEYS.some((k) => a[k] === true);
-}
+/** @deprecated Import `isReadOnlyTool` from `webmcp-lint` instead. */
+export const isReadOnly = isReadOnlyTool;
 
 /**
  * Decide which tools a smoke run may execute. Without an explicit list or
@@ -33,7 +30,7 @@ export function selectSmokeTools(tools: ToolSnapshot[], options: SmokeOptions): 
   if (typeof options.tools === "function") selected = tools.filter(options.tools);
   else if (Array.isArray(options.tools)) selected = tools.filter((t) => (options.tools as string[]).includes(t.name));
   else if (options.all) selected = tools;
-  else selected = tools.filter(isReadOnly);
+  else selected = tools.filter(isReadOnlyTool);
   const chosen = new Set(selected);
   return { selected, skipped: tools.filter((t) => !chosen.has(t)) };
 }
@@ -50,9 +47,25 @@ export async function runSmoke(tools: ToolSnapshot[], call: ToolCaller, options:
       const startedAt = Date.now();
       try {
         const result = await call(tool.name, generated.args);
-        runs.push({ tool: tool.name, kind: generated.kind, label: generated.label, args: generated.args, ok: true, result, durationMs: Date.now() - startedAt });
+        runs.push({
+          tool: tool.name,
+          kind: generated.kind,
+          label: generated.label,
+          args: generated.args,
+          ok: true,
+          result,
+          durationMs: Date.now() - startedAt,
+        });
       } catch (err) {
-        runs.push({ tool: tool.name, kind: generated.kind, label: generated.label, args: generated.args, ok: false, error: String((err as Error)?.message ?? err), durationMs: Date.now() - startedAt });
+        runs.push({
+          tool: tool.name,
+          kind: generated.kind,
+          label: generated.label,
+          args: generated.args,
+          ok: false,
+          error: String((err as Error)?.message ?? err),
+          durationMs: Date.now() - startedAt,
+        });
       }
     }
   }

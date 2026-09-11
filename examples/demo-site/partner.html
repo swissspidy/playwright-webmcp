@@ -1,36 +1,39 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8" /><title>Partner widget</title></head>
-<body>
-  <h2>Partner</h2>
-  <script>
-    const mc = document.modelContext ?? navigator.modelContext;
-    mc.registerTool(
-      {
-        name: "partner_quote",
-        description: "Get a shipping quote from the partner carrier for a destination country and parcel weight in kilograms.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            country: { type: "string", description: "ISO country code of the destination" },
-            weightKg: { type: "number", description: "Parcel weight in kilograms", minimum: 0.1 },
+  <head>
+    <meta charset="utf-8" />
+    <title>Partner widget</title>
+  </head>
+  <body>
+    <h2>Partner</h2>
+    <script>
+      const mc = document.modelContext ?? navigator.modelContext;
+      mc.registerTool(
+        {
+          name: "partner_quote",
+          description: "Get a shipping quote from the partner carrier for a destination country and parcel weight in kilograms.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              country: { type: "string", description: "ISO country code of the destination" },
+              weightKg: { type: "number", description: "Parcel weight in kilograms", minimum: 0.1 },
+            },
+            required: ["country"],
           },
-          required: ["country"],
+          async execute({ country, weightKg = 1 }) {
+            return { country, weightKg, price: Math.round(weightKg * 7.5 * 100) / 100, currency: "CHF" };
+          },
         },
-        async execute({ country, weightKg = 1 }) {
-          return { country, weightKg, price: Math.round(weightKg * 7.5 * 100) / 100, currency: "CHF" };
+        { exposedTo: ["http://localhost:4173"] },
+      );
+      mc.registerTool({
+        name: "partner_private",
+        description: "Internal partner diagnostics that must not be reachable from the embedding page.",
+        inputSchema: { type: "object", properties: {} },
+        async execute() {
+          return { secret: true };
         },
-      },
-      { exposedTo: ["http://localhost:4173"] },
-    );
-    mc.registerTool({
-      name: "partner_private",
-      description: "Internal partner diagnostics that must not be reachable from the embedding page.",
-      inputSchema: { type: "object", properties: {} },
-      async execute() {
-        return { secret: true };
-      },
-    });
-  </script>
-</body>
+      });
+    </script>
+  </body>
 </html>

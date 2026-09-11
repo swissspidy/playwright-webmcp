@@ -1,6 +1,7 @@
 /**
  * Render a Markdown reference of a page's tools for humans and agents.
  */
+import { toolHints } from "./annotations.js";
 import type { ToolContract } from "./contract.js";
 import type { RecordedCall } from "./types.js";
 
@@ -24,12 +25,14 @@ export function renderToolDocs(contract: ToolContract, options: DocsOptions = {}
   if (options.url) lines.push(`Tools exposed at ${options.url}. ${contract.tools.length} tool(s).`, "");
   for (const tool of contract.tools) {
     lines.push(`## \`${tool.name}\``, "");
+    if (tool.title) lines.push(`**${tool.title}**`, "");
     if (tool.description) lines.push(tool.description, "");
     const meta: string[] = [`Registered ${tool.source === "declarative" ? "declaratively (form)" : "imperatively"}`];
-    const a = tool.annotations ?? {};
-    if (a.readOnly === true || a.readOnlyHint === true) meta.push("read-only");
-    if (a.consequential === true) meta.push("consequential");
-    if (a.untrustedContent === true) meta.push("returns untrusted content");
+    const hints = toolHints(tool.annotations);
+    if (hints.readOnly) meta.push("read-only");
+    if (hints.consequential) meta.push("consequential");
+    if (hints.untrustedContent) meta.push("returns untrusted content");
+    if (hints.autosubmit) meta.push("auto-submits");
     lines.push(`_${meta.join(", ")}._`, "");
     const props = (tool.inputSchema?.properties ?? {}) as Record<string, Record<string, unknown>>;
     const required = new Set((tool.inputSchema?.required as string[] | undefined) ?? []);
@@ -38,7 +41,9 @@ export function renderToolDocs(contract: ToolContract, options: DocsOptions = {}
       lines.push("| Parameter | Type | Required | Description |", "| --- | --- | --- | --- |");
       for (const name of names) {
         const p = props[name];
-        lines.push(`| \`${name}\` | ${typeOf(p)} | ${required.has(name) ? "yes" : "no"} | ${typeof p.description === "string" ? p.description.replace(/\|/g, "\\|") : ""} |`);
+        lines.push(
+          `| \`${name}\` | ${typeOf(p)} | ${required.has(name) ? "yes" : "no"} | ${typeof p.description === "string" ? p.description.replace(/\|/g, "\\|") : ""} |`,
+        );
       }
       lines.push("");
     } else {

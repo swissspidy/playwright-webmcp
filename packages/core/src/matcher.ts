@@ -70,9 +70,7 @@ export function matchesArgument(expected: unknown, actual: unknown): boolean {
   if (expected !== null && typeof expected === "object") {
     if (actual === null || typeof actual !== "object" || Array.isArray(actual)) return false;
     const actualObj = actual as Record<string, unknown>;
-    return Object.entries(expected as Record<string, unknown>).every(([k, v]) =>
-      matchesArgument(v, actualObj[k]),
-    );
+    return Object.entries(expected as Record<string, unknown>).every(([k, v]) => matchesArgument(v, actualObj[k]));
   }
   return expected === actual;
 }

@@ -1,7 +1,12 @@
 node_modules/
 dist/
-.evals/
+dist-test/
+*.tsbuildinfo
+
+# Test and tool output
 test-results/
 playwright-report/
-*.tsbuildinfo
+blob-report/
+.evals/
+.webmcp-evals/
 .webmcp-audit/

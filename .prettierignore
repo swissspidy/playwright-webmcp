@@ -1,0 +1,10 @@
+node_modules/
+dist/
+dist-test/
+pnpm-lock.yaml
+test-results/
+playwright-report/
+.webmcp-evals/
+.webmcp-audit/
+*-snapshots/
+CHANGELOG.md

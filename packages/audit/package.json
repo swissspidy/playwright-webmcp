@@ -1,30 +1,59 @@
 {
   "name": "webmcp-audit",
   "version": "0.1.0",
-  "description": "Crawl a site and audit its WebMCP tools: lint, smoke, contracts, cross-page drift, and an agent-readiness score.",
+  "description": "Crawl a site and audit its WebMCP tools: lint, smoke runs, cross-page drift and an agent-readiness score. CLI and library.",
+  "keywords": [
+    "webmcp",
+    "audit",
+    "crawler",
+    "mcp",
+    "agents",
+    "model-context",
+    "playwright",
+    "cli"
+  ],
   "license": "Apache-2.0",
+  "author": "Pascal Birchler",
+  "homepage": "https://github.com/swissspidy/playwright-webmcp/tree/main/packages/audit#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/swissspidy/playwright-webmcp.git",
+    "directory": "packages/audit"
+  },
+  "bugs": {
+    "url": "https://github.com/swissspidy/playwright-webmcp/issues"
+  },
   "type": "module",
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "bin": {
-    "webmcp-audit": "./dist/src/cli.js"
+    "webmcp-audit": "./dist/cli.js"
   },
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
-      "default": "./dist/src/index.js"
-    }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist/src"
+    "dist"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "playwright test"
+    "test": "playwright test",
+    "prepack": "pnpm run build"
   },
   "peerDependencies": {
-    "@playwright/test": ">=1.40"
+    "@playwright/test": ">=1.49"
   },
   "dependencies": {
     "playwright-webmcp": "workspace:*",
@@ -32,7 +61,7 @@
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
   }
 }

@@ -15,12 +15,16 @@ export const descriptionInjection = defineRule({
       for (const [path, text] of texts) {
         for (const hit of detectInjection(text)) {
           out.push(
-            finding(descriptionInjection, `${path === "description" ? "Description" : `Parameter description at ${path}`} of "${tool.name}" contains ${hit.kind.replace(/-/g, " ")}: ${JSON.stringify(hit.match)}.`, {
-              tool: tool.name,
-              frame: tool.frame,
-              path: path === "description" ? undefined : path,
-              help: "Descriptions are read by every agent that visits the page; keep them to what the tool does.",
-            }),
+            finding(
+              descriptionInjection,
+              `${path === "description" ? "Description" : `Parameter description at ${path}`} of "${tool.name}" contains ${hit.kind.replace(/-/g, " ")}: ${JSON.stringify(hit.match)}.`,
+              {
+                tool: tool.name,
+                frame: tool.frame,
+                path: path === "description" ? undefined : path,
+                help: "Descriptions are read by every agent that visits the page; keep them to what the tool does.",
+              },
+            ),
           );
         }
       }

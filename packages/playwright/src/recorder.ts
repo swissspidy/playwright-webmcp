@@ -86,6 +86,10 @@ export const RECORDER_SOURCE = String.raw`(() => {
       };
     }
   }
+  // Re-registering a tool must keep the origins it was exposed to, when the API tells us (the shim does).
+  function registerOptions(tool) {
+    return tool && Array.isArray(tool.exposedTo) ? { exposedTo: tool.exposedTo.slice() } : undefined;
+  }
   // Mocks installed from the test replace a tool's execute with a call into Node.
   window.__webmcpInstallMock = async function (name) {
     const mc = document.modelContext || navigator.modelContext;
@@ -100,14 +104,14 @@ export const RECORDER_SOURCE = String.raw`(() => {
       if (reply && reply.__error) throw new Error(reply.__error);
       return reply === null ? undefined : reply;
     };
-    await mc.registerTool({ name, description: existing.description, inputSchema: existing.inputSchema, annotations: existing.annotations, execute });
+    await mc.registerTool({ name, title: existing.title, description: existing.description, inputSchema: existing.inputSchema, annotations: existing.annotations, execute }, registerOptions(existing));
   };
   window.__webmcpRestoreMock = async function (name) {
     const mc = document.modelContext || navigator.modelContext;
     const original = window.__webmcpOriginals && window.__webmcpOriginals[name];
     if (!original) return false;
     if (typeof original.execute !== "function") return false;
-    await mc.registerTool({ name: original.name, description: original.description, inputSchema: original.inputSchema, annotations: original.annotations, execute: original.execute });
+    await mc.registerTool({ name: original.name, title: original.title, description: original.description, inputSchema: original.inputSchema, annotations: original.annotations, execute: original.execute }, registerOptions(original));
     delete window.__webmcpOriginals[name];
     return true;
   };

@@ -30,7 +30,5 @@ test("constraint operators", () => {
 
 test("nested constraints", () => {
   assert.equal(matchesArgument({ item: { qty: { $gte: 2 } } }, { item: { qty: 2, sku: "a" } }), true);
-  assert.deepEqual(explainMismatch({ item: { qty: { $gte: 5 } } }, { item: { qty: 2 } }), [
-    'item.qty: expected {"$gte":5}, got 2',
-  ]);
+  assert.deepEqual(explainMismatch({ item: { qty: { $gte: 5 } } }, { item: { qty: 2 } }), ['item.qty: expected {"$gte":5}, got 2']);
 });

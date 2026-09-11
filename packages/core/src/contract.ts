@@ -2,10 +2,11 @@
  * Tool contracts: a stable, diffable description of what a page exposes to
  * agents, suitable for storing as a snapshot in the repository.
  */
-import type { JsonSchema, PageSnapshot, ToolSource } from "./types.js";
+import type { JsonSchema, PageSnapshot, ToolSnapshot, ToolSource } from "./types.js";
 
 export interface ContractTool {
   name: string;
+  title?: string;
   description: string;
   inputSchema: JsonSchema | null;
   annotations?: Record<string, unknown>;
@@ -19,7 +20,7 @@ export interface ToolContract {
 }
 
 export interface ContractChange {
-  kind: "tool-added" | "tool-removed" | "description-changed" | "schema-changed" | "annotations-changed" | "source-changed";
+  kind: "tool-added" | "tool-removed" | "title-changed" | "description-changed" | "schema-changed" | "annotations-changed" | "source-changed";
   tool: string;
   detail: string;
 }
@@ -36,13 +37,26 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
+/**
+ * The CDP domain reports `autosubmit` as an annotation on declarative tools;
+ * the page-side collector only knows it from the form attribute. Fold it in so
+ * contracts and docs see the same thing whichever collector produced the
+ * snapshot.
+ */
+function contractAnnotations(tool: ToolSnapshot): Record<string, unknown> | undefined {
+  const annotations = { ...(tool.annotations ?? {}) };
+  if (tool.declarative?.autosubmit && annotations.autosubmit === undefined) annotations.autosubmit = true;
+  return Object.keys(annotations).length ? (sortKeys(annotations) as Record<string, unknown>) : undefined;
+}
+
 export function toContract(snapshot: PageSnapshot): ToolContract {
   const tools = snapshot.tools
     .map((t) => ({
       name: t.name,
+      title: t.title,
       description: t.description ?? "",
       inputSchema: (sortKeys(t.inputSchema ?? null) as JsonSchema | null) ?? null,
-      annotations: t.annotations ? (sortKeys(t.annotations) as Record<string, unknown>) : undefined,
+      annotations: contractAnnotations(t),
       source: t.source,
       origin: t.origin,
     }))
@@ -67,7 +81,8 @@ function schemaChanges(tool: string, before: JsonSchema | null, after: JsonSchem
   for (const k of Object.keys(b)) if (!(k in a)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" removed` });
   for (const k of Object.keys(a)) {
     if (!(k in b)) continue;
-    if (JSON.stringify(a[k].type) !== JSON.stringify(b[k].type)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" type ${JSON.stringify(b[k].type)} -> ${JSON.stringify(a[k].type)}` });
+    if (JSON.stringify(a[k].type) !== JSON.stringify(b[k].type))
+      out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" type ${JSON.stringify(b[k].type)} -> ${JSON.stringify(a[k].type)}` });
     if (JSON.stringify(a[k].enum) !== JSON.stringify(b[k].enum)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" enum changed` });
     if (a[k].description !== b[k].description) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" description changed` });
   }
@@ -89,9 +104,11 @@ export function diffContracts(before: ToolContract, after: ToolContract): Contra
   for (const [k, t] of a) {
     const prev = b.get(k);
     if (!prev) continue;
+    if ((prev.title ?? "") !== (t.title ?? "")) out.push({ kind: "title-changed", tool: t.name, detail: `"${prev.title ?? ""}" -> "${t.title ?? ""}"` });
     if (prev.description !== t.description) out.push({ kind: "description-changed", tool: t.name, detail: `"${prev.description}" -> "${t.description}"` });
     out.push(...schemaChanges(t.name, prev.inputSchema, t.inputSchema));
-    if (JSON.stringify(prev.annotations ?? null) !== JSON.stringify(t.annotations ?? null)) out.push({ kind: "annotations-changed", tool: t.name, detail: "annotations changed" });
+    if (JSON.stringify(prev.annotations ?? null) !== JSON.stringify(t.annotations ?? null))
+      out.push({ kind: "annotations-changed", tool: t.name, detail: "annotations changed" });
     if (prev.source !== t.source) out.push({ kind: "source-changed", tool: t.name, detail: `${prev.source} -> ${t.source}` });
   }
   return out;

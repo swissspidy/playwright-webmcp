@@ -1,77 +1,83 @@
 <!doctype html>
 <html lang="en">
-<head>
-  <meta charset="utf-8" />
-  <title>WebMCP demo shop</title>
-</head>
-<body>
-  <h1>Demo shop</h1>
-  <nav>
-    <a href="/bad.html">Badly exposed tools</a>
-    <a href="/late.html">Late registrations</a>
-    <a href="/embed.html">Partner embed</a>
-  </nav>
+  <head>
+    <meta charset="utf-8" />
+    <title>WebMCP demo shop</title>
+  </head>
+  <body>
+    <h1>Demo shop</h1>
+    <nav>
+      <a href="/bad.html">Badly exposed tools</a>
+      <a href="/late.html">Late registrations</a>
+      <a href="/embed.html">Partner embed</a>
+    </nav>
 
-  <form id="newsletter" toolname="subscribe_newsletter" tooldescription="Subscribe an email address to the weekly newsletter and confirm the subscription." toolautosubmit>
-    <label for="email">Email address</label>
-    <input id="email" name="email" type="email" required toolparamdescription="Email address to subscribe" />
-    <select name="frequency" toolparamdescription="How often to send the newsletter">
-      <option value="weekly">Weekly</option>
-      <option value="monthly">Monthly</option>
-    </select>
-    <button type="submit">Subscribe</button>
-  </form>
-  <p id="newsletter-status"></p>
+    <form
+      id="newsletter"
+      toolname="subscribe_newsletter"
+      tooldescription="Subscribe an email address to the weekly newsletter and confirm the subscription."
+      toolautosubmit
+    >
+      <label for="email">Email address</label>
+      <input id="email" name="email" type="email" required toolparamdescription="Email address to subscribe" />
+      <select name="frequency" toolparamdescription="How often to send the newsletter">
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+      <button type="submit">Subscribe</button>
+    </form>
+    <p id="newsletter-status"></p>
 
-  <iframe id="reviews" src="/frame.html" title="Reviews"></iframe>
+    <iframe id="reviews" src="/frame.html" title="Reviews"></iframe>
 
-  <script>
-    const catalogue = [
-      { id: 1, name: "Red shirt", price: 20 },
-      { id: 2, name: "Blue shirt", price: 22 },
-      { id: 3, name: "Green hat", price: 12 },
-    ];
-    const cart = [];
+    <script>
+      const catalogue = [
+        { id: 1, name: "Red shirt", price: 20 },
+        { id: 2, name: "Blue shirt", price: 22 },
+        { id: 3, name: "Green hat", price: 12 },
+      ];
+      const cart = [];
 
-    const mc = document.modelContext ?? navigator.modelContext;
-    mc.registerTool({
-      name: "search_products",
-      description: "Search the product catalogue by keyword. Returns matching products with id, name and price.",
-      inputSchema: {
-        type: "object",
-        properties: { query: { type: "string", description: "Keyword to search for, matched against product names" } },
-        required: ["query"],
-      },
-      async execute({ query }) {
-        const q = String(query).toLowerCase();
-        return { products: catalogue.filter((p) => p.name.toLowerCase().includes(q)) };
-      },
-    });
-    mc.registerTool({
-      name: "add_to_cart",
-      description: "Add a product to the shopping cart by product id, with an optional quantity. Returns the cart total.",
-      inputSchema: {
-        type: "object",
-        properties: {
-          productId: { type: "number", description: "Id of the product from search_products" },
-          quantity: { type: "number", description: "How many to add; defaults to 1", minimum: 1 },
+      const mc = document.modelContext ?? navigator.modelContext;
+      mc.registerTool({
+        name: "search_products",
+        title: "Search products",
+        description: "Search the product catalogue by keyword. Returns matching products with id, name and price.",
+        inputSchema: {
+          type: "object",
+          properties: { query: { type: "string", description: "Keyword to search for, matched against product names" } },
+          required: ["query"],
         },
-        required: ["productId"],
-      },
-      async execute({ productId, quantity = 1 }) {
-        const product = catalogue.find((p) => p.id === productId);
-        if (!product) throw new Error("Unknown product " + productId);
-        cart.push({ product, quantity });
-        return { items: cart.length, total: cart.reduce((s, i) => s + i.product.price * i.quantity, 0) };
-      },
-    });
+        async execute({ query }) {
+          const q = String(query).toLowerCase();
+          return { products: catalogue.filter((p) => p.name.toLowerCase().includes(q)) };
+        },
+      });
+      mc.registerTool({
+        name: "add_to_cart",
+        description: "Add a product to the shopping cart by product id, with an optional quantity. Returns the cart total.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            productId: { type: "number", description: "Id of the product from search_products" },
+            quantity: { type: "number", description: "How many to add; defaults to 1", minimum: 1 },
+          },
+          required: ["productId"],
+        },
+        async execute({ productId, quantity = 1 }) {
+          const product = catalogue.find((p) => p.id === productId);
+          if (!product) throw new Error("Unknown product " + productId);
+          cart.push({ product, quantity });
+          return { items: cart.length, total: cart.reduce((s, i) => s + i.product.price * i.quantity, 0) };
+        },
+      });
 
-    document.getElementById("newsletter").addEventListener("submit", (event) => {
-      event.preventDefault();
-      const email = new FormData(event.target).get("email");
-      document.getElementById("newsletter-status").textContent = "Subscribed " + email;
-      if (typeof event.respondWith === "function") event.respondWith({ subscribed: email, agent: Boolean(event.agentInvoked) });
-    });
-  </script>
-</body>
+      document.getElementById("newsletter").addEventListener("submit", (event) => {
+        event.preventDefault();
+        const email = new FormData(event.target).get("email");
+        document.getElementById("newsletter-status").textContent = "Subscribed " + email;
+        if (typeof event.respondWith === "function") event.respondWith({ subscribed: email, agent: Boolean(event.agentInvoked) });
+      });
+    </script>
+  </body>
 </html>

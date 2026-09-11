@@ -4,6 +4,7 @@
  */
 export interface WebMCPToolDefinition {
   name: string;
+  title?: string;
   description?: string;
   inputSchema?: Record<string, unknown> | null;
   annotations?: Record<string, unknown>;
@@ -12,12 +13,15 @@ export interface WebMCPToolDefinition {
 
 export interface WebMCPRegisteredTool {
   name: string;
+  title?: string;
   description: string;
   inputSchema: Record<string, unknown> | null;
   annotations?: Record<string, unknown>;
   origin: string;
   window?: Window;
   execute?: (args: any, options?: { signal?: AbortSignal }) => unknown | Promise<unknown>;
+  /** Origins the tool was exposed to at registration, when the implementation surfaces it (the test shim does). */
+  exposedTo?: string[];
 }
 
 export interface WebMCPModelContext extends EventTarget {

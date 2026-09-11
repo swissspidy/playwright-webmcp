@@ -1,7 +1,8 @@
 export * from "./types.js";
 export * from "./evals-types.js";
 export { matchesArgument, matchesConstraint, isConstraint, explainMismatch, type Constraint } from "./matcher.js";
-export { reconcileCalls, type ActualCall, type ReconcileOptions, type ReconcileResult } from "./reconcile.js";
+export { reconcileCalls, type ActualCall, type ReconcileMode, type ReconcileOptions, type ReconcileResult } from "./reconcile.js";
+export { evaluateTrajectory, describeTrajectoryRow, functionCallOutcome, type TrajectoryRow } from "./trajectory.js";
 export { lint, formatFindings } from "./lint.js";
 export { builtinRules, rulesById } from "./rules/index.js";
 export { defineRule } from "./rules/helpers.js";
@@ -17,4 +18,6 @@ export { toPlaywrightTest, type CodegenOptions } from "./codegen.js";
 export { computeCoverage, formatCoverage, type CoverageReport, type ToolCoverage } from "./coverage.js";
 export { renderToolDocs, type DocsOptions } from "./docs.js";
 export { computeScore, formatScore, SAFETY_RULES, type Score, type ScoreCategory, type ScoreInput } from "./score.js";
+export { toolHints, isReadOnlyTool, type ToolHints } from "./annotations.js";
+export { ATTACHMENTS, type AttachmentName } from "./attachments.js";
 export { judgeTimeline, TIMELINE_RULES, type TimelineReport, type TimelineMarks, type TimelineBudgets } from "./timeline.js";

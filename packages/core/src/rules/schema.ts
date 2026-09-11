@@ -112,7 +112,8 @@ export const schemaKeywords = defineRule({
   },
 });
 
-const SENSITIVE_RE = /(password|passcode|secret|token|api[-_]?key|ssn|social[-_]?security|credit[-_]?card|card[-_]?number|cvv|cvc|iban|account[-_]?number|routing)/i;
+const SENSITIVE_RE =
+  /(password|passcode|secret|token|api[-_]?key|ssn|social[-_]?security|credit[-_]?card|card[-_]?number|cvv|cvc|iban|account[-_]?number|routing)/i;
 
 export const sensitiveParams = defineRule({
   id: "sensitive-params",

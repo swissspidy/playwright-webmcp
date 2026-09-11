@@ -1,7 +1,17 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { FullConfig, Reporter, TestCase, TestResult } from "@playwright/test/reporter";
-import { computeCoverage, renderToolDocs, type EvalCase, type EvalToolSchema, type EvalToolsSchema, type RecordedCall, type ToolContract, type ToolSnapshot } from "webmcp-lint";
+import {
+  ATTACHMENTS,
+  computeCoverage,
+  renderToolDocs,
+  type EvalCase,
+  type EvalToolSchema,
+  type EvalToolsSchema,
+  type RecordedCall,
+  type ToolContract,
+  type ToolSnapshot,
+} from "webmcp-lint";
 
 export interface EvalsReporterOptions {
   /** Directory to write into. Default: `.webmcp-evals`. */
@@ -10,13 +20,7 @@ export interface EvalsReporterOptions {
   prefixWithTestTitle?: boolean;
 }
 
-/** Attachment names produced by the playwright-webmcp fixture. */
-export const ATTACHMENTS = {
-  eval: "webmcp-eval",
-  tools: "webmcp-tools",
-  calls: "webmcp-calls",
-  toolSnapshots: "webmcp-tool-snapshots",
-} as const;
+export { ATTACHMENTS };
 
 interface ScenarioAttachment {
   url: string;
@@ -39,6 +43,7 @@ export default class WebMCPEvalsReporter implements Reporter {
   private readonly tools = new Map<string, EvalToolSchema>();
   private readonly calls: RecordedCall[] = [];
   private readonly snapshots = new Map<string, ToolSnapshot>();
+  private readonly usedNames = new Set<string>();
   private rootDir = process.cwd();
 
   constructor(options: EvalsReporterOptions = {}) {
@@ -57,6 +62,7 @@ export default class WebMCPEvalsReporter implements Reporter {
         const payload = JSON.parse(a.body.toString("utf8")) as ScenarioAttachment;
         const evalCase: EvalCase = { ...payload.eval };
         if (this.prefix) evalCase.name = evalCase.name ? `${test.title} › ${evalCase.name}` : test.title;
+        evalCase.name = this.uniqueName(evalCase.name ?? test.title);
         this.evals.push(evalCase);
         this.byUrl.set(payload.url, [...(this.byUrl.get(payload.url) ?? []), evalCase]);
       } else if (a.name === ATTACHMENTS.tools) {
@@ -66,6 +72,21 @@ export default class WebMCPEvalsReporter implements Reporter {
         this.calls.push(...(JSON.parse(a.body.toString("utf8")) as RecordedCall[]));
       } else if (a.name === ATTACHMENTS.toolSnapshots) {
         for (const t of JSON.parse(a.body.toString("utf8")) as ToolSnapshot[]) if (!this.snapshots.has(t.name)) this.snapshots.set(t.name, t);
+      }
+    }
+  }
+
+  /** Two scenarios in one test without names would otherwise collide; suffix repeats until the name is unused. */
+  private uniqueName(name: string): string {
+    if (!this.usedNames.has(name)) {
+      this.usedNames.add(name);
+      return name;
+    }
+    for (let n = 2; ; n++) {
+      const candidate = `${name} (${n})`;
+      if (!this.usedNames.has(candidate)) {
+        this.usedNames.add(candidate);
+        return candidate;
       }
     }
   }
@@ -84,7 +105,15 @@ export default class WebMCPEvalsReporter implements Reporter {
       const contract: ToolContract = {
         version: 1,
         tools: snapshots
-          .map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations, source: t.source, origin: t.origin }))
+          .map((t) => ({
+            name: t.name,
+            title: t.title,
+            description: t.description,
+            inputSchema: t.inputSchema,
+            annotations: t.annotations,
+            source: t.source,
+            origin: t.origin,
+          }))
           .sort((a, b) => a.name.localeCompare(b.name)),
       };
       writeFileSync(join(dir, "TOOLS.md"), renderToolDocs(contract, { calls: this.calls, title: "WebMCP tools seen by the test suite" }));

@@ -16,10 +16,7 @@ export interface EvalFunctionCall {
   optional?: boolean;
 }
 
-export type ExpectedCallNode =
-  | EvalFunctionCall
-  | { unordered: ExpectedCallNode[] }
-  | { ordered: ExpectedCallNode[] };
+export type ExpectedCallNode = EvalFunctionCall | { unordered: ExpectedCallNode[] } | { ordered: ExpectedCallNode[] };
 
 export interface EvalCase {
   name?: string;

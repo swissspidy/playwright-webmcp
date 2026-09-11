@@ -23,6 +23,7 @@ test.describe("tool discovery", () => {
       inputSchema: { properties: { email: { type: "string" }, frequency: { enum: ["weekly", "monthly"] } }, required: ["email"] },
     });
     await expect(page).toHaveTool("list_reviews");
+    expect((await webmcp.tool("search_products"))?.title).toBe("Search products");
     await expect(webmcp).not.toHaveTool("checkout");
   });
 

@@ -9,6 +9,8 @@ test.describe("tool contract", () => {
   });
 
   test("reports what changed", async ({ page, webmcp }, testInfo) => {
+    const mode = testInfo.config.updateSnapshots;
+    test.skip(mode === "all" || mode === "changed", "this test mutates the page; updating snapshots here would store the mutated contract");
     await page.goto("/");
     // Establish the baseline from the unmodified page (written on first run, compared afterwards).
     const baseline = await webmcp.matchToolContract("demo-shop.json");
@@ -21,7 +23,12 @@ test.describe("tool contract", () => {
         inputSchema: { type: "object", properties: { query: { type: "string", description: "Keyword" }, category: { type: "string" } }, required: ["query"] },
         execute: async () => ({}),
       });
-      await mc.registerTool({ name: "checkout", description: "Start the checkout flow for the current cart.", inputSchema: { type: "object", properties: {} }, execute: async () => ({}) });
+      await mc.registerTool({
+        name: "checkout",
+        description: "Start the checkout flow for the current cart.",
+        inputSchema: { type: "object", properties: {} },
+        execute: async () => ({}),
+      });
     });
     let message = "";
     try {

@@ -8,7 +8,10 @@ test.describe("mock and replay", () => {
     const fromPage = await page.evaluate(async () => {
       const mc = (document.modelContext ?? navigator.modelContext)!;
       const tools = await mc.getTools();
-      return mc.executeTool(tools.find((t) => t.name === "add_to_cart")!, { productId: 1 });
+      return mc.executeTool(
+        tools.find((t) => t.name === "add_to_cart")!,
+        { productId: 1 },
+      );
     });
     expect(fromPage).toEqual({ items: 1, total: 999 });
     expect(webmcp.calls().map((c) => c.via)).toEqual(["fixture", "api"]);

@@ -1,5 +1,6 @@
 import type { EvalFunctionCall, ExpectedCallNode } from "./evals-types.js";
 import { matchesArgument } from "./matcher.js";
+import { evaluateTrajectory, describeTrajectoryRow } from "./trajectory.js";
 
 export interface ActualCall {
   name: string;
@@ -7,8 +8,18 @@ export interface ActualCall {
   result?: unknown;
 }
 
+export type ReconcileMode = "lenient" | "evals";
+
 export interface ReconcileOptions {
-  /** When true, actual calls not consumed by any expectation fail the match. Default false. */
+  /**
+   * "lenient" (default): expected calls may be satisfied by any later actual
+   * call, so the expectation is a subsequence of what happened.
+   * "evals": the exact algorithm of the `webmcp-evals` CLI. Calls are matched
+   * positionally and every unexplained actual call fails the case. Use this
+   * when the expectation will also be run by that CLI.
+   */
+  mode?: ReconcileMode;
+  /** Lenient mode only: actual calls not consumed by any expectation fail the match. Default false. Always on in "evals" mode. */
   strict?: boolean;
 }
 
@@ -51,12 +62,19 @@ function describe(node: EvalFunctionCall): string {
  *  - `optional: true` on a function call means it may be absent; when present
  *    it must match
  *  - extra actual calls are tolerated unless `strict` is set
+ *
+ * Pass `mode: "evals"` for the positional semantics of the `webmcp-evals` CLI
+ * (see ./trajectory.ts).
  */
-export function reconcileCalls(
-  expected: ExpectedCallNode[] | null | undefined,
-  actual: ActualCall[],
-  options: ReconcileOptions = {},
-): ReconcileResult {
+export function reconcileCalls(expected: ExpectedCallNode[] | null | undefined, actual: ActualCall[], options: ReconcileOptions = {}): ReconcileResult {
+  if (options.mode === "evals") {
+    // Copy each call so that the same object appearing twice in `actual` still maps back to its own index.
+    const positioned = actual.map((c) => ({ ...c }));
+    const rows = evaluateTrajectory(expected, positioned);
+    const failed = rows.filter((r) => r.outcome === "fail");
+    const consumedIdx = rows.filter((r) => r.outcome === "pass" && r.actual).map((r) => positioned.indexOf(r.actual!));
+    return { ok: failed.length === 0, problems: Array.from(new Set(failed.map(describeTrajectoryRow))), consumed: consumedIdx.sort((a, b) => a - b) };
+  }
   const consumed = new Set<number>();
   const problems: string[] = [];
 

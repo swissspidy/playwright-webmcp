@@ -1,12 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "outDir": "dist",
-    "rootDir": "."
+    "noEmit": true
   },
-  "include": [
-    "src",
-    "tests",
-    "playwright.config.ts"
-  ]
+  "include": ["src", "tests", "playwright.config.ts"]
 }

@@ -1,35 +1,65 @@
 {
   "name": "playwright-webmcp",
   "version": "0.1.0",
-  "description": "Playwright fixture, matchers and recorder for testing WebMCP tool surfaces.",
+  "description": "Playwright fixture, matchers, recorder and test-time shim for testing WebMCP tool surfaces.",
+  "keywords": [
+    "playwright",
+    "webmcp",
+    "mcp",
+    "agents",
+    "model-context",
+    "testing",
+    "fixture",
+    "matchers"
+  ],
   "license": "Apache-2.0",
+  "author": "Pascal Birchler",
+  "homepage": "https://github.com/swissspidy/playwright-webmcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/swissspidy/playwright-webmcp.git",
+    "directory": "packages/playwright"
+  },
+  "bugs": {
+    "url": "https://github.com/swissspidy/playwright-webmcp/issues"
+  },
   "type": "module",
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
-      "default": "./dist/src/index.js"
-    }
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist/src"
+    "dist"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "playwright test"
+    "test": "playwright test",
+    "prepack": "pnpm run build"
   },
   "peerDependencies": {
-    "@playwright/test": ">=1.40"
+    "@playwright/test": ">=1.49"
   },
   "dependencies": {
     "webmcp-lint": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.62.1",
-    "typescript": "^5.6.0",
     "@types/node": "^22.0.0",
-    "playwright-webmcp-evals": "workspace:*"
+    "playwright-webmcp-evals": "workspace:*",
+    "typescript": "^5.6.0"
   }
 }

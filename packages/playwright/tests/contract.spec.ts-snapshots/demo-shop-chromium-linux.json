@@ -44,6 +44,7 @@
     },
     {
       "name": "search_products",
+      "title": "Search products",
       "description": "Search the product catalogue by keyword. Returns matching products with id, name and price.",
       "inputSchema": {
         "properties": {
@@ -82,6 +83,9 @@
           "email"
         ],
         "type": "object"
+      },
+      "annotations": {
+        "autosubmit": true
       },
       "source": "declarative",
       "origin": "http://localhost:4173"
