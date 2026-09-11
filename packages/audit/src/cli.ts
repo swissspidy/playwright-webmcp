@@ -23,10 +23,10 @@ Options:
   -h, --help            Show this help
 `;
 
+class UsageError extends Error {}
+
 function fail(message: string): never {
-  console.error(`webmcp-audit: ${message}\n`);
-  console.error(HELP);
-  process.exit(2);
+  throw new UsageError(message);
 }
 
 /** `--arg --enable-features=X` reads naturally but parseArgs needs `--arg=--enable-features=X`; rewrite the former. */
@@ -61,44 +61,62 @@ function parse() {
     return fail((err as Error).message);
   }
 }
-const { values, positionals } = parse();
+/**
+ * Returns the exit code instead of calling process.exit(), so that stdout
+ * (which may be a pipe) drains before the process ends.
+ */
+async function main(): Promise<number> {
+  const { values, positionals } = parse();
 
-if (values.help) {
-  console.log(HELP);
-  process.exit(0);
+  if (values.help) {
+    console.log(HELP);
+    return 0;
+  }
+  const url = positionals[0];
+  if (!url) fail("missing <url>");
+  if (positionals.length > 1) fail(`unexpected argument ${JSON.stringify(positionals[1])}`);
+  try {
+    new URL(url);
+  } catch {
+    fail(`${JSON.stringify(url)} is not a valid URL`);
+  }
+  const integer = (name: "max-pages" | "settle"): number | undefined => {
+    const raw = values[name];
+    if (raw === undefined) return undefined;
+    const n = Number(raw);
+    if (!Number.isInteger(n) || n < 0) fail(`--${name} expects a non-negative integer, got ${JSON.stringify(raw)}`);
+    return n;
+  };
+
+  const report = await audit({
+    url,
+    maxPages: integer("max-pages"),
+    crawl: !values["no-crawl"],
+    smoke: values.smoke,
+    smokeOptions: values["all-tools"] ? { all: true } : {},
+    settleMs: integer("settle"),
+    executablePath: values.executable ?? process.env.PW_CHROMIUM,
+    args: values.arg,
+    onPage: (p) => console.error(`${p.status === "ok" ? "audited" : "failed "} ${p.url}${p.score ? `  score ${p.score.score}` : ""}`),
+  });
+
+  mkdirSync(values.out, { recursive: true });
+  writeFileSync(join(values.out, "report.json"), JSON.stringify(report, null, 2) + "\n");
+  writeFileSync(join(values.out, "report.md"), renderMarkdown(report));
+  if (!values.quiet) console.log(renderMarkdown(report));
+  const failedPages = report.pages.filter((p) => p.status === "error");
+  if (failedPages.length) console.error(`webmcp-audit: ${failedPages.length} page(s) could not be audited`);
+  return failedPages.length || report.findings.some((f) => f.severity === "error") ? 1 : 0;
 }
-const url = positionals[0];
-if (!url) fail("missing <url>");
-if (positionals.length > 1) fail(`unexpected argument ${JSON.stringify(positionals[1])}`);
+
 try {
-  new URL(url);
-} catch {
-  fail(`${JSON.stringify(url)} is not a valid URL`);
+  process.exitCode = await main();
+} catch (err) {
+  if (err instanceof UsageError) {
+    console.error(`webmcp-audit: ${err.message}\n`);
+    console.error(HELP);
+    process.exitCode = 2;
+  } else {
+    throw err;
+  }
 }
-const integer = (name: "max-pages" | "settle"): number | undefined => {
-  const raw = values[name];
-  if (raw === undefined) return undefined;
-  const n = Number(raw);
-  if (!Number.isInteger(n) || n < 0) fail(`--${name} expects a non-negative integer, got ${JSON.stringify(raw)}`);
-  return n;
-};
-
-const report = await audit({
-  url,
-  maxPages: integer("max-pages"),
-  crawl: !values["no-crawl"],
-  smoke: values.smoke,
-  smokeOptions: values["all-tools"] ? { all: true } : {},
-  settleMs: integer("settle"),
-  executablePath: values.executable ?? process.env.PW_CHROMIUM,
-  args: values.arg,
-  onPage: (p) => console.error(`${p.status === "ok" ? "audited" : "failed "} ${p.url}${p.score ? `  score ${p.score.score}` : ""}`),
-});
-
-mkdirSync(values.out, { recursive: true });
-writeFileSync(join(values.out, "report.json"), JSON.stringify(report, null, 2) + "\n");
-writeFileSync(join(values.out, "report.md"), renderMarkdown(report));
-if (!values.quiet) console.log(renderMarkdown(report));
-const failedPages = report.pages.filter((p) => p.status === "error");
-if (failedPages.length) console.error(`webmcp-audit: ${failedPages.length} page(s) could not be audited`);
-process.exit(failedPages.length || report.findings.some((f) => f.severity === "error") ? 1 : 0);
