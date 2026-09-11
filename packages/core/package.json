@@ -1,31 +1,59 @@
 {
   "name": "webmcp-lint",
   "version": "0.1.0",
-  "description": "Lint rules, snapshot model and evals-compatible call matcher for WebMCP tool surfaces.",
+  "description": "Lint rules, snapshot model, schema-driven smoke checks and a webmcp-evals compatible call matcher for WebMCP tool surfaces.",
+  "keywords": [
+    "webmcp",
+    "lint",
+    "mcp",
+    "agents",
+    "model-context",
+    "testing"
+  ],
   "license": "Apache-2.0",
+  "author": "Pascal Birchler",
+  "homepage": "https://github.com/swissspidy/playwright-webmcp/tree/main/packages/core#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/swissspidy/playwright-webmcp.git",
+    "directory": "packages/core"
+  },
+  "bugs": {
+    "url": "https://github.com/swissspidy/playwright-webmcp/issues"
+  },
   "type": "module",
-  "main": "./dist/src/index.js",
-  "types": "./dist/src/index.d.ts",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=20"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/src/index.d.ts",
-      "default": "./dist/src/index.js"
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     },
     "./collect": {
-      "types": "./dist/src/collect.d.ts",
-      "default": "./dist/src/collect.js"
-    }
+      "types": "./dist/collect.d.ts",
+      "default": "./dist/collect.js"
+    },
+    "./package.json": "./package.json"
   },
   "files": [
-    "dist/src"
+    "dist"
   ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test 'dist/test/*.test.js'"
+    "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\"",
+    "prepack": "pnpm run build"
   },
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "typescript": "^5.6.0"
   }
 }
