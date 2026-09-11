@@ -54,4 +54,28 @@ test.describe("scenario export", () => {
     });
     expect(evalCase.expectedCall).toEqual([{ functionName: "search_products", arguments: { query: "hat" } }]);
   });
+
+  test("an agent run inside the body exports the model's trajectory", async ({ page, webmcp }) => {
+    await webmcp.promptApi.useFake({
+      turns: [
+        {
+          calls: [
+            { name: "search_products", args: { query: "red shirt" } },
+            { name: "add_to_cart", args: { productId: 1, quantity: 2 } },
+          ],
+        },
+      ],
+    });
+    await page.goto("/");
+    const evalCase = await webmcp.scenario({ name: "add two shirts", prompt: "Add two red shirts to my cart", argumentsMode: "types" }, async () => {
+      await webmcp.promptApi.run("Add two red shirts to my cart");
+    });
+    expect(evalCase.expectedCall).toEqual([
+      { functionName: "search_products", arguments: { query: { $type: "string" } } },
+      { functionName: "add_to_cart", arguments: { productId: { $type: "number" }, quantity: { $type: "number" } } },
+    ]);
+    expect(webmcp.calls().map((c) => c.via)).toEqual(["agent", "agent"]);
+    // The exported case passes under the CLI's semantics against the same run.
+    await expect(webmcp).toPassEval(evalCase);
+  });
 });

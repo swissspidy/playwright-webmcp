@@ -16,7 +16,7 @@
     "format:check": "prettier --check .",
     "lint:publish": "pnpm -r --filter './packages/*' exec publint --strict",
     "changeset": "changeset",
-    "version": "changeset version && pnpm install --lockfile-only",
+    "version-packages": "changeset version && pnpm install --lockfile-only",
     "release": "pnpm run build && changeset publish"
   },
   "devDependencies": {
