@@ -7,7 +7,6 @@ export {
   type WebMCPOptions,
   type WebMCPFixtures,
   type WebMCPFixtureOptions,
-  type ScenarioOptions,
   type EvalRunOptions,
   type EvalRunResult,
   type ContractMatchResult,

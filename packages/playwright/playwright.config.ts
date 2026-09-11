@@ -3,7 +3,7 @@ import { defineConfig } from "@playwright/test";
 export default defineConfig({
   testDir: "./tests",
   fullyParallel: true,
-  reporter: [["list"], ["playwright-webmcp-evals", { outputDir: ".webmcp-evals" }]],
+  reporter: [["list"], ["./src/reporter.ts", { outputDir: ".webmcp-report" }]],
   webServer: {
     command: "node ../../examples/demo-site/server.mjs",
     port: 4173,

@@ -4,7 +4,7 @@ dist-test/
 pnpm-lock.yaml
 test-results/
 playwright-report/
-.webmcp-evals/
+.webmcp-report/
 .webmcp-audit/
 *-snapshots/
 CHANGELOG.md

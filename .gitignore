@@ -8,5 +8,5 @@ test-results/
 playwright-report/
 blob-report/
 .evals/
-.webmcp-evals/
+.webmcp-report/
 .webmcp-audit/

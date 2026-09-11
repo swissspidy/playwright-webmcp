@@ -1,3 +1,4 @@
+import { toEvalCase } from "webmcp-lint";
 import { test, expect } from "../src/index.js";
 
 test.describe("prompt api harness", () => {
@@ -99,6 +100,28 @@ test.describe("prompt api harness", () => {
     expect(lenient.pass).toBe(true);
     await expect(webmcp).not.toPassEval(evalCase);
     await expect(webmcp).toPassEval(evalCase, { mode: "lenient" });
+  });
+
+  test("a recording of an agent run drafts an eval case that the same run passes", async ({ page, webmcp }) => {
+    await webmcp.promptApi.useFake({
+      turns: [
+        {
+          calls: [
+            { name: "search_products", args: { query: "red shirt" } },
+            { name: "add_to_cart", args: { productId: 1, quantity: 2 } },
+          ],
+        },
+      ],
+    });
+    await page.goto("/");
+    await webmcp.promptApi.run("Add two red shirts to my cart");
+    const evalCase = toEvalCase(webmcp.calls(), { name: "add two shirts", prompt: "Add two red shirts to my cart", argumentsMode: "types" });
+    expect(evalCase.expectedCall).toEqual([
+      { functionName: "search_products", arguments: { query: { $type: "string" } } },
+      { functionName: "add_to_cart", arguments: { productId: { $type: "number" }, quantity: { $type: "number" } } },
+    ]);
+    webmcp.clearCalls();
+    await expect(webmcp).toPassEval(evalCase);
   });
 
   test("tool results returned to the model have nulls stripped", async ({ page, webmcp }) => {

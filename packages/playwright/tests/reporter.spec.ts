@@ -2,45 +2,38 @@ import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test, expect } from "@playwright/test";
-import Reporter from "playwright-webmcp-evals";
+import Reporter from "../src/reporter.js";
 
-test("reporter writes evals.json and tools.json from attachments", async () => {
-  const dir = mkdtempSync(join(tmpdir(), "webmcp-evals-"));
-  const reporter = new Reporter({ outputDir: dir });
+test("reporter writes tools.json, coverage.json and TOOLS.md from attachments", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "webmcp-report-"));
+  const reporter = new Reporter({ outputDir: dir, title: "Shop tools" });
   reporter.onBegin({ rootDir: "/" } as never);
   const attach = (name: string, body: unknown) => ({ name, contentType: "application/json", body: Buffer.from(JSON.stringify(body)) });
+  const tool = {
+    name: "add_to_cart",
+    title: "Add to cart",
+    description: "Add a product to the cart.",
+    inputSchema: { type: "object", properties: { productId: { type: "number" }, quantity: { type: "number" } }, required: ["productId"] },
+    origin: "http://localhost:4173",
+    frame: 0,
+    source: "imperative",
+  };
   reporter.onTestEnd(
     { title: "checkout flow" } as never,
     {
       attachments: [
-        attach("webmcp-eval", {
-          url: "http://localhost:4173/",
-          eval: { name: "buy", messages: [{ role: "user", type: "message", content: "Buy a hat" }], expectedCall: [{ functionName: "add_to_cart" }] },
-        }),
-        attach("webmcp-tools", { tools: [{ name: "add_to_cart", description: "d", inputSchema: null, outputSchema: null }] }),
+        attach("webmcp-tool-snapshots", [tool]),
+        attach("webmcp-calls", [{ name: "add_to_cart", args: { productId: 1 }, result: { total: 20 }, startedAt: 1, durationMs: 1, via: "fixture" }]),
       ],
     } as never,
   );
   reporter.onEnd();
-  const evals = JSON.parse(readFileSync(join(dir, "evals.json"), "utf8"));
   const tools = JSON.parse(readFileSync(join(dir, "tools.json"), "utf8"));
-  expect(evals).toEqual([
-    { name: "checkout flow › buy", messages: [{ role: "user", type: "message", content: "Buy a hat" }], expectedCall: [{ functionName: "add_to_cart" }] },
-  ]);
-  expect(tools.tools.map((t: { name: string }) => t.name)).toEqual(["add_to_cart"]);
-});
-
-test("reporter keeps eval names unique across unnamed scenarios", () => {
-  const dir = mkdtempSync(join(tmpdir(), "webmcp-evals-"));
-  const reporter = new Reporter({ outputDir: dir });
-  reporter.onBegin({ rootDir: "/" } as never);
-  const attach = (body: unknown) => ({ name: "webmcp-eval", contentType: "application/json", body: Buffer.from(JSON.stringify(body)) });
-  const unnamed = { url: "http://localhost/", eval: { messages: [{ role: "user", type: "message", content: "x" }], expectedCall: [] } };
-  reporter.onTestEnd({ title: "modes" } as never, { attachments: [attach(unnamed), attach(unnamed)] } as never);
-  // A test whose title equals a generated suffix, then another unnamed scenario in the first test.
-  reporter.onTestEnd({ title: "modes (2)" } as never, { attachments: [attach(unnamed)] } as never);
-  reporter.onTestEnd({ title: "modes" } as never, { attachments: [attach(unnamed)] } as never);
-  reporter.onEnd();
-  const evals = JSON.parse(readFileSync(join(dir, "evals.json"), "utf8"));
-  expect(evals.map((e: { name: string }) => e.name)).toEqual(["modes", "modes (2)", "modes (2) (2)", "modes (3)"]);
+  expect(tools.tools).toEqual([{ name: "add_to_cart", description: "Add a product to the cart.", inputSchema: tool.inputSchema, outputSchema: null }]);
+  const coverage = JSON.parse(readFileSync(join(dir, "coverage.json"), "utf8"));
+  expect(coverage.tools[0]).toMatchObject({ name: "add_to_cart", calls: 1, parametersNeverSet: ["quantity"] });
+  const docs = readFileSync(join(dir, "TOOLS.md"), "utf8");
+  expect(docs).toContain("# Shop tools");
+  expect(docs).toContain("**Add to cart**");
+  expect(docs).toContain('"productId": 1');
 });
