@@ -16,7 +16,10 @@ test.describe("prompt api harness", () => {
       turns: [
         {
           match: "shirt",
-          calls: [{ name: "search_products", args: { query: "shirt" } }, { name: "add_to_cart", args: { productId: 1, quantity: 2 } }],
+          calls: [
+            { name: "search_products", args: { query: "shirt" } },
+            { name: "add_to_cart", args: { productId: 1, quantity: 2 } },
+          ],
           response: "Added two red shirts. Cart: {{result:1}}",
         },
       ],
@@ -35,7 +38,12 @@ test.describe("prompt api harness", () => {
       ["search_products", "agent"],
       ["add_to_cart", "agent"],
     ]);
-    expect(calls[0].result).toEqual({ products: [{ id: 1, name: "Red shirt", price: 20 }, { id: 2, name: "Blue shirt", price: 22 }] });
+    expect(calls[0].result).toEqual({
+      products: [
+        { id: 1, name: "Red shirt", price: 20 },
+        { id: 2, name: "Blue shirt", price: 22 },
+      ],
+    });
     expect(webmcp).toHaveCalledTool("add_to_cart", { quantity: { $gte: 2 } });
   });
 

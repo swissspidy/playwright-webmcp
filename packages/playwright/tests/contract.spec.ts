@@ -21,7 +21,12 @@ test.describe("tool contract", () => {
         inputSchema: { type: "object", properties: { query: { type: "string", description: "Keyword" }, category: { type: "string" } }, required: ["query"] },
         execute: async () => ({}),
       });
-      await mc.registerTool({ name: "checkout", description: "Start the checkout flow for the current cart.", inputSchema: { type: "object", properties: {} }, execute: async () => ({}) });
+      await mc.registerTool({
+        name: "checkout",
+        description: "Start the checkout flow for the current cart.",
+        inputSchema: { type: "object", properties: {} },
+        execute: async () => ({}),
+      });
     });
     let message = "";
     try {

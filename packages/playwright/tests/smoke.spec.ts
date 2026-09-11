@@ -21,7 +21,12 @@ test.describe("smoke", () => {
     });
     const report = await webmcp.smoke({ tools: ["search_products", "lookup"] });
     const runsFor = (tool: string) => report.runs.filter((r) => r.tool === tool);
-    expect(runsFor("search_products").map((r) => r.label)).toEqual(["required parameters only", "query empty string", "missing required query", "query has wrong type"]);
+    expect(runsFor("search_products").map((r) => r.label)).toEqual([
+      "required parameters only",
+      "query empty string",
+      "missing required query",
+      "query has wrong type",
+    ]);
     expect(runsFor("lookup").map((r) => r.kind)).toEqual(["valid-minimal", "boundary", "boundary", "invalid", "invalid", "invalid", "invalid"]);
 
     const ids = report.findings.map((f) => f.ruleId);

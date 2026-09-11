@@ -38,7 +38,9 @@ export function renderToolDocs(contract: ToolContract, options: DocsOptions = {}
       lines.push("| Parameter | Type | Required | Description |", "| --- | --- | --- | --- |");
       for (const name of names) {
         const p = props[name];
-        lines.push(`| \`${name}\` | ${typeOf(p)} | ${required.has(name) ? "yes" : "no"} | ${typeof p.description === "string" ? p.description.replace(/\|/g, "\\|") : ""} |`);
+        lines.push(
+          `| \`${name}\` | ${typeOf(p)} | ${required.has(name) ? "yes" : "no"} | ${typeof p.description === "string" ? p.description.replace(/\|/g, "\\|") : ""} |`,
+        );
       }
       lines.push("");
     } else {

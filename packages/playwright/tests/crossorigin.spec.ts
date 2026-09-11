@@ -38,7 +38,7 @@ test.describe("cross-origin exposure", () => {
     expect(await webmcp.call("partner_private")).toEqual({ secret: true });
   });
 
-  test("lint flags a cross-origin frame that registers tools without allow=\"tools\"", async ({ page, webmcp }) => {
+  test('lint flags a cross-origin frame that registers tools without allow="tools"', async ({ page, webmcp }) => {
     await page.goto("/embed.html");
     const result = await webmcp.lint({ rules: { "duplicate-tool-name": false } });
     const f = result.findings.find((x) => x.ruleId === "iframe-allow-tools");

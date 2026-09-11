@@ -10,7 +10,8 @@ class FakeSession implements CdpLikeSession {
   async send(method: string, params?: Record<string, unknown>) {
     this.sent.push({ method, params });
     if (method === "WebMCP.enable" && !this.supported) throw new Error("'WebMCP.enable' wasn't found");
-    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "F1", url: "http://top/" }, childFrames: [{ frame: { id: "F2", url: "http://top/frame.html" } }] } };
+    if (method === "Page.getFrameTree")
+      return { frameTree: { frame: { id: "F1", url: "http://top/" }, childFrames: [{ frame: { id: "F2", url: "http://top/frame.html" } }] } };
     if (method === "WebMCP.invokeTool") return { invocationId: `inv-${this.nextInvocation++}` };
     return {};
   }

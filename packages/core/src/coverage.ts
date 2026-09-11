@@ -31,7 +31,15 @@ export function computeCoverage(tools: Pick<ToolSnapshot, "name" | "inputSchema"
   for (const t of tools) {
     if (byName.has(t.name)) continue;
     const parameters = Object.keys(schemaProperties(t.inputSchema));
-    byName.set(t.name, { name: t.name, calls: 0, errors: 0, via: { api: 0, fixture: 0, agent: 0 }, parameters, parametersSeen: [], parametersNeverSet: [...parameters] });
+    byName.set(t.name, {
+      name: t.name,
+      calls: 0,
+      errors: 0,
+      via: { api: 0, fixture: 0, agent: 0 },
+      parameters,
+      parametersSeen: [],
+      parametersNeverSet: [...parameters],
+    });
   }
   for (const c of calls) {
     const entry = byName.get(c.name);
@@ -61,6 +69,12 @@ export function computeCoverage(tools: Pick<ToolSnapshot, "name" | "inputSchema"
 }
 
 export function formatCoverage(report: CoverageReport): string {
-  const rows = report.tools.map((t) => `${t.calls > 0 ? "x" : " "} ${t.name.padEnd(28)} ${String(t.calls).padStart(4)} calls${t.errors ? ` (${t.errors} failed)` : ""}${t.parametersNeverSet.length ? `  never set: ${t.parametersNeverSet.join(", ")}` : ""}`);
-  return [`Tools: ${report.called}/${report.total} called (${Math.round(report.ratio * 100)}%), parameters ${Math.round(report.parameterRatio * 100)}%`, ...rows].join("\n");
+  const rows = report.tools.map(
+    (t) =>
+      `${t.calls > 0 ? "x" : " "} ${t.name.padEnd(28)} ${String(t.calls).padStart(4)} calls${t.errors ? ` (${t.errors} failed)` : ""}${t.parametersNeverSet.length ? `  never set: ${t.parametersNeverSet.join(", ")}` : ""}`,
+  );
+  return [
+    `Tools: ${report.called}/${report.total} called (${Math.round(report.ratio * 100)}%), parameters ${Math.round(report.parameterRatio * 100)}%`,
+    ...rows,
+  ].join("\n");
 }

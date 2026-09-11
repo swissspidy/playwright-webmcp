@@ -33,14 +33,26 @@ export interface SmokeReport {
 
 export const SMOKE_RULES = {
   "result-error-on-valid-input": { severity: "error" as Severity, description: "A tool threw or reported an error for schema-valid input." },
-  "result-contains-null": { severity: "error" as Severity, description: "Result contains null; Chrome's Prompt API rejects JSON null at any depth in tool results." },
+  "result-contains-null": {
+    severity: "error" as Severity,
+    description: "Result contains null; Chrome's Prompt API rejects JSON null at any depth in tool results.",
+  },
   "result-not-serializable": { severity: "error" as Severity, description: "Result could not be serialized to JSON, so no agent can consume it." },
   "result-undefined": { severity: "warning" as Severity, description: "Tool returned undefined; return an object so the agent gets a confirmation." },
   "result-too-large": { severity: "warning" as Severity, description: "Result is large enough to crowd out a small model's context window." },
   "result-slow": { severity: "warning" as Severity, description: "Tool took longer than the duration budget." },
-  "result-accepts-invalid-input": { severity: "warning" as Severity, description: "Tool accepted schema-invalid input without an error; validate arguments so bad calls fail loudly." },
-  "result-string-json": { severity: "info" as Severity, description: "Tool returned a JSON string rather than an object; agents cope, but objects are easier to inspect." },
-  "result-suspicious-content": { severity: "warning" as Severity, description: "Result text looks like an instruction to the agent or contains hidden characters; mark the tool untrustedContent or sanitize." },
+  "result-accepts-invalid-input": {
+    severity: "warning" as Severity,
+    description: "Tool accepted schema-invalid input without an error; validate arguments so bad calls fail loudly.",
+  },
+  "result-string-json": {
+    severity: "info" as Severity,
+    description: "Tool returned a JSON string rather than an object; agents cope, but objects are easier to inspect.",
+  },
+  "result-suspicious-content": {
+    severity: "warning" as Severity,
+    description: "Result text looks like an instruction to the agent or contains hidden characters; mark the tool untrustedContent or sanitize.",
+  },
 } as const;
 
 export type SmokeRuleId = keyof typeof SMOKE_RULES;
@@ -56,7 +68,15 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
   const where = `${run.tool} (${run.label})`;
 
   if (run.kind === "invalid") {
-    if (run.ok) out.push(make("result-accepts-invalid-input", run, `${where} returned normally for invalid input ${JSON.stringify(run.args)}.`, SMOKE_RULES["result-accepts-invalid-input"].description));
+    if (run.ok)
+      out.push(
+        make(
+          "result-accepts-invalid-input",
+          run,
+          `${where} returned normally for invalid input ${JSON.stringify(run.args)}.`,
+          SMOKE_RULES["result-accepts-invalid-input"].description,
+        ),
+      );
     return out;
   }
 
@@ -93,14 +113,29 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
   const nullPaths: string[] = [];
   for (const [path, value] of walk(run.result)) if (value === null) nullPaths.push(path || "/");
   if (nullPaths.length)
-    out.push(make("result-contains-null", run, `${where} returned null at ${nullPaths.slice(0, 5).join(", ")}${nullPaths.length > 5 ? ", ..." : ""}.`, "Omit the key or use an empty string, zero, or false instead."));
+    out.push(
+      make(
+        "result-contains-null",
+        run,
+        `${where} returned null at ${nullPaths.slice(0, 5).join(", ")}${nullPaths.length > 5 ? ", ..." : ""}.`,
+        "Omit the key or use an empty string, zero, or false instead.",
+      ),
+    );
 
   for (const { path, hits } of scanValue(run.result)) {
-    out.push(make("result-suspicious-content", run, `${where} returned ${hits.map((h) => h.kind.replace(/-/g, " ")).join(", ")} at ${path}: ${JSON.stringify(hits[0].match)}.`, SMOKE_RULES["result-suspicious-content"].description));
+    out.push(
+      make(
+        "result-suspicious-content",
+        run,
+        `${where} returned ${hits.map((h) => h.kind.replace(/-/g, " ")).join(", ")} at ${path}: ${JSON.stringify(hits[0].match)}.`,
+        SMOKE_RULES["result-suspicious-content"].description,
+      ),
+    );
   }
 
   const bytes = new TextEncoder().encode(serialized).length;
-  if (bytes > maxBytes) out.push(make("result-too-large", run, `${where} returned ${bytes} bytes; budget is ${maxBytes}.`, "Paginate or return ids plus a summary."));
+  if (bytes > maxBytes)
+    out.push(make("result-too-large", run, `${where} returned ${bytes} bytes; budget is ${maxBytes}.`, "Paginate or return ids plus a summary."));
 
   return out;
 }

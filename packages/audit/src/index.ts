@@ -100,7 +100,17 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
     if (options.smoke) smoke = await runSmoke(snapshot.tools, (name, args) => webmcp.call(name, args), options.smokeOptions ?? {});
     const coverage = smoke ? computeCoverage(snapshot.tools, webmcp.calls()) : undefined;
     const score = computeScore({ lint: lintResult, smoke, coverage });
-    return { url, status: "ok", snapshot, contract: toContract(snapshot), lint: lintResult, smoke, score, api: snapshot.frames[0]?.api, cdp: Boolean(webmcp.cdp?.enabled) };
+    return {
+      url,
+      status: "ok",
+      snapshot,
+      contract: toContract(snapshot),
+      lint: lintResult,
+      smoke,
+      score,
+      api: snapshot.frames[0]?.api,
+      cdp: Boolean(webmcp.cdp?.enabled),
+    };
   } catch (err) {
     return { url, status: "error", error: String((err as Error)?.message ?? err) };
   } finally {
@@ -166,15 +176,27 @@ export async function audit(options: AuditOptions): Promise<AuditReport> {
   const scored = pages.filter((p) => p.score);
   const score = scored.length ? Math.round(scored.reduce((n, p) => n + p.score!.score, 0) / scored.length) : 0;
   const findings: Finding[] = [
-    ...pages.flatMap((p) => [...(p.lint?.findings ?? []), ...(p.smoke?.findings ?? [])].map((f) => ({ ...f, help: f.help, message: `${p.url}: ${f.message}` }))),
-    ...drift.map((d) => ({ ruleId: "cross-page-drift", severity: "warning" as const, tool: d.tool, message: `Tool "${d.tool}" differs across ${d.pages.length} pages: ${d.changes.join("; ")}.` })),
+    ...pages.flatMap((p) =>
+      [...(p.lint?.findings ?? []), ...(p.smoke?.findings ?? [])].map((f) => ({ ...f, help: f.help, message: `${p.url}: ${f.message}` })),
+    ),
+    ...drift.map((d) => ({
+      ruleId: "cross-page-drift",
+      severity: "warning" as const,
+      tool: d.tool,
+      message: `Tool "${d.tool}" differs across ${d.pages.length} pages: ${d.changes.join("; ")}.`,
+    })),
   ];
   return { startUrl: options.url, finishedAt: new Date().toISOString(), pages, drift, tools, score, findings };
 }
 
 export function renderMarkdown(report: AuditReport): string {
   const lines: string[] = [];
-  lines.push(`# WebMCP audit of ${report.startUrl}`, "", `Overall agent readiness: **${report.score}/100** across ${report.pages.length} page(s). ${report.tools.length} distinct tool(s): ${report.tools.map((t) => `\`${t}\``).join(", ") || "none"}.`, "");
+  lines.push(
+    `# WebMCP audit of ${report.startUrl}`,
+    "",
+    `Overall agent readiness: **${report.score}/100** across ${report.pages.length} page(s). ${report.tools.length} distinct tool(s): ${report.tools.map((t) => `\`${t}\``).join(", ") || "none"}.`,
+    "",
+  );
   if (report.drift.length) {
     lines.push("## Cross-page drift", "");
     for (const d of report.drift) lines.push(`- \`${d.tool}\` on ${d.pages.join(", ")}: ${d.changes.join("; ")}`);
@@ -189,7 +211,11 @@ export function renderMarkdown(report: AuditReport): string {
     lines.push(`API: ${p.api}${p.cdp ? " (CDP collector attached)" : ""}. Tools: ${p.contract?.tools.map((t) => `\`${t.name}\``).join(", ") || "none"}.`, "");
     if (p.score) lines.push("```", formatScore(p.score), "```", "");
     if (p.lint?.findings.length) lines.push("Lint:", "", "```", formatFindings(p.lint), "```", "");
-    if (p.smoke) lines.push(`Smoke: ${p.smoke.runs.length} run(s), ${p.smoke.findings.length} finding(s)${p.smoke.skipped.length ? `, skipped ${p.smoke.skipped.join(", ")}` : ""}.`, "");
+    if (p.smoke)
+      lines.push(
+        `Smoke: ${p.smoke.runs.length} run(s), ${p.smoke.findings.length} finding(s)${p.smoke.skipped.length ? `, skipped ${p.smoke.skipped.join(", ")}` : ""}.`,
+        "",
+      );
     if (p.smoke?.findings.length) lines.push("```", formatFindings({ findings: p.smoke.findings, counts: p.smoke.counts, rulesRun: [] }), "```", "");
   }
   return lines.join("\n");

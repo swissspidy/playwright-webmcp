@@ -52,11 +52,7 @@ function describe(node: EvalFunctionCall): string {
  *    it must match
  *  - extra actual calls are tolerated unless `strict` is set
  */
-export function reconcileCalls(
-  expected: ExpectedCallNode[] | null | undefined,
-  actual: ActualCall[],
-  options: ReconcileOptions = {},
-): ReconcileResult {
+export function reconcileCalls(expected: ExpectedCallNode[] | null | undefined, actual: ActualCall[], options: ReconcileOptions = {}): ReconcileResult {
   const consumed = new Set<number>();
   const problems: string[] = [];
 

@@ -67,7 +67,8 @@ function schemaChanges(tool: string, before: JsonSchema | null, after: JsonSchem
   for (const k of Object.keys(b)) if (!(k in a)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" removed` });
   for (const k of Object.keys(a)) {
     if (!(k in b)) continue;
-    if (JSON.stringify(a[k].type) !== JSON.stringify(b[k].type)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" type ${JSON.stringify(b[k].type)} -> ${JSON.stringify(a[k].type)}` });
+    if (JSON.stringify(a[k].type) !== JSON.stringify(b[k].type))
+      out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" type ${JSON.stringify(b[k].type)} -> ${JSON.stringify(a[k].type)}` });
     if (JSON.stringify(a[k].enum) !== JSON.stringify(b[k].enum)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" enum changed` });
     if (a[k].description !== b[k].description) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" description changed` });
   }
@@ -91,7 +92,8 @@ export function diffContracts(before: ToolContract, after: ToolContract): Contra
     if (!prev) continue;
     if (prev.description !== t.description) out.push({ kind: "description-changed", tool: t.name, detail: `"${prev.description}" -> "${t.description}"` });
     out.push(...schemaChanges(t.name, prev.inputSchema, t.inputSchema));
-    if (JSON.stringify(prev.annotations ?? null) !== JSON.stringify(t.annotations ?? null)) out.push({ kind: "annotations-changed", tool: t.name, detail: "annotations changed" });
+    if (JSON.stringify(prev.annotations ?? null) !== JSON.stringify(t.annotations ?? null))
+      out.push({ kind: "annotations-changed", tool: t.name, detail: "annotations changed" });
     if (prev.source !== t.source) out.push({ kind: "source-changed", tool: t.name, detail: `${prev.source} -> ${t.source}` });
   }
   return out;

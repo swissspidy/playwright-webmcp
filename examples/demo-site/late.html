@@ -1,43 +1,58 @@
 <!doctype html>
 <html lang="en">
-<head><meta charset="utf-8" /><title>Late registrations</title></head>
-<body>
-  <h1>Tools that arrive late or flap</h1>
-  <script>
-    const mc = document.modelContext ?? navigator.modelContext;
-    mc.registerTool({
-      name: "early_tool",
-      description: "Registered during initial script execution; returns a static greeting object.",
-      inputSchema: { type: "object", properties: {} },
-      async execute() {
-        return { hello: "world" };
-      },
-    });
-    // Same name as on the shop page, different description and schema: cross-page drift.
-    mc.registerTool({
-      name: "search_products",
-      description: "Search products on this page only, by keyword and category.",
-      inputSchema: { type: "object", properties: { query: { type: "string", description: "Keyword" }, category: { type: "string", description: "Category" } }, required: ["query"] },
-      async execute({ query }) {
-        return { products: [], query };
-      },
-    });
-    setTimeout(() => {
+  <head>
+    <meta charset="utf-8" />
+    <title>Late registrations</title>
+  </head>
+  <body>
+    <h1>Tools that arrive late or flap</h1>
+    <script>
+      const mc = document.modelContext ?? navigator.modelContext;
       mc.registerTool({
-        name: "late_tool",
-        description: "Registered more than a second after navigation, after the load event has fired.",
+        name: "early_tool",
+        description: "Registered during initial script execution; returns a static greeting object.",
         inputSchema: { type: "object", properties: {} },
         async execute() {
-          return { late: true };
+          return { hello: "world" };
         },
       });
-    }, 1200);
-    let flips = 0;
-    const flap = setInterval(() => {
-      if (flips % 2 === 0) mc.registerTool({ name: "flappy", description: "A tool that is registered and unregistered repeatedly.", inputSchema: { type: "object", properties: {} }, async execute() { return {}; } });
-      else mc.unregisterTool("flappy");
-      if (++flips >= 6) clearInterval(flap);
-    }, 100);
-  </script>
-</body>
+      // Same name as on the shop page, different description and schema: cross-page drift.
+      mc.registerTool({
+        name: "search_products",
+        description: "Search products on this page only, by keyword and category.",
+        inputSchema: {
+          type: "object",
+          properties: { query: { type: "string", description: "Keyword" }, category: { type: "string", description: "Category" } },
+          required: ["query"],
+        },
+        async execute({ query }) {
+          return { products: [], query };
+        },
+      });
+      setTimeout(() => {
+        mc.registerTool({
+          name: "late_tool",
+          description: "Registered more than a second after navigation, after the load event has fired.",
+          inputSchema: { type: "object", properties: {} },
+          async execute() {
+            return { late: true };
+          },
+        });
+      }, 1200);
+      let flips = 0;
+      const flap = setInterval(() => {
+        if (flips % 2 === 0)
+          mc.registerTool({
+            name: "flappy",
+            description: "A tool that is registered and unregistered repeatedly.",
+            inputSchema: { type: "object", properties: {} },
+            async execute() {
+              return {};
+            },
+          });
+        else mc.unregisterTool("flappy");
+        if (++flips >= 6) clearInterval(flap);
+      }, 100);
+    </script>
+  </body>
 </html>

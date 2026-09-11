@@ -38,7 +38,10 @@ test.describe("calling and recording", () => {
     await page.evaluate(async () => {
       const mc = (document.modelContext ?? navigator.modelContext)!;
       const tools = await mc.getTools();
-      await mc.executeTool(tools.find((t) => t.name === "search_products")!, { query: "hat" });
+      await mc.executeTool(
+        tools.find((t) => t.name === "search_products")!,
+        { query: "hat" },
+      );
     });
     const calls = webmcp.calls();
     expect(calls).toHaveLength(1);

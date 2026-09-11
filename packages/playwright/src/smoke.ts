@@ -1,12 +1,4 @@
-import {
-  generateArguments,
-  judgeRuns,
-  type GenerateOptions,
-  type SmokeBudgets,
-  type SmokeReport,
-  type SmokeRun,
-  type ToolSnapshot,
-} from "webmcp-lint";
+import { generateArguments, judgeRuns, type GenerateOptions, type SmokeBudgets, type SmokeReport, type SmokeRun, type ToolSnapshot } from "webmcp-lint";
 
 export interface SmokeOptions extends GenerateOptions, SmokeBudgets {
   /** Tools to exercise, by name or predicate. */
@@ -50,9 +42,25 @@ export async function runSmoke(tools: ToolSnapshot[], call: ToolCaller, options:
       const startedAt = Date.now();
       try {
         const result = await call(tool.name, generated.args);
-        runs.push({ tool: tool.name, kind: generated.kind, label: generated.label, args: generated.args, ok: true, result, durationMs: Date.now() - startedAt });
+        runs.push({
+          tool: tool.name,
+          kind: generated.kind,
+          label: generated.label,
+          args: generated.args,
+          ok: true,
+          result,
+          durationMs: Date.now() - startedAt,
+        });
       } catch (err) {
-        runs.push({ tool: tool.name, kind: generated.kind, label: generated.label, args: generated.args, ok: false, error: String((err as Error)?.message ?? err), durationMs: Date.now() - startedAt });
+        runs.push({
+          tool: tool.name,
+          kind: generated.kind,
+          label: generated.label,
+          args: generated.args,
+          ok: false,
+          error: String((err as Error)?.message ?? err),
+          durationMs: Date.now() - startedAt,
+        });
       }
     }
   }

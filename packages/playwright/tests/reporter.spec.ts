@@ -9,15 +9,18 @@ test("reporter writes evals.json and tools.json from attachments", async () => {
   const reporter = new Reporter({ outputDir: dir });
   reporter.onBegin({ rootDir: "/" } as never);
   const attach = (name: string, body: unknown) => ({ name, contentType: "application/json", body: Buffer.from(JSON.stringify(body)) });
-  reporter.onTestEnd({ title: "checkout flow" } as never, {
-    attachments: [
-      attach("webmcp-eval", {
-        url: "http://localhost:4173/",
-        eval: { name: "buy", messages: [{ role: "user", type: "message", content: "Buy a hat" }], expectedCall: [{ functionName: "add_to_cart" }] },
-      }),
-      attach("webmcp-tools", { tools: [{ name: "add_to_cart", description: "d", inputSchema: null, outputSchema: null }] }),
-    ],
-  } as never);
+  reporter.onTestEnd(
+    { title: "checkout flow" } as never,
+    {
+      attachments: [
+        attach("webmcp-eval", {
+          url: "http://localhost:4173/",
+          eval: { name: "buy", messages: [{ role: "user", type: "message", content: "Buy a hat" }], expectedCall: [{ functionName: "add_to_cart" }] },
+        }),
+        attach("webmcp-tools", { tools: [{ name: "add_to_cart", description: "d", inputSchema: null, outputSchema: null }] }),
+      ],
+    } as never,
+  );
   reporter.onEnd();
   const evals = JSON.parse(readFileSync(join(dir, "evals.json"), "utf8"));
   const tools = JSON.parse(readFileSync(join(dir, "tools.json"), "utf8"));

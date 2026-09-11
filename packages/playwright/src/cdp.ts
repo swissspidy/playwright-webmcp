@@ -176,20 +176,32 @@ export class CdpCollector {
 
   private onToolInvoked(params: { toolName: string; frameId: string; invocationId: string; input: unknown }) {
     const existing = this.pending.get(params.invocationId);
-    const entry: Pending = existing ?? { name: params.toolName, frameId: params.frameId, input: parseInput(params.input), startedAt: Date.now(), ours: this.ownInvocations.has(params.invocationId) };
+    const entry: Pending = existing ?? {
+      name: params.toolName,
+      frameId: params.frameId,
+      input: parseInput(params.input),
+      startedAt: Date.now(),
+      ours: this.ownInvocations.has(params.invocationId),
+    };
     entry.name = params.toolName;
     entry.frameId = params.frameId;
     entry.input = parseInput(params.input);
     this.pending.set(params.invocationId, entry);
   }
 
-  private onToolResponded(params: { invocationId: string; status: "Completed" | "Canceled" | "Error"; output?: unknown; errorText?: string; exception?: { description?: string } }) {
+  private onToolResponded(params: {
+    invocationId: string;
+    status: "Completed" | "Canceled" | "Error";
+    output?: unknown;
+    errorText?: string;
+    exception?: { description?: string };
+  }) {
     const entry = this.pending.get(params.invocationId);
     if (!entry) return;
     this.pending.delete(params.invocationId);
     this.ownInvocations.delete(params.invocationId);
     const ok = params.status === "Completed";
-    const error = ok ? undefined : params.errorText ?? params.exception?.description ?? params.status;
+    const error = ok ? undefined : (params.errorText ?? params.exception?.description ?? params.status);
     const call: RecordedCall = {
       name: entry.name,
       args: entry.input,

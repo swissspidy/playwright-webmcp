@@ -205,24 +205,28 @@ export const expect = baseExpect.extend({
       message: () =>
         result.pass
           ? `Expected eval "${label}" to fail, but the model satisfied it.`
-          : `Eval "${label}" failed (${result.status}):\n  ${result.problems.join("\n  ")}\nModel calls: ${result.calls
-              .map((c) => `${c.name}(${JSON.stringify(c.args)})`)
-              .join(", ") || "(none)"}\nModel response: ${result.responses.join(" | ") || "(none)"}`,
+          : `Eval "${label}" failed (${result.status}):\n  ${result.problems.join("\n  ")}\nModel calls: ${
+              result.calls.map((c) => `${c.name}(${JSON.stringify(c.args)})`).join(", ") || "(none)"
+            }\nModel response: ${result.responses.join(" | ") || "(none)"}`,
     };
   },
 
   toMatchCalls(received: unknown, expected: ExpectedCallNode[], options: ReconcileOptions = {}) {
     const calls = callsOf(received);
-    const result = reconcileCalls(expected, calls.map((c) => ({ name: c.name, args: c.args, result: c.result })), options);
+    const result = reconcileCalls(
+      expected,
+      calls.map((c) => ({ name: c.name, args: c.args, result: c.result })),
+      options,
+    );
     return {
       pass: result.ok,
       name: "toMatchCalls",
       message: () =>
         result.ok
           ? `Expected calls not to match the expectation, but they did.`
-          : `Recorded calls do not satisfy the expectation:\n  ${result.problems.join("\n  ")}\nRecorded: ${calls
-              .map((c) => `${c.name}(${JSON.stringify(c.args)})`)
-              .join(", ") || "(none)"}`,
+          : `Recorded calls do not satisfy the expectation:\n  ${result.problems.join("\n  ")}\nRecorded: ${
+              calls.map((c) => `${c.name}(${JSON.stringify(c.args)})`).join(", ") || "(none)"
+            }`,
     };
   },
 });

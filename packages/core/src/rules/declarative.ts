@@ -7,10 +7,12 @@ export const declarativeDescription = defineRule({
   check: (ctx) =>
     forEachTool(ctx, (tool) =>
       tool.source === "declarative" && tool.declarative && !tool.declarative.hasDescription
-        ? [finding(declarativeDescription, `Form tool "${tool.name}" (${tool.declarative.formLocator}) has no tooldescription attribute.`, {
-            tool: tool.name,
-            frame: tool.frame,
-          })]
+        ? [
+            finding(declarativeDescription, `Form tool "${tool.name}" (${tool.declarative.formLocator}) has no tooldescription attribute.`, {
+              tool: tool.name,
+              frame: tool.frame,
+            }),
+          ]
         : [],
     ),
 });
@@ -48,11 +50,13 @@ export const declarativeAutosubmit = defineRule({
       if (tool.source !== "declarative" || !d || !d.autosubmit) return [];
       const risky = d.fields.filter((f) => SENSITIVE_TYPES.has(f.type) || SENSITIVE_AUTOCOMPLETE.test(f.paramDescription ?? ""));
       return risky.length
-        ? [finding(declarativeAutosubmit, `Form tool "${tool.name}" auto-submits but contains ${risky.map((f) => `"${f.name}"`).join(", ")}.`, {
-            tool: tool.name,
-            frame: tool.frame,
-            help: "Drop toolautosubmit so the user confirms the submission.",
-          })]
+        ? [
+            finding(declarativeAutosubmit, `Form tool "${tool.name}" auto-submits but contains ${risky.map((f) => `"${f.name}"`).join(", ")}.`, {
+              tool: tool.name,
+              frame: tool.frame,
+              help: "Drop toolautosubmit so the user confirms the submission.",
+            }),
+          ]
         : [];
     }),
 });

@@ -155,7 +155,11 @@ export class PromptApiHarness {
     if (result.status !== "ok") {
       return { ...result, pass: false, problems: [`${result.status}: ${result.reason ?? "no details"}`] };
     }
-    const reconciled = reconcileCalls(evalCase.expectedCall, result.calls.map((c) => ({ name: c.name, args: c.args, result: c.result })), { strict });
+    const reconciled = reconcileCalls(
+      evalCase.expectedCall,
+      result.calls.map((c) => ({ name: c.name, args: c.args, result: c.result })),
+      { strict },
+    );
     return { ...result, pass: reconciled.ok, problems: reconciled.problems };
   }
 }
@@ -198,7 +202,12 @@ export class WebMCP {
       await this.page.exposeBinding("__webmcpReport", (_source, json: string) => {
         const entry = JSON.parse(json) as { kind?: string } & Record<string, unknown>;
         if (entry.kind === "registration") {
-          this.timelineEvents.push({ type: entry.type as RegistrationEvent["type"], name: String(entry.name), at: Number(entry.at), frameUrl: String(entry.frameUrl) });
+          this.timelineEvents.push({
+            type: entry.type as RegistrationEvent["type"],
+            name: String(entry.name),
+            at: Number(entry.at),
+            frameUrl: String(entry.frameUrl),
+          });
         } else {
           const { kind: _kind, ...call } = entry;
           this.recorded.push(call as unknown as RecordedCall);
@@ -220,7 +229,9 @@ export class WebMCP {
       });
     }
     if (this.options.shim !== "never") {
-      await this.page.addInitScript(this.options.shim === "always" ? SHIM_SOURCE.replace("if (document.modelContext || (navigator && navigator.modelContext)) return;", "") : SHIM_SOURCE);
+      await this.page.addInitScript(
+        this.options.shim === "always" ? SHIM_SOURCE.replace("if (document.modelContext || (navigator && navigator.modelContext)) return;", "") : SHIM_SOURCE,
+      );
     }
     if (this.options.record) await this.page.addInitScript(RECORDER_SOURCE);
     if (this.options.cdp === "auto") await this.attachCdp();
@@ -275,7 +286,8 @@ export class WebMCP {
       await this.cdp.refreshFrames();
       for (const tool of snapshot.tools) {
         const frameUrl = snapshot.frames[tool.frame]?.url;
-        const native = this.cdp.list().find((c) => c.name === tool.name && (this.cdp!.frameUrl(c.frameId) ?? frameUrl) === frameUrl) ?? this.cdp.find(tool.name);
+        const native =
+          this.cdp.list().find((c) => c.name === tool.name && (this.cdp!.frameUrl(c.frameId) ?? frameUrl) === frameUrl) ?? this.cdp.find(tool.name);
         if (!native) continue;
         if (native.location) tool.location = native.location;
         if (native.annotations && !tool.annotations) tool.annotations = { ...native.annotations };
@@ -316,14 +328,25 @@ export class WebMCP {
         } catch {}
       }
       const listed: any[] = origins.size ? await mc.getTools({ fromOrigins: [...origins] }) : await mc.getTools();
-      return listed.map((t) => ({ name: String(t.name), origin: String(t.origin ?? location.origin), remote: Boolean(t._isRemote || (t.origin && t.origin !== location.origin)) }));
+      return listed.map((t) => ({
+        name: String(t.name),
+        origin: String(t.origin ?? location.origin),
+        remote: Boolean(t._isRemote || (t.origin && t.origin !== location.origin)),
+      }));
     });
   }
 
   /** Replace a tool's implementation from the test. The mock runs in Node. */
   async mock(name: string, implementation: MockImplementation): Promise<void> {
     if (!this.options.record) throw new Error("mock() needs the recorder; set webmcpOptions.record to true");
-    const impl = typeof implementation === "function" ? implementation : "error" in implementation ? () => { throw new Error(implementation.error); } : () => implementation.result;
+    const impl =
+      typeof implementation === "function"
+        ? implementation
+        : "error" in implementation
+          ? () => {
+              throw new Error(implementation.error);
+            }
+          : () => implementation.result;
     this.mocks.set(name, impl);
     const owner = await this.ownerFrame(name);
     await owner.evaluate((toolName) => (window as unknown as Record<string, any>).__webmcpInstallMock(toolName), name);
@@ -421,7 +444,14 @@ export class WebMCP {
     const mode = this.testInfo.config.updateSnapshots;
     const exists = existsSync(path);
     if (!exists) {
-      if (mode === "none") return { pass: false, outcome: "changed", path, changes: contract.tools.map((t) => ({ kind: "tool-added", tool: t.name, detail: "no stored contract" })), contract };
+      if (mode === "none")
+        return {
+          pass: false,
+          outcome: "changed",
+          path,
+          changes: contract.tools.map((t) => ({ kind: "tool-added", tool: t.name, detail: "no stored contract" })),
+          contract,
+        };
       mkdirSync(dirname(path), { recursive: true });
       writeFileSync(path, serializeContract(contract));
       return { pass: true, outcome: "written", path, changes: [], contract };

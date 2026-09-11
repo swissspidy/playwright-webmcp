@@ -77,5 +77,8 @@ export function computeScore(input: ScoreInput): Score {
 }
 
 export function formatScore(score: Score): string {
-  return [`Agent readiness: ${score.score}/100`, ...score.categories.map((c) => `  ${c.name.padEnd(13)} ${String(c.points).padStart(3)}${c.notes.length ? `  (${c.notes.join(", ")})` : ""}`)].join("\n");
+  return [
+    `Agent readiness: ${score.score}/100`,
+    ...score.categories.map((c) => `  ${c.name.padEnd(13)} ${String(c.points).padStart(3)}${c.notes.length ? `  (${c.notes.join(", ")})` : ""}`),
+  ].join("\n");
 }

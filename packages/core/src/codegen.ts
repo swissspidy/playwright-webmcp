@@ -18,7 +18,9 @@ export interface CodegenOptions {
 }
 
 function literal(value: unknown): string {
-  return JSON.stringify(value, null, 2).replace(/\n/g, "\n  ").replace(/"([A-Za-z_$][A-Za-z0-9_$]*)":/g, "$1:");
+  return JSON.stringify(value, null, 2)
+    .replace(/\n/g, "\n  ")
+    .replace(/"([A-Za-z_$][A-Za-z0-9_$]*)":/g, "$1:");
 }
 
 export function toPlaywrightTest(options: CodegenOptions): string {
