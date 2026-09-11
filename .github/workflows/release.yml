@@ -17,7 +17,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       # setup-node writes an .npmrc that reads the registry token from this variable.
-      NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+      # Keep it empty for install and build; only the publish step below gets the secret.
+      NODE_AUTH_TOKEN: ""
     steps:
       - uses: actions/checkout@v7
         with:
@@ -34,8 +35,9 @@ jobs:
         uses: changesets/action@v2
         with:
           version-script: pnpm run version-packages
-          publish-script: pnpm run release
+          publish-script: pnpm exec changeset publish
           commit-message: "Version packages"
           pr-title: "Version packages"
         env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
           NPM_CONFIG_PROVENANCE: "true"
