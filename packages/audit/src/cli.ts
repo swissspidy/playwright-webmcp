@@ -1,42 +1,91 @@
 #!/usr/bin/env node
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { parseArgs } from "node:util";
 import { audit, renderMarkdown } from "./index.js";
 
-function usage(): never {
-  console.error(`Usage: webmcp-audit <url> [--max-pages N] [--no-crawl] [--smoke] [--all-tools] [--out DIR] [--executable PATH] [--arg FLAG]...
+const HELP = `Usage: webmcp-audit <url> [options]
 
 Crawls same-origin pages from <url>, lints every page's WebMCP tools, optionally
-runs schema-driven smoke calls (read-only tools unless --all-tools), and writes
-report.json and report.md to DIR (default .webmcp-audit). Exits 1 when any
-error-level finding exists.`);
+runs schema-driven smoke calls, and writes report.json and report.md.
+Exits 1 when any error-level finding exists, 2 on usage errors.
+
+Options:
+  --max-pages <n>       Maximum pages to visit (default 10)
+  --no-crawl            Audit only <url>; do not follow links
+  --smoke               Execute generated inputs against read-only tools
+  --all-tools           With --smoke: execute every tool, including ones with side effects
+  --settle <ms>         Wait this long after load for tools to register (default 500)
+  --out <dir>           Output directory (default .webmcp-audit)
+  --executable <path>   Chrome/Chromium binary (default: Playwright's, or $PW_CHROMIUM)
+  --arg <flag>          Extra browser argument; repeatable, e.g. --arg --enable-features=WebMCP
+  --quiet               Do not print the Markdown report to stdout
+  -h, --help            Show this help
+`;
+
+function fail(message: string): never {
+  console.error(`webmcp-audit: ${message}\n`);
+  console.error(HELP);
   process.exit(2);
 }
 
-const argv = process.argv.slice(2);
-if (!argv.length || argv.includes("--help") || argv.includes("-h")) usage();
-const url = argv[0];
-const flag = (name: string) => argv.includes(name);
-const value = (name: string) => {
-  const i = argv.indexOf(name);
-  return i >= 0 ? argv[i + 1] : undefined;
+function parse() {
+  try {
+    return parseArgs({
+      allowPositionals: true,
+      options: {
+        "max-pages": { type: "string" },
+        "no-crawl": { type: "boolean", default: false },
+        smoke: { type: "boolean", default: false },
+        "all-tools": { type: "boolean", default: false },
+        settle: { type: "string" },
+        out: { type: "string", default: ".webmcp-audit" },
+        executable: { type: "string" },
+        arg: { type: "string", multiple: true, default: [] as string[] },
+        quiet: { type: "boolean", default: false },
+        help: { type: "boolean", short: "h", default: false },
+      },
+    });
+  } catch (err) {
+    return fail((err as Error).message);
+  }
+}
+const { values, positionals } = parse();
+
+if (values.help) {
+  console.log(HELP);
+  process.exit(0);
+}
+const url = positionals[0];
+if (!url) fail("missing <url>");
+if (positionals.length > 1) fail(`unexpected argument ${JSON.stringify(positionals[1])}`);
+try {
+  new URL(url);
+} catch {
+  fail(`${JSON.stringify(url)} is not a valid URL`);
+}
+const integer = (name: "max-pages" | "settle"): number | undefined => {
+  const raw = values[name];
+  if (raw === undefined) return undefined;
+  const n = Number(raw);
+  if (!Number.isInteger(n) || n < 0) fail(`--${name} expects a non-negative integer, got ${JSON.stringify(raw)}`);
+  return n;
 };
-const args = argv.flatMap((a, i) => (a === "--arg" && argv[i + 1] ? [argv[i + 1]] : []));
 
 const report = await audit({
   url,
-  maxPages: value("--max-pages") ? Number(value("--max-pages")) : undefined,
-  crawl: !flag("--no-crawl"),
-  smoke: flag("--smoke"),
-  smokeOptions: flag("--all-tools") ? { all: true } : {},
-  executablePath: value("--executable") ?? process.env.PW_CHROMIUM,
-  args,
+  maxPages: integer("max-pages"),
+  crawl: !values["no-crawl"],
+  smoke: values.smoke,
+  smokeOptions: values["all-tools"] ? { all: true } : {},
+  settleMs: integer("settle"),
+  executablePath: values.executable ?? process.env.PW_CHROMIUM,
+  args: values.arg,
   onPage: (p) => console.error(`${p.status === "ok" ? "audited" : "failed "} ${p.url}${p.score ? `  score ${p.score.score}` : ""}`),
 });
 
-const out = value("--out") ?? ".webmcp-audit";
-mkdirSync(out, { recursive: true });
-writeFileSync(join(out, "report.json"), JSON.stringify(report, null, 2) + "\n");
-writeFileSync(join(out, "report.md"), renderMarkdown(report));
-console.log(renderMarkdown(report));
+mkdirSync(values.out, { recursive: true });
+writeFileSync(join(values.out, "report.json"), JSON.stringify(report, null, 2) + "\n");
+writeFileSync(join(values.out, "report.md"), renderMarkdown(report));
+if (!values.quiet) console.log(renderMarkdown(report));
 process.exit(report.findings.some((f) => f.severity === "error") ? 1 : 0);

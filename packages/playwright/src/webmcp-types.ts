@@ -4,6 +4,7 @@
  */
 export interface WebMCPToolDefinition {
   name: string;
+  title?: string;
   description?: string;
   inputSchema?: Record<string, unknown> | null;
   annotations?: Record<string, unknown>;
@@ -12,6 +13,7 @@ export interface WebMCPToolDefinition {
 
 export interface WebMCPRegisteredTool {
   name: string;
+  title?: string;
   description: string;
   inputSchema: Record<string, unknown> | null;
   annotations?: Record<string, unknown>;

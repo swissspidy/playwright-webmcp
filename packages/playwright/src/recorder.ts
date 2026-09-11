@@ -100,14 +100,14 @@ export const RECORDER_SOURCE = String.raw`(() => {
       if (reply && reply.__error) throw new Error(reply.__error);
       return reply === null ? undefined : reply;
     };
-    await mc.registerTool({ name, description: existing.description, inputSchema: existing.inputSchema, annotations: existing.annotations, execute });
+    await mc.registerTool({ name, title: existing.title, description: existing.description, inputSchema: existing.inputSchema, annotations: existing.annotations, execute });
   };
   window.__webmcpRestoreMock = async function (name) {
     const mc = document.modelContext || navigator.modelContext;
     const original = window.__webmcpOriginals && window.__webmcpOriginals[name];
     if (!original) return false;
     if (typeof original.execute !== "function") return false;
-    await mc.registerTool({ name: original.name, description: original.description, inputSchema: original.inputSchema, annotations: original.annotations, execute: original.execute });
+    await mc.registerTool({ name: original.name, title: original.title, description: original.description, inputSchema: original.inputSchema, annotations: original.annotations, execute: original.execute });
     delete window.__webmcpOriginals[name];
     return true;
   };

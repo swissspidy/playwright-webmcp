@@ -6,6 +6,7 @@ import type { JsonSchema, PageSnapshot, ToolSource } from "./types.js";
 
 export interface ContractTool {
   name: string;
+  title?: string;
   description: string;
   inputSchema: JsonSchema | null;
   annotations?: Record<string, unknown>;
@@ -19,7 +20,7 @@ export interface ToolContract {
 }
 
 export interface ContractChange {
-  kind: "tool-added" | "tool-removed" | "description-changed" | "schema-changed" | "annotations-changed" | "source-changed";
+  kind: "tool-added" | "tool-removed" | "title-changed" | "description-changed" | "schema-changed" | "annotations-changed" | "source-changed";
   tool: string;
   detail: string;
 }
@@ -40,6 +41,7 @@ export function toContract(snapshot: PageSnapshot): ToolContract {
   const tools = snapshot.tools
     .map((t) => ({
       name: t.name,
+      title: t.title,
       description: t.description ?? "",
       inputSchema: (sortKeys(t.inputSchema ?? null) as JsonSchema | null) ?? null,
       annotations: t.annotations ? (sortKeys(t.annotations) as Record<string, unknown>) : undefined,
@@ -90,6 +92,7 @@ export function diffContracts(before: ToolContract, after: ToolContract): Contra
   for (const [k, t] of a) {
     const prev = b.get(k);
     if (!prev) continue;
+    if ((prev.title ?? "") !== (t.title ?? "")) out.push({ kind: "title-changed", tool: t.name, detail: `"${prev.title ?? ""}" -> "${t.title ?? ""}"` });
     if (prev.description !== t.description) out.push({ kind: "description-changed", tool: t.name, detail: `"${prev.description}" -> "${t.description}"` });
     out.push(...schemaChanges(t.name, prev.inputSchema, t.inputSchema));
     if (JSON.stringify(prev.annotations ?? null) !== JSON.stringify(t.annotations ?? null))

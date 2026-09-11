@@ -39,4 +39,19 @@ test.describe("scenario export", () => {
     });
     expect(loose.expectedCall).toEqual([{ functionName: "search_products", arguments: null }]);
   });
+
+  test("calls made by page scripts inside the body are included", async ({ page, webmcp }) => {
+    await page.goto("/");
+    const evalCase = await webmcp.scenario({ prompt: "Find hats from the page" }, async () => {
+      await page.evaluate(async () => {
+        const mc = (document.modelContext ?? navigator.modelContext)!;
+        const tools = await mc.getTools();
+        await mc.executeTool(
+          tools.find((t) => t.name === "search_products")!,
+          { query: "hat" },
+        );
+      });
+    });
+    expect(evalCase.expectedCall).toEqual([{ functionName: "search_products", arguments: { query: "hat" } }]);
+  });
 });

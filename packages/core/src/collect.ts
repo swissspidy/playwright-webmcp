@@ -45,6 +45,7 @@ export async function collectFrame(): Promise<FrameCollectResult> {
     seen.add(t.name);
     tools.push({
       name: String(t.name ?? ""),
+      title: typeof t.title === "string" && t.title ? t.title : undefined,
       description: String(t.description ?? ""),
       inputSchema: safeJson(t.inputSchema),
       annotations: safeJson(t.annotations) ?? undefined,

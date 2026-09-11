@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { FullConfig, Reporter, TestCase, TestResult } from "@playwright/test/reporter";
 import {
+  ATTACHMENTS,
   computeCoverage,
   renderToolDocs,
   type EvalCase,
@@ -19,13 +20,7 @@ export interface EvalsReporterOptions {
   prefixWithTestTitle?: boolean;
 }
 
-/** Attachment names produced by the playwright-webmcp fixture. */
-export const ATTACHMENTS = {
-  eval: "webmcp-eval",
-  tools: "webmcp-tools",
-  calls: "webmcp-calls",
-  toolSnapshots: "webmcp-tool-snapshots",
-} as const;
+export { ATTACHMENTS };
 
 interface ScenarioAttachment {
   url: string;
@@ -48,6 +43,7 @@ export default class WebMCPEvalsReporter implements Reporter {
   private readonly tools = new Map<string, EvalToolSchema>();
   private readonly calls: RecordedCall[] = [];
   private readonly snapshots = new Map<string, ToolSnapshot>();
+  private readonly nameCounts = new Map<string, number>();
   private rootDir = process.cwd();
 
   constructor(options: EvalsReporterOptions = {}) {
@@ -66,6 +62,7 @@ export default class WebMCPEvalsReporter implements Reporter {
         const payload = JSON.parse(a.body.toString("utf8")) as ScenarioAttachment;
         const evalCase: EvalCase = { ...payload.eval };
         if (this.prefix) evalCase.name = evalCase.name ? `${test.title} › ${evalCase.name}` : test.title;
+        evalCase.name = this.uniqueName(evalCase.name ?? test.title);
         this.evals.push(evalCase);
         this.byUrl.set(payload.url, [...(this.byUrl.get(payload.url) ?? []), evalCase]);
       } else if (a.name === ATTACHMENTS.tools) {
@@ -77,6 +74,13 @@ export default class WebMCPEvalsReporter implements Reporter {
         for (const t of JSON.parse(a.body.toString("utf8")) as ToolSnapshot[]) if (!this.snapshots.has(t.name)) this.snapshots.set(t.name, t);
       }
     }
+  }
+
+  /** Two scenarios in one test without names would otherwise collide; suffix repeats. */
+  private uniqueName(name: string): string {
+    const n = (this.nameCounts.get(name) ?? 0) + 1;
+    this.nameCounts.set(name, n);
+    return n === 1 ? name : `${name} (${n})`;
   }
 
   onEnd() {

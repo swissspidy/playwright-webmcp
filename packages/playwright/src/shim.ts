@@ -10,8 +10,19 @@
  * It is not a polyfill for production use; it exists so tests can run on any
  * Chromium build. When native support is present the shim does nothing.
  */
-export const SHIM_SOURCE = String.raw`(() => {
-  if (document.modelContext || (navigator && navigator.modelContext)) return;
+export interface ShimSourceOptions {
+  /** Install even when the browser already has a native modelContext. Default false. */
+  force?: boolean;
+}
+
+/** Source of the shim as an init script. */
+export function shimSource(options: ShimSourceOptions = {}): string {
+  return SHIM_TEMPLATE.replace("__WEBMCP_FORCE_SHIM__", options.force ? "true" : "false");
+}
+
+const SHIM_TEMPLATE = String.raw`(() => {
+  const FORCE = __WEBMCP_FORCE_SHIM__;
+  if (!FORCE && (document.modelContext || (navigator && navigator.modelContext))) return;
   const NAME_RE = /^[A-Za-z0-9_.-]{1,128}$/;
   const tools = new Map();
   const target = new EventTarget();
@@ -23,10 +34,10 @@ export const SHIM_SOURCE = String.raw`(() => {
   }
 
   function publicTool(t) {
-    return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations, window: t.window, origin: t.origin, execute: t.execute, exposedTo: t.exposedTo };
+    return { name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations, window: t.window, origin: t.origin, execute: t.execute, exposedTo: t.exposedTo };
   }
   function remoteTool(t, win, origin) {
-    return { name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations, window: win, origin, _isRemote: true };
+    return { name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations, window: win, origin, _isRemote: true };
   }
   function exposedToOrigin(t, origin) {
     return Array.isArray(t.exposedTo) && (t.exposedTo.includes("*") || t.exposedTo.includes(origin));
@@ -37,6 +48,7 @@ export const SHIM_SOURCE = String.raw`(() => {
     if (typeof tool.name !== "string" || !NAME_RE.test(tool.name)) throw new TypeError("registerTool: invalid tool name " + JSON.stringify(tool.name));
     return {
       name: tool.name,
+      title: typeof tool.title === "string" ? tool.title : "",
       description: typeof tool.description === "string" ? tool.description : "",
       inputSchema: tool.inputSchema === undefined ? null : tool.inputSchema,
       annotations: tool.annotations,
@@ -168,7 +180,7 @@ export const SHIM_SOURCE = String.raw`(() => {
     if (!event.source || event.origin === location.origin) return;
     const reply = (payload) => event.source.postMessage({ type: "webmcp:reply", id: data.id, payload }, event.origin);
     if (data.type === "webmcp:list") {
-      reply([...tools.values()].filter((t) => exposedToOrigin(t, event.origin)).map((t) => ({ name: t.name, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations })));
+      reply([...tools.values()].filter((t) => exposedToOrigin(t, event.origin)).map((t) => ({ name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema, annotations: t.annotations })));
     } else if (data.type === "webmcp:execute") {
       const t = tools.get(data.name);
       if (!t || !exposedToOrigin(t, event.origin)) return reply({ __error: "Tool " + data.name + " is not exposed to " + event.origin });
@@ -269,3 +281,6 @@ export const SHIM_SOURCE = String.raw`(() => {
   Object.defineProperty(document, "modelContext", { value: mc, configurable: true, enumerable: true });
   try { Object.defineProperty(navigator, "modelContext", { value: mc, configurable: true, enumerable: true }); } catch {}
 })();`;
+
+/** The shim source with default options, for callers that only need the auto-detecting variant. */
+export const SHIM_SOURCE = shimSource();

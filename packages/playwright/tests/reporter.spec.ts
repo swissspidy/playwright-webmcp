@@ -29,3 +29,15 @@ test("reporter writes evals.json and tools.json from attachments", async () => {
   ]);
   expect(tools.tools.map((t: { name: string }) => t.name)).toEqual(["add_to_cart"]);
 });
+
+test("reporter keeps eval names unique across unnamed scenarios", () => {
+  const dir = mkdtempSync(join(tmpdir(), "webmcp-evals-"));
+  const reporter = new Reporter({ outputDir: dir });
+  reporter.onBegin({ rootDir: "/" } as never);
+  const attach = (body: unknown) => ({ name: "webmcp-eval", contentType: "application/json", body: Buffer.from(JSON.stringify(body)) });
+  const unnamed = { url: "http://localhost/", eval: { messages: [{ role: "user", type: "message", content: "x" }], expectedCall: [] } };
+  reporter.onTestEnd({ title: "modes" } as never, { attachments: [attach(unnamed), attach(unnamed)] } as never);
+  reporter.onEnd();
+  const evals = JSON.parse(readFileSync(join(dir, "evals.json"), "utf8"));
+  expect(evals.map((e: { name: string }) => e.name)).toEqual(["modes", "modes (2)"]);
+});

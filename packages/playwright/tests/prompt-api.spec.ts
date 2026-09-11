@@ -73,6 +73,34 @@ test.describe("prompt api harness", () => {
     await expect(webmcp).not.toPassEval({ ...evalCase, expectedCall: [{ functionName: "add_to_cart" }] });
   });
 
+  test("evaluate() uses webmcp-evals semantics: extra calls fail unless lenient", async ({ page, webmcp }) => {
+    await webmcp.promptApi.useFake({
+      turns: [
+        {
+          match: "hat",
+          calls: [
+            { name: "search_products", args: { query: "hat" } },
+            { name: "list_reviews", args: { productId: 3 } },
+          ],
+          response: "ok",
+        },
+      ],
+    });
+    await page.goto("/");
+    const evalCase = {
+      name: "hat",
+      messages: [{ role: "user" as const, type: "message" as const, content: "Find me a hat" }],
+      expectedCall: [{ functionName: "search_products" }],
+    };
+    const strict = await webmcp.promptApi.evaluate(evalCase);
+    expect(strict.pass).toBe(false);
+    expect(strict.problems).toEqual(['unexpected call list_reviews({"productId":3})']);
+    const lenient = await webmcp.promptApi.evaluate(evalCase, { mode: "lenient" });
+    expect(lenient.pass).toBe(true);
+    await expect(webmcp).not.toPassEval(evalCase);
+    await expect(webmcp).toPassEval(evalCase, { mode: "lenient" });
+  });
+
   test("tool results returned to the model have nulls stripped", async ({ page, webmcp }) => {
     await webmcp.promptApi.useFake({ turns: [{ calls: [{ name: "nullable", args: {} }], response: "{{result:0}}" }] });
     await page.goto("/");

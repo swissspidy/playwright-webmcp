@@ -28,6 +28,8 @@ export interface DeclarativeInfo {
 
 export interface ToolSnapshot {
   name: string;
+  /** Human-readable label, when the tool declared one. */
+  title?: string;
   description: string;
   inputSchema: JsonSchema | null;
   annotations?: Record<string, unknown>;
