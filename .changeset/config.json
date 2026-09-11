@@ -1,8 +1,13 @@
 {
   "$schema": "https://unpkg.com/@changesets/config@3.1.1/schema.json",
-  "changelog": ["@changesets/changelog-github", { "repo": "swissspidy/playwright-webmcp" }],
+  "changelog": [
+    "@changesets/changelog-github",
+    {
+      "repo": "swissspidy/playwright-webmcp"
+    }
+  ],
   "commit": false,
-  "fixed": [["webmcp-lint", "playwright-webmcp", "playwright-webmcp-evals", "webmcp-audit"]],
+  "fixed": [["webmcp-lint", "playwright-webmcp", "webmcp-audit"]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

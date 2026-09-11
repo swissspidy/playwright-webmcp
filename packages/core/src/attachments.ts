@@ -1,11 +1,8 @@
 /**
  * Names of the Playwright test attachments the `playwright-webmcp` fixture
- * writes and the `playwright-webmcp-evals` reporter reads. Kept here so the
- * two packages share one definition without depending on each other.
+ * writes and its reporter (`playwright-webmcp/reporter`) reads.
  */
 export const ATTACHMENTS = {
-  eval: "webmcp-eval",
-  tools: "webmcp-tools",
   lint: "webmcp-lint",
   snapshot: "webmcp-snapshot",
   calls: "webmcp-calls",

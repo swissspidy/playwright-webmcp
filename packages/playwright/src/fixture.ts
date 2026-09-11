@@ -14,9 +14,7 @@ import {
   renderToolDocs,
   serializeContract,
   toContract,
-  toEvalCase,
   toPlaywrightTest,
-  toToolsSchema,
   type CodegenOptions,
   type ContractChange,
   type CoverageReport,
@@ -32,7 +30,6 @@ import {
   type SmokeReport,
   type TimelineBudgets,
   type TimelineReport,
-  type ToEvalOptions,
   type ToolContract,
   type ToolSnapshot,
 } from "webmcp-lint";
@@ -153,10 +150,6 @@ export class PromptApiHarness {
     );
     return { ...result, pass: reconciled.ok, problems: reconciled.problems };
   }
-}
-
-export interface ScenarioOptions extends Omit<ToEvalOptions, "name"> {
-  name?: string;
 }
 
 const instances = new WeakMap<Page, WebMCP>();
@@ -525,23 +518,6 @@ export class WebMCP {
 
   clearCalls(): void {
     this.recorded = [];
-  }
-
-  /**
-   * Run `body`, capture every tool call it produced, and attach the result as
-   * a webmcp-evals case. The `playwright-webmcp-evals` reporter turns these
-   * attachments into evals.json / tools.json.
-   */
-  async scenario(options: ScenarioOptions, body: () => Promise<void>): Promise<EvalCase> {
-    const before = this.recorded.length;
-    await body();
-    await this.settle();
-    const calls = this.recorded.slice(before).sort((a, b) => a.startedAt - b.startedAt);
-    const evalCase = toEvalCase(calls, { ...options, name: options.name });
-    const snapshot = await this.snapshot();
-    await this.attach(ATTACHMENTS.eval, { url: snapshot.url, eval: evalCase });
-    await this.attach(ATTACHMENTS.tools, toToolsSchema(snapshot));
-    return evalCase;
   }
 
   /**

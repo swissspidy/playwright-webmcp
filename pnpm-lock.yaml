@@ -60,22 +60,6 @@ importers:
         specifier: ^5.6.0
         version: 5.9.3
 
-  packages/evals-reporter:
-    dependencies:
-      webmcp-lint:
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      '@playwright/test':
-        specifier: 1.63.0
-        version: 1.63.0
-      '@types/node':
-        specifier: ^22.0.0
-        version: 22.20.1
-      typescript:
-        specifier: ^5.6.0
-        version: 5.9.3
-
   packages/playwright:
     dependencies:
       webmcp-lint:
@@ -88,9 +72,6 @@ importers:
       '@types/node':
         specifier: ^22.0.0
         version: 22.20.1
-      playwright-webmcp-evals:
-        specifier: workspace:*
-        version: link:../evals-reporter
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

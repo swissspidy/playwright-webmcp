@@ -44,7 +44,7 @@ export function toEvalCase(calls: RecordedCall[], options: ToEvalOptions): EvalC
   return { name: options.name, messages, expectedCall: toExpectedCalls(calls, options) };
 }
 
-export function toToolsSchema(snapshot: PageSnapshot): EvalToolsSchema {
+export function toToolsSchema(snapshot: Pick<PageSnapshot, "tools">): EvalToolsSchema {
   const seen = new Set<string>();
   const tools = [];
   for (const t of snapshot.tools) {

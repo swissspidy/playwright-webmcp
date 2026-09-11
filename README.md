@@ -1,15 +1,14 @@
 # playwright-webmcp
 
-Testing tools for [WebMCP](https://github.com/webmachinelearning/webmcp) tool surfaces: a lint engine that understands the whole page, a Playwright fixture with matchers and call recording, and a reporter that turns recorded scenarios into cases for Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) CLI.
+Testing tools for [WebMCP](https://github.com/webmachinelearning/webmcp) tool surfaces: a lint engine that understands the whole page, a Playwright fixture with matchers and call recording, and a runner for Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) cases that applies the CLI's own semantics inside Playwright.
 
 The shape is deliberately the same as axe-core: one engine that inspects the live page, thin adapters around it.
 
-| Package                                              | What it is                                                                                                                                                                          |
-| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`webmcp-lint`](packages/core)                       | Snapshot model, rules, `lint()`, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. Runs in Node against a snapshot. |
-| [`playwright-webmcp`](packages/playwright)           | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, and record scenarios. Ships a test-time shim so it runs on any Chromium.     |
-| [`playwright-webmcp-evals`](packages/evals-reporter) | Playwright reporter that writes `evals.json`, `tools.json`, `coverage.json` and `TOOLS.md` from recorded scenarios and calls.                                                       |
-| [`webmcp-audit`](packages/audit)                     | CLI and library that crawls a site, lints and smokes every page, detects cross-page drift, and scores agent readiness.                                                              |
+| Package                                    | What it is                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`webmcp-lint`](packages/core)             | Snapshot model, rules, `lint()`, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. Runs in Node against a snapshot.                                                                                                                 |
+| [`playwright-webmcp`](packages/playwright) | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, mock, drive the on-device model, and run evals cases. Ships a test-time shim so it runs on any Chromium, and a reporter that writes suite-wide `tools.json`, `coverage.json` and `TOOLS.md`. |
+| [`webmcp-audit`](packages/audit)           | CLI and library that crawls a site, lints and smokes every page, detects cross-page drift, and scores agent readiness.                                                                                                                                                                              |
 
 ## Quick start
 
@@ -37,39 +36,49 @@ test("shop exposes usable tools", async ({ page, webmcp }) => {
 });
 ```
 
-Pair a prompt with the calls it should produce and the reporter exports it as a `webmcp-evals` case. The calls can come from an agent run, which is where a recording earns its keep, or from `webmcp.call()` when you are pinning down a trajectory by hand:
+Eval cases are files you write, in the format `webmcp-evals` reads. Playwright runs them against the page with the CLI's exact matching semantics, so one `evals.json` serves both:
+
+```json
+[
+  {
+    "name": "add two shirts",
+    "messages": [{ "role": "user", "type": "message", "content": "Add two red shirts to my cart" }],
+    "expectedCall": [
+      { "functionName": "search_products", "arguments": { "query": { "$contains": "shirt" } } },
+      { "functionName": "add_to_cart", "arguments": { "quantity": 2 } }
+    ]
+  }
+]
+```
 
 ```ts
-await webmcp.promptApi.useFake({
-  turns: [
-    {
-      calls: [
-        { name: "search_products", args: { query: "red shirt" } },
-        { name: "add_to_cart", args: { productId: 1, quantity: 2 } },
-      ],
-    },
-  ],
-});
-await page.goto("/");
-await webmcp.scenario(
-  { name: "add two shirts", prompt: "Add two red shirts to my cart", argumentsMode: "types" },
-  async () => {
-    await webmcp.promptApi.run("Add two red shirts to my cart");
-  },
-);
+import cases from "./evals.json" with { type: "json" };
+
+for (const evalCase of cases) {
+  test(evalCase.name, async ({ page, webmcp }) => {
+    await page.goto("/");
+    test.skip(
+      (await webmcp.promptApi.availability()) === "unavailable",
+      "needs Chrome with the Prompt API",
+    );
+    await expect(webmcp).toPassEval(evalCase);
+  });
+}
 ```
+
+```sh
+npx webmcp-evals browser -u http://localhost:3000 -e evals.json
+npx webmcp-evals local -t .webmcp-report/tools.json -e evals.json
+npx webmcp-evals smoke -u http://localhost:3000 -e evals.json   # replays the calls without a model
+```
+
+The `tools.json` for `local` mode, plus coverage and a Markdown tool reference, come from the reporter:
 
 ```ts
 // playwright.config.ts
 export default defineConfig({
-  reporter: [["list"], ["playwright-webmcp-evals", { outputDir: ".webmcp-evals" }]],
+  reporter: [["list"], ["playwright-webmcp/reporter", { outputDir: ".webmcp-report" }]],
 });
-```
-
-```sh
-npx webmcp-evals browser -u http://localhost:3000 -e .webmcp-evals/evals.json
-npx webmcp-evals local -t .webmcp-evals/tools.json -e .webmcp-evals/evals.json
-npx webmcp-evals smoke -u http://localhost:3000 -e .webmcp-evals/evals.json   # replays the calls without a model
 ```
 
 ## The fixture
@@ -88,7 +97,6 @@ npx webmcp-evals smoke -u http://localhost:3000 -e .webmcp-evals/evals.json   # 
 | `lint(options)`                                         | Run the rules; the result is attached to the test.                                                   |
 | `smoke(options)`                                        | Generate inputs from each tool's schema, execute them, and judge the results.                        |
 | `contract()`, `matchToolContract(name?)`                | The page's tool contract, and a comparison against the stored one.                                   |
-| `scenario(options, body)`                               | Record the calls `body` makes as an eval case and attach it.                                         |
 | `settle()`                                              | Wait until calls reported by page scripts have reached the recorder.                                 |
 | `reachableTools({ from? })`                             | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`.     |
 | `mock(name, impl)`, `unmock(name)`, `replay(recording)` | Replace tool implementations from the test; replay recorded results.                                 |
@@ -317,19 +325,28 @@ pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
 ```
 
-`examples/demo-site` is the page the Playwright suite runs against. The four packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance.
+`examples/demo-site` is the page the Playwright suite runs against. The three packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance.
 
-## Turning recorded usage into evals
+## Recordings and evals
 
-Every recording the fixture makes, whether from `scenario()`, `smoke()`, the CDP collector, or the Prompt API harness, is a list of `RecordedCall` entries: tool, arguments, result or error, timing, and who made the call. That is most of an evals case. What a recording lacks is the user request that led to it, because agents never tell the page what the user asked.
+Every recording the fixture makes, whether from `call()`, `smoke()`, the CDP collector, or the Prompt API harness, is a list of `RecordedCall` entries: tool, arguments, result or error, timing, and who made the call. A recording is a useful regression test on its own (`toMatchCalls()` here, `webmcp-evals smoke` in the CLI), and `codegen()` renders one as a Playwright test.
 
-`scenario({ prompt }, body)` closes that gap by pairing a prompt with the calls `body` produces, and it is worth being clear about what that does and does not give you:
+A recording is not an eval, though, and this repository deliberately does not export recordings as eval cases. An eval's value is in an expectation someone chose: `$contains` instead of a literal, `optional: true` on a lookup, an unordered group where order does not matter. Recording `webmcp.call()` invocations only transcribes what the test author typed, and recording one model run only snapshots one nondeterministic trajectory. Write cases by hand and treat them as the source of truth that both Playwright and the CLI consume.
 
-- **When `body` drives an agent** (`promptApi.run()`, or a real agent observed through CDP), the trajectory is model-produced and the prompt is known. Exporting that as a case, reviewing it, and replaying it with `webmcp-evals` or `toPassEval()` turns one good run into a regression test. This is the use the feature is designed for.
-- **When `body` calls tools by hand**, the case is a transcription of what you typed. It is validated against the live page, which a hand-written `evals.json` is not, and it captures `tools.json` for free, but the expectation is only as good as your guess at what an agent would do. Prefer `argumentsMode: "types"` or edit the exported arguments into constraints (`{ $contains: "shirt" }`) before treating exact literals as the expected behaviour, since a model will rarely reproduce `query: "red"` verbatim.
-- **Without a prompt**, a recording is still a regression test: the CLI's `smoke` mode and `toMatchCalls()` replay and reconcile trajectories without a model. Inferring a prompt from a trajectory with a model is possible but the output needs review, so it stays a script in your repository rather than a feature here.
+When a recording is a convenient starting point, `toEvalCase()` from `webmcp-lint` turns one into a draft to edit:
 
-`codegen()` is the inverse direction: a recording, agent-made or not, rendered as a Playwright test that reproduces it.
+```ts
+import { writeFileSync } from "node:fs";
+import { toEvalCase } from "webmcp-lint";
+
+await webmcp.promptApi.run("Add two red shirts to my cart");
+const draft = toEvalCase(webmcp.calls(), {
+  name: "add two shirts",
+  prompt: "Add two red shirts to my cart",
+  argumentsMode: "types",
+});
+writeFileSync("evals.draft.json", JSON.stringify([draft], null, 2));
+```
 
 ## Relationship to Lighthouse and DevTools
 
