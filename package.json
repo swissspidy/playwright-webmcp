@@ -1,18 +1,31 @@
 {
-  "name": "web-agent-monorepo",
+  "name": "playwright-webmcp-monorepo",
   "private": true,
   "type": "module",
   "packageManager": "pnpm@10.33.0",
+  "engines": {
+    "node": ">=20"
+  },
   "scripts": {
     "build": "pnpm -r --filter './packages/*' run build",
+    "typecheck": "pnpm -r --filter './packages/*' run typecheck",
     "test": "pnpm run build && pnpm run test:unit && pnpm run test:e2e",
     "test:unit": "pnpm --filter webmcp-lint test",
     "test:e2e": "pnpm --filter playwright-webmcp test && pnpm --filter webmcp-audit test",
-    "typecheck": "pnpm -r --filter './packages/*' run typecheck"
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint:publish": "pnpm -r --filter './packages/*' exec publint --strict",
+    "changeset": "changeset",
+    "version": "changeset version && pnpm install --lockfile-only",
+    "release": "pnpm run build && changeset publish"
   },
   "devDependencies": {
+    "@changesets/changelog-github": "^1.0.1",
+    "@changesets/cli": "^3.0.2",
     "@playwright/test": "1.62.1",
-    "typescript": "^5.6.0",
-    "@types/node": "^22.0.0"
+    "@types/node": "^22.0.0",
+    "prettier": "^3.9.6",
+    "publint": "^0.3.24",
+    "typescript": "^5.6.0"
   }
 }

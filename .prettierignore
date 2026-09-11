@@ -1,12 +1,10 @@
 node_modules/
 dist/
 dist-test/
-*.tsbuildinfo
-
-# Test and tool output
+pnpm-lock.yaml
 test-results/
 playwright-report/
-blob-report/
-.evals/
 .webmcp-evals/
 .webmcp-audit/
+*-snapshots/
+CHANGELOG.md
