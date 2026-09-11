@@ -60,7 +60,7 @@
     "webmcp-lint": "workspace:*"
   },
   "devDependencies": {
-    "@playwright/test": "1.62.1",
+    "@playwright/test": "1.63.0",
     "@types/node": "^22.0.0",
     "typescript": "^5.6.0"
   }
