@@ -8,7 +8,7 @@ const HELP = `Usage: webmcp-audit <url> [options]
 
 Crawls same-origin pages from <url>, lints every page's WebMCP tools, optionally
 runs schema-driven smoke calls, and writes report.json and report.md.
-Exits 1 when any error-level finding exists, 2 on usage errors.
+Exits 1 when any page failed to load or any error-level finding exists, 2 on usage errors.
 
 Options:
   --max-pages <n>       Maximum pages to visit (default 10)
@@ -18,7 +18,7 @@ Options:
   --settle <ms>         Wait this long after load for tools to register (default 500)
   --out <dir>           Output directory (default .webmcp-audit)
   --executable <path>   Chrome/Chromium binary (default: Playwright's, or $PW_CHROMIUM)
-  --arg <flag>          Extra browser argument; repeatable, e.g. --arg --enable-features=WebMCP
+  --arg <flag>          Extra browser argument; repeatable, e.g. --arg=--enable-features=WebMCP
   --quiet               Do not print the Markdown report to stdout
   -h, --help            Show this help
 `;
@@ -29,9 +29,20 @@ function fail(message: string): never {
   process.exit(2);
 }
 
+/** `--arg --enable-features=X` reads naturally but parseArgs needs `--arg=--enable-features=X`; rewrite the former. */
+function normalizeArgv(argv: string[]): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] === "--arg" && i + 1 < argv.length) out.push(`--arg=${argv[++i]}`);
+    else out.push(argv[i]);
+  }
+  return out;
+}
+
 function parse() {
   try {
     return parseArgs({
+      args: normalizeArgv(process.argv.slice(2)),
       allowPositionals: true,
       options: {
         "max-pages": { type: "string" },
@@ -88,4 +99,6 @@ mkdirSync(values.out, { recursive: true });
 writeFileSync(join(values.out, "report.json"), JSON.stringify(report, null, 2) + "\n");
 writeFileSync(join(values.out, "report.md"), renderMarkdown(report));
 if (!values.quiet) console.log(renderMarkdown(report));
-process.exit(report.findings.some((f) => f.severity === "error") ? 1 : 0);
+const failedPages = report.pages.filter((p) => p.status === "error");
+if (failedPages.length) console.error(`webmcp-audit: ${failedPages.length} page(s) could not be audited`);
+process.exit(failedPages.length || report.findings.some((f) => f.severity === "error") ? 1 : 0);

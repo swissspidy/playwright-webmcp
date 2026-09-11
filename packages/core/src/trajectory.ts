@@ -8,9 +8,10 @@
  *    satisfied by the very next unconsumed actual call, not by any later one;
  *  - an optional call that does not match simply yields its position to the
  *    next expected node;
- *  - `{ unordered: [...] }` groups are matched against a pool of exactly as
- *    many actual calls as the group has required nodes, via maximum bipartite
- *    matching (nested groups fall back to backtracking, capped at 15 nodes);
+ *  - `{ unordered: [...] }` groups of plain calls are matched against a pool of
+ *    exactly as many actual calls as the group has entries, optional entries
+ *    included, via maximum bipartite matching; groups that nest other groups
+ *    are matched by trying orderings of their entries, capped at 15 entries;
  *  - every actual call that is not consumed by an expectation fails the case.
  */
 import type { EvalFunctionCall, ExpectedCallNode } from "./evals-types.js";
@@ -99,44 +100,57 @@ function matchSimpleUnordered(nodes: EvalFunctionCall[], executions: ActualCall[
   return { matches: allMatched, consumed: nodes.length, rows };
 }
 
+interface NestedBest {
+  passes: number;
+  matches: boolean;
+  consumed: number;
+  rows: TrajectoryRow[];
+}
+
+/**
+ * The CLI enumerates every ordering of the group's entries and keeps the
+ * first one with the most passing rows. Enumerating orderings is factorial,
+ * so this memoises on (set of entries already placed, actual calls consumed
+ * so far): the best completion from that state does not depend on the order
+ * the placed entries were tried in. Iterating entries in index order and
+ * only replacing a candidate on a strictly higher pass count keeps the CLI's
+ * tie-break, the lexicographically first optimal ordering.
+ */
 function matchNestedUnordered(nodes: ExpectedCallNode[], executions: ActualCall[], start: number, fallbackConsumed: number): MatchResult {
   const n = nodes.length;
   if (n > 15) throw new Error(`Unordered group too large (${n} nodes). Max length is 15.`);
-  const best = { matches: false, maxPasses: -1, consumed: 0, rows: [] as TrajectoryRow[] };
-  const visited: boolean[] = Array(n).fill(false);
-  const cache = new Map<string, MatchResult>();
+  const nodeCache = new Map<string, MatchResult>();
   const getMatch = (nodeIndex: number, execIndex: number): MatchResult => {
     const key = `${nodeIndex}:${execIndex}`;
-    let r = cache.get(key);
+    let r = nodeCache.get(key);
     if (!r) {
       r = matchNode(nodes[nodeIndex], executions, execIndex);
-      cache.set(key, r);
+      nodeCache.set(key, r);
     }
     return r;
   };
-  const backtrack = (processed: number, consumed: number, matches: boolean, passes: number, rows: TrajectoryRow[]) => {
-    if (processed === n) {
-      if (passes > best.maxPasses) {
-        best.maxPasses = passes;
-        best.matches = matches;
-        best.consumed = consumed;
-        best.rows = [...rows];
-      }
-      return;
-    }
+  const stateCache = new Map<string, NestedBest>();
+  const full = (1 << n) - 1;
+  const solve = (placed: number, consumed: number): NestedBest => {
+    if (placed === full) return { passes: 0, matches: true, consumed: 0, rows: [] };
+    const key = `${placed}:${consumed}`;
+    const cached = stateCache.get(key);
+    if (cached) return cached;
+    let best: NestedBest | undefined;
     for (let i = 0; i < n; i++) {
-      if (visited[i]) continue;
-      visited[i] = true;
+      if (placed & (1 << i)) continue;
       const r = getMatch(i, start + consumed);
-      const passCount = r.rows.filter((row) => row.outcome === "pass").length;
-      rows.push(...r.rows);
-      backtrack(processed + 1, consumed + r.consumed, matches && r.matches, passes + passCount, rows);
-      rows.length -= r.rows.length;
-      visited[i] = false;
+      const rest = solve(placed | (1 << i), consumed + r.consumed);
+      const passes = r.rows.filter((row) => row.outcome === "pass").length + rest.passes;
+      if (!best || passes > best.passes) {
+        best = { passes, matches: r.matches && rest.matches, consumed: r.consumed + rest.consumed, rows: [...r.rows, ...rest.rows] };
+      }
     }
+    stateCache.set(key, best!);
+    return best!;
   };
-  backtrack(0, 0, true, 0, []);
-  return { matches: best.matches, consumed: best.maxPasses >= 0 ? best.consumed : fallbackConsumed, rows: best.rows };
+  const best = n ? solve(0, 0) : undefined;
+  return best ? { matches: best.matches, consumed: best.consumed, rows: best.rows } : { matches: true, consumed: fallbackConsumed, rows: [] };
 }
 
 function matchUnordered(nodes: ExpectedCallNode[], executions: ActualCall[], start: number): MatchResult {

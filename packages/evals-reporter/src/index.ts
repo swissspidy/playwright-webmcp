@@ -43,7 +43,7 @@ export default class WebMCPEvalsReporter implements Reporter {
   private readonly tools = new Map<string, EvalToolSchema>();
   private readonly calls: RecordedCall[] = [];
   private readonly snapshots = new Map<string, ToolSnapshot>();
-  private readonly nameCounts = new Map<string, number>();
+  private readonly usedNames = new Set<string>();
   private rootDir = process.cwd();
 
   constructor(options: EvalsReporterOptions = {}) {
@@ -76,11 +76,19 @@ export default class WebMCPEvalsReporter implements Reporter {
     }
   }
 
-  /** Two scenarios in one test without names would otherwise collide; suffix repeats. */
+  /** Two scenarios in one test without names would otherwise collide; suffix repeats until the name is unused. */
   private uniqueName(name: string): string {
-    const n = (this.nameCounts.get(name) ?? 0) + 1;
-    this.nameCounts.set(name, n);
-    return n === 1 ? name : `${name} (${n})`;
+    if (!this.usedNames.has(name)) {
+      this.usedNames.add(name);
+      return name;
+    }
+    for (let n = 2; ; n++) {
+      const candidate = `${name} (${n})`;
+      if (!this.usedNames.has(candidate)) {
+        this.usedNames.add(candidate);
+        return candidate;
+      }
+    }
   }
 
   onEnd() {
@@ -99,6 +107,7 @@ export default class WebMCPEvalsReporter implements Reporter {
         tools: snapshots
           .map((t) => ({
             name: t.name,
+            title: t.title,
             description: t.description,
             inputSchema: t.inputSchema,
             annotations: t.annotations,

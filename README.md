@@ -231,7 +231,7 @@ Descriptions are read by every agent that visits a page, and tool results go str
 npx webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
 ```
 
-Crawls same-origin links, lints every page, optionally runs smoke on read-only tools (`--all-tools` widens it), detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. Exit code 1 when any error-level finding exists, 2 on usage errors. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses the Markdown on stdout, and `--help` lists everything. The same is available as `audit()` from the `webmcp-audit` package.
+Crawls same-origin links, lints every page, optionally runs smoke on read-only tools (`--all-tools` widens it), detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. Exit code 1 when any page failed to load or any error-level finding exists, 2 on usage errors. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses the Markdown on stdout, and `--help` lists everything. The same is available as `audit()` from the `webmcp-audit` package.
 
 ## Smoke: runtime checks from schemas
 
@@ -309,7 +309,8 @@ Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRu
 
 ```sh
 pnpm install
-pnpm run build
+pnpm run build           # typecheck resolves workspace packages through their built declarations, so build first
+pnpm run typecheck
 pnpm run test:unit
 pnpm run test:e2e        # set PW_CHROMIUM=/path/to/chrome to use a specific binary
 pnpm run format          # Prettier; CI runs format:check

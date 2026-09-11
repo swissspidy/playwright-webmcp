@@ -84,6 +84,9 @@
         ],
         "type": "object"
       },
+      "annotations": {
+        "autosubmit": true
+      },
       "source": "declarative",
       "origin": "http://localhost:4173"
     }

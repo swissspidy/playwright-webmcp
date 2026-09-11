@@ -51,4 +51,22 @@ test.describe("cross-origin exposure", () => {
       });
     }).rejects.toThrow(/secure/);
   });
+
+  test("mocking and restoring a tool keeps its exposedTo", async ({ page, webmcp }) => {
+    await page.goto("/embed.html");
+    await webmcp.mock("partner_quote", { result: { price: 1, currency: "CHF", mocked: true } });
+    await expect(webmcp).toReachTool("partner_quote");
+    const viaEmbedder = await page.evaluate(async () => {
+      const mc = (document.modelContext ?? navigator.modelContext)!;
+      const tools = await mc.getTools({ fromOrigins: ["http://127.0.0.1:4173"] });
+      return mc.executeTool(
+        tools.find((t) => t.name === "partner_quote")!,
+        { country: "CH" },
+      );
+    });
+    expect(viaEmbedder).toEqual({ price: 1, currency: "CHF", mocked: true });
+    expect(await webmcp.unmock("partner_quote")).toBe(true);
+    await expect(webmcp).toReachTool("partner_quote");
+    expect(await webmcp.call("partner_quote", { country: "CH", weightKg: 2 })).toMatchObject({ price: 15 });
+  });
 });

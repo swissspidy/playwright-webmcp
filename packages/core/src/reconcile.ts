@@ -68,9 +68,11 @@ function describe(node: EvalFunctionCall): string {
  */
 export function reconcileCalls(expected: ExpectedCallNode[] | null | undefined, actual: ActualCall[], options: ReconcileOptions = {}): ReconcileResult {
   if (options.mode === "evals") {
-    const rows = evaluateTrajectory(expected, actual);
+    // Copy each call so that the same object appearing twice in `actual` still maps back to its own index.
+    const positioned = actual.map((c) => ({ ...c }));
+    const rows = evaluateTrajectory(expected, positioned);
     const failed = rows.filter((r) => r.outcome === "fail");
-    const consumedIdx = rows.filter((r) => r.outcome === "pass" && r.actual).map((r) => actual.indexOf(r.actual!));
+    const consumedIdx = rows.filter((r) => r.outcome === "pass" && r.actual).map((r) => positioned.indexOf(r.actual!));
     return { ok: failed.length === 0, problems: Array.from(new Set(failed.map(describeTrajectoryRow))), consumed: consumedIdx.sort((a, b) => a - b) };
   }
   const consumed = new Set<number>();

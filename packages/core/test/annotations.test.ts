@@ -50,3 +50,25 @@ test("title is part of the contract and the docs", () => {
   assert.match(md, /\*\*Search\*\*/);
   assert.match(md, /read-only/);
 });
+
+test("declarative autosubmit becomes an annotation in the contract", () => {
+  const snap = {
+    url: "u",
+    capturedAt: "",
+    frames: [],
+    tools: [
+      {
+        name: "subscribe",
+        description: "Subscribe",
+        inputSchema: null,
+        origin: "o",
+        frame: 0,
+        source: "declarative" as const,
+        declarative: { formLocator: "form", autosubmit: true, hasDescription: true, fields: [] },
+      },
+    ],
+  };
+  const contract = toContract(snap);
+  assert.deepEqual(contract.tools[0].annotations, { autosubmit: true });
+  assert.match(renderToolDocs(contract), /auto-submits/);
+});

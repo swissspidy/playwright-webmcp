@@ -20,7 +20,7 @@ Usage: webmcp-audit <url> [options]
   --quiet               Do not print the Markdown report to stdout
 ```
 
-Writes `report.json` and `report.md`. Exit code 1 when any error-level finding exists, 2 on usage errors.
+Writes `report.json` and `report.md`. Exit code 1 when any page failed to load or any error-level finding exists, 2 on usage errors. Browser flags go through `--arg`, for example `--arg --enable-features=WebMCP` or `--arg=--enable-features=WebMCP`.
 
 As a library:
 

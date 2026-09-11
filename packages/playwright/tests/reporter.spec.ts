@@ -37,7 +37,10 @@ test("reporter keeps eval names unique across unnamed scenarios", () => {
   const attach = (body: unknown) => ({ name: "webmcp-eval", contentType: "application/json", body: Buffer.from(JSON.stringify(body)) });
   const unnamed = { url: "http://localhost/", eval: { messages: [{ role: "user", type: "message", content: "x" }], expectedCall: [] } };
   reporter.onTestEnd({ title: "modes" } as never, { attachments: [attach(unnamed), attach(unnamed)] } as never);
+  // A test whose title equals a generated suffix, then another unnamed scenario in the first test.
+  reporter.onTestEnd({ title: "modes (2)" } as never, { attachments: [attach(unnamed)] } as never);
+  reporter.onTestEnd({ title: "modes" } as never, { attachments: [attach(unnamed)] } as never);
   reporter.onEnd();
   const evals = JSON.parse(readFileSync(join(dir, "evals.json"), "utf8"));
-  expect(evals.map((e: { name: string }) => e.name)).toEqual(["modes", "modes (2)"]);
+  expect(evals.map((e: { name: string }) => e.name)).toEqual(["modes", "modes (2)", "modes (2) (2)", "modes (3)"]);
 });

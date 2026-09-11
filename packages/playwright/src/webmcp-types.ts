@@ -20,6 +20,8 @@ export interface WebMCPRegisteredTool {
   origin: string;
   window?: Window;
   execute?: (args: any, options?: { signal?: AbortSignal }) => unknown | Promise<unknown>;
+  /** Origins the tool was exposed to at registration, when the implementation surfaces it (the test shim does). */
+  exposedTo?: string[];
 }
 
 export interface WebMCPModelContext extends EventTarget {

@@ -2,7 +2,7 @@
  * Tool contracts: a stable, diffable description of what a page exposes to
  * agents, suitable for storing as a snapshot in the repository.
  */
-import type { JsonSchema, PageSnapshot, ToolSource } from "./types.js";
+import type { JsonSchema, PageSnapshot, ToolSnapshot, ToolSource } from "./types.js";
 
 export interface ContractTool {
   name: string;
@@ -37,6 +37,18 @@ function sortKeys(value: unknown): unknown {
   return value;
 }
 
+/**
+ * The CDP domain reports `autosubmit` as an annotation on declarative tools;
+ * the page-side collector only knows it from the form attribute. Fold it in so
+ * contracts and docs see the same thing whichever collector produced the
+ * snapshot.
+ */
+function contractAnnotations(tool: ToolSnapshot): Record<string, unknown> | undefined {
+  const annotations = { ...(tool.annotations ?? {}) };
+  if (tool.declarative?.autosubmit && annotations.autosubmit === undefined) annotations.autosubmit = true;
+  return Object.keys(annotations).length ? (sortKeys(annotations) as Record<string, unknown>) : undefined;
+}
+
 export function toContract(snapshot: PageSnapshot): ToolContract {
   const tools = snapshot.tools
     .map((t) => ({
@@ -44,7 +56,7 @@ export function toContract(snapshot: PageSnapshot): ToolContract {
       title: t.title,
       description: t.description ?? "",
       inputSchema: (sortKeys(t.inputSchema ?? null) as JsonSchema | null) ?? null,
-      annotations: t.annotations ? (sortKeys(t.annotations) as Record<string, unknown>) : undefined,
+      annotations: contractAnnotations(t),
       source: t.source,
       origin: t.origin,
     }))
