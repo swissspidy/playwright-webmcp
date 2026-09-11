@@ -1,6 +1,6 @@
 {
   "name": "webmcp-lint",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Lint rules, snapshot model, schema-driven smoke checks and a webmcp-evals compatible call matcher for WebMCP tool surfaces.",
   "keywords": [
     "webmcp",
