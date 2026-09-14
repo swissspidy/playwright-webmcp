@@ -256,6 +256,9 @@ export class PromptApiHarness implements WebMCPAgent {
     const known = (await this.webmcp.tools()).map((t) => t.name).filter((name) => !given.toolNames || given.toolNames.includes(name));
     const opts = normalizeRunOptions({ expectedTools: known, ...given });
     const result = await this.webmcp.page.evaluate(runPromptApiInPage, opts);
+    const missing = known.filter((name) => !result.toolsOffered.includes(name));
+    if (missing.length && process.env.WEBMCP_DEBUG)
+      console.error(`[webmcp promptApi] page's getTools() did not list ${missing.join(", ")} within ${opts.waitForToolsMs} ms`);
     for (const c of result.calls) this.webmcp.record({ ...c, via: "agent" });
     await this.webmcp.attach(ATTACHMENTS.promptApi, { url: this.webmcp.page.url(), prompts: opts.prompts, ...result });
     return result;

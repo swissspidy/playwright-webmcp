@@ -34,6 +34,10 @@ import {
   type ToolSnapshot,
 } from "webmcp-lint";
 import { CdpCollector, type CdpTool } from "./cdp.js";
+
+const debug = process.env.WEBMCP_DEBUG
+  ? (...args: unknown[]) => console.error(`[webmcp fixture ${new Date().toISOString().slice(11, 23)}]`, ...args)
+  : () => {};
 import { runSmoke, type SmokeOptions } from "./smoke.js";
 import { shimSource } from "./shim.js";
 import { RECORDER_SOURCE } from "./recorder.js";
@@ -175,6 +179,10 @@ export class WebMCP {
     // With the CDP registry at hand a page-side getTools() that hangs is not fatal, so wait less for it.
     const getToolsTimeoutMs = this.cdp?.enabled ? 1000 : 3000;
     const results = await Promise.all(frames.map((f) => collectInFrame(f, getToolsTimeoutMs)));
+    debug(
+      "snapshot collected",
+      results.map((r, i) => `${frames[i].url()}: ${r ? (r.frame.error ? `error(${r.frame.error})` : r.tools.map((t) => t.name).join("+")) : "none"}`),
+    );
     // Playwright and CDP both list frames parents first, siblings in document order, so the n-th
     // frame with a URL on one side is the n-th with that URL on the other. Matching by URL alone
     // would give two same-URL iframes each other's tools.
@@ -211,6 +219,14 @@ export class WebMCP {
         // registry the browser reported over CDP stands in for it.
         const url = frames[i].url();
         const fromRegistry = registryFor(i);
+        debug(
+          "snapshot fallback",
+          url,
+          "registry:",
+          fromRegistry.map((c) => c.name),
+          "frame ids for url:",
+          this.cdp.frameIdsFor(url),
+        );
         if (fromRegistry.length) {
           const frame: FrameCollectResult["frame"] = {
             url,
@@ -577,7 +593,14 @@ export class WebMCP {
     const key = async () => {
       const frames = this.page.frames();
       const results = await Promise.all(frames.map((f) => collectInFrame(f, this.cdp?.enabled ? 1000 : 3000)));
-      return JSON.stringify(results.map((r) => r?.tools.map((t) => t.name).sort() ?? null));
+      // The browser's registry counts too: a registration it has reported that a frame's getTools() has not caught up with is still a change.
+      const registry = this.cdp?.enabled
+        ? this.cdp
+            .list()
+            .map((t) => `${t.frameId}::${t.name}`)
+            .sort()
+        : [];
+      return JSON.stringify([results.map((r) => r?.tools.map((t) => t.name).sort() ?? null), registry]);
     };
     let previous = await key();
     while (Date.now() < deadline) {

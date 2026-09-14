@@ -33,7 +33,8 @@ Options:
                         HTTP header sent with every request to the audited origin
                         (not to third-party frames or resources), e.g. an
                         Authorization header for a protected staging site; repeatable
-  --settle <ms>         Wait this long after load for tools to register (default 500)
+  --settle <ms>         Wait this long after load for tools to register, then for the
+                        tool list to hold still for as long again (default 500)
   --out <dir>           Output directory (default .webmcp-audit)
   --format <format>     What to print: md (default, the Markdown report), json (the
                         report), or github (one workflow-command annotation per

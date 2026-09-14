@@ -110,8 +110,12 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
   await webmcp.install();
   try {
     await page.goto(url, { waitUntil: "load" });
-    await page.waitForTimeout(options.settleMs ?? 500);
-    await webmcp.settle();
+    const settleMs = options.settleMs ?? 500;
+    await page.waitForTimeout(settleMs);
+    // Then require the tool list to hold still for as long again: on native Chrome an iframe's
+    // tools can land a few hundred milliseconds after the top page's, and two audits of the
+    // same page must see the same contract.
+    await webmcp.settle({ quietMs: Math.max(150, Math.min(settleMs, 1000)), timeoutMs: 5000 });
     const snapshot = await webmcp.snapshot();
     const lintResult = lint(snapshot, options.lint ?? {});
     let smoke: PageAudit["smoke"];

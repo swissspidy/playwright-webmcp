@@ -30,7 +30,8 @@ test.describe("prompt api harness", () => {
     await expect(webmcp).toHaveTool("list_reviews");
     expect(await promptApi.availability()).toBe("available");
 
-    const result = await promptApi.run({ prompts: ["Add two red shirts to my cart"], systemPrompt: "You are a shop assistant." });
+    // Natively the top frame's aggregated getTools() can trail the iframe's registration by seconds under load.
+    const result = await promptApi.run({ prompts: ["Add two red shirts to my cart"], systemPrompt: "You are a shop assistant.", waitForToolsMs: 10_000 });
     expect(result.status).toBe("ok");
     expect(result.toolsOffered.sort()).toEqual(["add_to_cart", "list_reviews", "search_products", "subscribe_newsletter"]);
     expect(result.responses[0]).toBe('Added two red shirts. Cart: {"items":1,"total":40}');
