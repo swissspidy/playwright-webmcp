@@ -1,3 +1,4 @@
+import type { Finding } from "../types.js";
 import { defineRule, finding, forEachTool, opt, walk } from "./helpers.js";
 
 export const schemaShape = defineRule({
@@ -96,7 +97,9 @@ export const schemaKeywords = defineRule({
   check: (ctx) => {
     const keywords = new Set(opt<string[]>(ctx, "keywords", RISKY_KEYWORDS));
     return forEachTool(ctx, (tool) => {
-      const out = [];
+      const out: Finding[] = [];
+      // Declarative schemas are derived by the browser (Chrome emits anyOf/const for <select>); the author cannot change them.
+      if (tool.source === "declarative") return out;
       for (const [path, value] of walk(tool.inputSchema)) {
         if (!value || typeof value !== "object" || Array.isArray(value)) continue;
         for (const k of Object.keys(value as object)) {

@@ -83,6 +83,17 @@ test("--format json prints the LintResult and reads stdin with -", async () => {
   assert.ok(parsed.rulesRun.includes("tool-name-valid"));
 });
 
+test("--format github prints one workflow command per finding", async () => {
+  const t = io({ "tools.json": tools });
+  assert.equal(await runLintCli(["tools.json", "--format", "github"], t.api), 1);
+  const lines = t.out().trim().split("\n");
+  assert.ok(
+    lines.every((l) => /^::(error|warning|notice) file=tools\.json,title=webmcp-lint%3A [a-z-]+::/.test(l)),
+    t.out(),
+  );
+  assert.ok(lines.some((l) => l.startsWith("::error file=tools.json,title=webmcp-lint%3A tool-name-valid::bad name!: ")));
+});
+
 test("reads a real file from disk and a fixture snapshot", async () => {
   const dir = mkdtempSync(join(tmpdir(), "webmcp-lint-"));
   const file = join(dir, "snapshot.json");

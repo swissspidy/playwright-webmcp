@@ -40,7 +40,9 @@
         "type": "object"
       },
       "annotations": {
-        "readOnlyHint": true
+        "consequentialHint": false,
+        "readOnlyHint": true,
+        "untrustedContentHint": false
       },
       "source": "imperative",
       "origin": "http://localhost:4173"
@@ -62,7 +64,9 @@
         "type": "object"
       },
       "annotations": {
-        "readOnlyHint": true
+        "consequentialHint": false,
+        "readOnlyHint": true,
+        "untrustedContentHint": false
       },
       "source": "imperative",
       "origin": "http://localhost:4173"
@@ -77,6 +81,18 @@
             "type": "string"
           },
           "frequency": {
+            "anyOf": [
+              {
+                "const": "weekly",
+                "title": "Weekly",
+                "type": "string"
+              },
+              {
+                "const": "monthly",
+                "title": "Monthly",
+                "type": "string"
+              }
+            ],
             "description": "How often to send the newsletter",
             "enum": [
               "weekly",

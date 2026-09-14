@@ -47,8 +47,8 @@ export async function collectFrame(): Promise<FrameCollectResult> {
       name: String(t.name ?? ""),
       title: typeof t.title === "string" && t.title ? t.title : undefined,
       description: String(t.description ?? ""),
-      inputSchema: safeJson(t.inputSchema),
-      annotations: safeJson(t.annotations) ?? undefined,
+      inputSchema: safeJson(fromJsonString(t.inputSchema)),
+      annotations: safeJson(fromJsonString(t.annotations)) ?? undefined,
       origin: String(t.origin ?? location.origin),
       source: decl ? "declarative" : "imperative",
       hasExecute: typeof t.execute === "function" || typeof t._execute === "function" ? true : decl ? true : undefined,
@@ -70,6 +70,16 @@ export async function collectFrame(): Promise<FrameCollectResult> {
     });
   }
   return { frame, tools };
+
+  // Chrome's RegisteredTool carries inputSchema as the JSON string it was stored as; the specification says object.
+  function fromJsonString(v: unknown): unknown {
+    if (typeof v !== "string") return v;
+    try {
+      return JSON.parse(v);
+    } catch {
+      return v;
+    }
+  }
 
   function safeJson(v: unknown): Record<string, unknown> | null {
     if (v === undefined || v === null) return null;
@@ -102,7 +112,8 @@ export async function collectFrame(): Promise<FrameCollectResult> {
       const type = tag === "input" ? (el.getAttribute("type") ?? "text").toLowerCase() : tag;
       if (type === "submit" || type === "button" || type === "reset" || type === "hidden" || tag === "button" || tag === "fieldset") continue;
       const paramDescription = el.getAttribute("toolparamdescription") ?? undefined;
-      const options = tag === "select" ? Array.from((el as HTMLSelectElement).options).map((o) => o.value) : undefined;
+      const selectOptions = tag === "select" ? Array.from((el as HTMLSelectElement).options) : undefined;
+      const options = selectOptions?.map((o) => o.value);
       const isRequired = el.hasAttribute("required");
       fields.push({ name: fieldName, type, required: isRequired, hasLabel: hasLabel(el), paramDescription, options });
       const prop: Record<string, unknown> = {};
@@ -110,7 +121,11 @@ export async function collectFrame(): Promise<FrameCollectResult> {
       else if (type === "checkbox") prop.type = "boolean";
       else prop.type = "string";
       if (paramDescription) prop.description = paramDescription;
-      if (options) prop.enum = options;
+      if (selectOptions && options) {
+        // Chrome 154 derives one const per option, titled with the option label, plus the enum.
+        prop.anyOf = selectOptions.map((o) => ({ type: "string", const: o.value, title: o.label || o.textContent || o.value }));
+        prop.enum = options;
+      }
       const min = el.getAttribute("min");
       const max = el.getAttribute("max");
       const pattern = el.getAttribute("pattern");

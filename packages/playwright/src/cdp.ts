@@ -201,7 +201,7 @@ export class CdpCollector {
     this.pending.delete(params.invocationId);
     this.ownInvocations.delete(params.invocationId);
     const ok = params.status === "Completed";
-    const error = ok ? undefined : (params.errorText ?? params.exception?.description ?? params.status);
+    const error = ok ? undefined : params.errorText || params.exception?.description || params.status;
     const call: RecordedCall = {
       name: entry.name,
       args: entry.input,

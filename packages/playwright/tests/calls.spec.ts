@@ -40,7 +40,7 @@ test.describe("calling and recording", () => {
       const tools = await mc.getTools();
       await mc.executeTool(
         tools.find((t) => t.name === "search_products")!,
-        { query: "hat" },
+        JSON.stringify({ query: "hat" }),
       );
     });
     const calls = webmcp.calls();

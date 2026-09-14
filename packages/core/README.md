@@ -37,7 +37,7 @@ npx webmcp-lint tools.json --fail-on warning --rule no-tools=off --rule 'too-man
 cat snapshot.json | npx webmcp-lint - --format json
 ```
 
-Exit code 1 when a finding at or above `--fail-on` exists (default `error`), 2 on usage errors. `--scope tool` skips page-level rules, `--url` labels the findings.
+Exit code 1 when a finding at or above `--fail-on` exists (default `error`), 2 on usage errors. `--scope tool` skips page-level rules, `--url` labels the findings, and `--format github` prints one workflow-command annotation per finding for GitHub Actions.
 
 ## Lint a live page with any driver
 

@@ -9,6 +9,7 @@ import { renderToolDocs } from "../src/docs.js";
 import { computeScore } from "../src/score.js";
 import { judgeTimeline } from "../src/timeline.js";
 import { formatSmokeRuns } from "../src/smoke.js";
+import { toGitHubAnnotations } from "../src/github.js";
 import { toContract } from "../src/contract.js";
 import type { PageSnapshot, RecordedCall } from "../src/types.js";
 
@@ -151,4 +152,19 @@ test("formatSmokeRuns renders a Markdown table and escapes pipes", () => {
   assert.equal(rows[0], "| Tool | Input | Arguments | Outcome | ms |");
   assert.equal(rows[2], '| `search` | valid-minimal: required parameters only | `{"q":"a\\|b"}` | ok | 3 |');
   assert.equal(rows[3], '| `search` | invalid: q has wrong type | `{"q":1}` | error: bad input | 1 |');
+});
+
+test("toGitHubAnnotations escapes data and properties", () => {
+  const out = toGitHubAnnotations(
+    [
+      { ruleId: "a-rule", severity: "error", message: "Line one\nline two: 100%", tool: "t" },
+      { ruleId: "b-rule", severity: "info", message: "fine", help: "Do this." },
+    ],
+    { file: "dir,name:x.json", tool: "webmcp-audit" },
+  );
+  assert.deepEqual(out.split("\n"), [
+    "::error file=dir%2Cname%3Ax.json,title=webmcp-audit%3A a-rule::t: Line one%0Aline two: 100%25",
+    "::notice file=dir%2Cname%3Ax.json,title=webmcp-audit%3A b-rule::fine Do this.",
+  ]);
+  assert.equal(toGitHubAnnotations([]), "");
 });

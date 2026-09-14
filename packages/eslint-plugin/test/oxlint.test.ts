@@ -95,3 +95,38 @@ export function Tools() {
     [["webmcp(tool-name-valid)", 5]],
   );
 });
+
+test("oxlint lints JSX form tools with the declarative rules", () => {
+  const { status, stdout, stderr } = runOxlint(
+    {
+      "Newsletter.jsx": `export function Newsletter() {
+  return (
+    <form toolname="subscribe_newsletter" toolautosubmit>
+      <input name="email" type="email" />
+      <input name="password" type="password" aria-label="Password" />
+    </form>
+  );
+}
+`,
+    },
+    {
+      jsPlugins: [{ name: "webmcp", specifier: pluginPath }],
+      rules: {
+        "webmcp/declarative-description": "error",
+        "webmcp/declarative-field-description": "warn",
+        "webmcp/declarative-autosubmit-sensitive": "error",
+      },
+    },
+  );
+  assert.equal(status, 1, stderr);
+  assert.deepEqual(
+    diagnostics(stdout)
+      .map((d) => [d.rule, d.line])
+      .sort(),
+    [
+      ["webmcp(declarative-autosubmit-sensitive)", 3],
+      ["webmcp(declarative-description)", 3],
+      ["webmcp(declarative-field-description)", 4],
+    ],
+  );
+});

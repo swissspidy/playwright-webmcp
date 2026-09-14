@@ -10,6 +10,7 @@ import type { Rule as ESLintRule, Scope } from "eslint";
 import type * as ESTree from "estree";
 import { builtinRules, lintTools, type Finding, type Rule as LintRule } from "webmcp-lint";
 import { findProperty, nodeAtPath, toolsFromCall, unwrap, type ExtractedTool, type Resolver } from "./extract.js";
+import { formTool, type ExtractedForm, type JSXElementNode } from "./jsx.js";
 import { definitionSites } from "./settings.js";
 
 /** webmcp-lint rules that read a field the extractor may have found to be dynamic. */
@@ -62,6 +63,12 @@ function locate(tool: ExtractedTool, finding: Finding, resolve: Resolver): ESTre
   }
   const name = findProperty(tool.node, "name");
   return (name?.value as ESTree.Node | undefined) ?? tool.node;
+}
+
+function locateInForm(form: ExtractedForm, finding: Finding): ESTree.Node {
+  const field = finding.path?.match(/^\/properties\/([^/]+)/)?.[1];
+  const node = (field && form.fieldNodes.get(field)) ?? form.node.openingElement;
+  return node as unknown as ESTree.Node;
 }
 
 /**
@@ -117,22 +124,30 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
       const sites = definitionSites(context.settings);
       const resolve = makeResolver(context.sourceCode);
       const rules = Object.fromEntries(builtinRules.map((r) => [r.id, r.id === rule.id ? options : false]));
+      const report = (definition: ExtractedTool["definition"], locateFinding: (finding: Finding) => ESTree.Node) => {
+        const result = lintTools([definition], { scope: "tool", rules, url: context.filename });
+        for (const finding of result.findings) {
+          if (finding.ruleId !== rule.id) continue;
+          context.report({
+            node: locateFinding(finding) as ESLintRule.Node,
+            messageId: "finding",
+            data: { message: finding.help ? `${finding.message} ${finding.help}` : finding.message },
+          });
+        }
+      };
       return {
         CallExpression(node) {
           for (const tool of toolsFromCall(node as ESTree.CallExpression, sites, resolve)) {
             if ([...tool.dynamic].some((field) => field === "*" || NEEDS[field]?.includes(rule.id))) continue;
-            const result = lintTools([tool.definition], { scope: "tool", rules, url: context.filename });
-            for (const finding of result.findings) {
-              if (finding.ruleId !== rule.id) continue;
-              context.report({
-                node: locate(tool, finding, resolve) as ESLintRule.Node,
-                messageId: "finding",
-                data: { message: finding.help ? `${finding.message} ${finding.help}` : finding.message },
-              });
-            }
+            report(tool.definition, (finding) => locate(tool, finding, resolve));
           }
         },
-      };
+        // `<form toolname="...">` in JSX: the declarative tool the browser would derive from it.
+        JSXElement(node: unknown) {
+          const form = formTool(node as JSXElementNode, resolve);
+          if (form) report(form.definition, (finding) => locateInForm(form, finding));
+        },
+      } as ESLintRule.RuleListener;
     },
   };
 }

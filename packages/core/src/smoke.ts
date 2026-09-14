@@ -57,6 +57,21 @@ export const SMOKE_RULES = {
 
 export type SmokeRuleId = keyof typeof SMOKE_RULES;
 
+/**
+ * MCP-style tool result, the shape `use-webmcp-tool` and MCP servers produce:
+ * `{ content: [{ type: "text", text }, ...], isError?: boolean }`.
+ */
+export interface ContentResult {
+  content: Array<{ type: string; [key: string]: unknown }>;
+  isError?: boolean;
+}
+
+export function isContentResult(value: unknown): value is ContentResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const content = (value as { content?: unknown }).content;
+  return Array.isArray(content) && content.every((item) => item && typeof item === "object" && typeof (item as { type?: unknown }).type === "string");
+}
+
 function make(id: SmokeRuleId, run: SmokeRun, message: string, help?: string): Finding {
   return { ruleId: id, severity: SMOKE_RULES[id].severity, message, tool: run.tool, help };
 }
@@ -85,10 +100,23 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
     return out;
   }
 
+  if (isContentResult(run.result) && run.result.isError === true) {
+    const text = run.result.content
+      .map((c) => (typeof c.text === "string" ? c.text : ""))
+      .filter(Boolean)
+      .join(" ");
+    out.push(make("result-error-on-valid-input", run, `${where} reported isError: ${text || "no message"}.`, `Input was ${JSON.stringify(run.args)}.`));
+    return out;
+  }
+
   if (run.durationMs > maxMs) out.push(make("result-slow", run, `${where} took ${run.durationMs} ms; budget is ${maxMs} ms.`));
 
   if (run.result === undefined) {
     out.push(make("result-undefined", run, `${where} returned undefined.`, SMOKE_RULES["result-undefined"].description));
+    return out;
+  }
+  if (isContentResult(run.result) && run.result.content.length === 0) {
+    out.push(make("result-undefined", run, `${where} returned an empty content array.`, SMOKE_RULES["result-undefined"].description));
     return out;
   }
 

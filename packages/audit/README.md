@@ -21,11 +21,19 @@ Usage: webmcp-audit <url> [options]
   --fail-on <severity>  Exit 1 when a finding of this severity or worse exists: error
                         (default), warning, info, or never. Pages that fail to load
                         always exit 1.
+  --baseline <file>     A previous report.json; report tools whose description, schema
+                        or annotations changed on a page since then (contract-changed)
+  --header <name: value>
+                        HTTP header sent with every request, e.g. an Authorization
+                        header for a protected staging site; repeatable
   --settle <ms>         Wait this long after load for tools to register (default 500)
   --out <dir>           Output directory (default .webmcp-audit)
+  --format <format>     What to print: md (default, the Markdown report), json (the
+                        report), or github (one workflow-command annotation per
+                        finding; also appends the Markdown to $GITHUB_STEP_SUMMARY)
   --executable <path>   Chrome/Chromium binary (default: Playwright's, or $PW_CHROMIUM)
   --arg <flag>          Extra browser argument; repeatable
-  --quiet               Do not print the Markdown report to stdout
+  --quiet               Do not print the report to stdout
 ```
 
 Writes `report.json` and `report.md`. Exit code 2 on usage errors. Browser flags go through `--arg`, for example `--arg --enable-features=WebMCP` or `--arg=--enable-features=WebMCP`.
@@ -42,6 +50,16 @@ Nothing is invented: every input comes from the tool's own `inputSchema`. For ea
 and executes them through the page's `modelContext`, then judges the results (errors on valid input, `null` in results, unserializable or oversized results, slow tools, invalid input accepted silently, instruction-like text in results). The Markdown report has one table row per input with its arguments and outcome, so you can see exactly what was called.
 
 Because these are real executions, only tools that declare `annotations: { readOnlyHint: true }` are called by default. A page with no read-only tools reports zero runs and says so; `--all-tools` calls everything, which on a shop means adding to carts and submitting forms, so use it against staging.
+
+## On CI
+
+```yaml
+- run: npx webmcp-audit https://staging.shop.example --smoke --format github --fail-on warning --header "Authorization: Bearer ${{ secrets.STAGING_TOKEN }}" --baseline audit-baseline/report.json
+```
+
+Findings become annotations on the run, the Markdown report lands in the job summary, and `--baseline` turns a stored `report.json` from an earlier run into a contract: a tool whose description, schema or annotations changed on a page reports `contract-changed`, a page that disappeared reports `baseline-page-missing`. Logins, cookies and storage state are out of scope here; use the `playwright-webmcp` fixture for those.
+
+To audit on native WebMCP instead of the shim: `--executable /opt/google/chrome-beta/chrome --arg --enable-features=WebMCP`.
 
 ## As a library
 

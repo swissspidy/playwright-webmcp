@@ -8,7 +8,7 @@
 import type { FrameCollectResult } from "./collect.js";
 import type { EvalToolsSchema } from "./evals-types.js";
 import { lint } from "./lint.js";
-import type { JsonSchema, LintOptions, LintResult, PageSnapshot, ToolSnapshot } from "./types.js";
+import type { DeclarativeInfo, JsonSchema, LintOptions, LintResult, PageSnapshot, ToolSnapshot, ToolSource } from "./types.js";
 
 /** The subset of a WebMCP tool definition the rules look at. Extra keys such as `execute` are ignored. */
 export interface ToolDefinitionLike {
@@ -19,6 +19,10 @@ export interface ToolDefinitionLike {
   annotations?: Record<string, unknown> | null;
   /** Origins passed as `registerTool(tool, { exposedTo })`. */
   exposedTo?: string[];
+  /** "declarative" for a `<form toolname>` tool; default "imperative". */
+  source?: ToolSource;
+  /** Form facts for declarative tools, as the browser collector reports them. */
+  declarative?: DeclarativeInfo;
   [key: string]: unknown;
 }
 
@@ -71,8 +75,12 @@ export function snapshotFromTools(tools: ToolDefinitionLike[] | EvalToolsSchema,
         inputSchema: t?.inputSchema && typeof t.inputSchema === "object" ? t.inputSchema : null,
         origin,
         frame: 0,
-        source: "imperative",
+        source: t?.source === "declarative" ? "declarative" : "imperative",
       };
+      if (tool.source === "declarative") {
+        tool.hasExecute = true;
+        if (t.declarative && typeof t.declarative === "object") tool.declarative = t.declarative;
+      }
       if (typeof t?.title === "string" && t.title) tool.title = t.title;
       if (t?.annotations && typeof t.annotations === "object") tool.annotations = t.annotations;
       if (Array.isArray(t?.exposedTo)) tool.exposedTo = t.exposedTo.map(String);

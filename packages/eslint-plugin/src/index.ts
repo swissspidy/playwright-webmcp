@@ -17,6 +17,7 @@ import { createRule } from "./rule.js";
 
 export { createRule } from "./rule.js";
 export { toolsFromCall, staticValue, DYNAMIC, type ExtractedTool, type Resolver } from "./extract.js";
+export { formTool, type ExtractedForm } from "./jsx.js";
 export { DEFAULT_DEFINITION_SITES, definitionSites, type DefinitionSite, type DefinitionSiteSetting, type WebMCPSettings } from "./settings.js";
 
 function packageMeta(): { name: string; version: string } {
@@ -35,8 +36,8 @@ function packageMeta(): { name: string; version: string } {
 
 const { name, version } = packageMeta();
 
-/** The webmcp-lint rules this plugin exposes: tool-scoped, and about imperative definitions. */
-export const staticRules: LintRule[] = builtinRules.filter((r) => r.scope === "tool" && !r.id.startsWith("declarative-"));
+/** The webmcp-lint rules this plugin exposes: every tool-scoped rule. Declarative rules apply to `<form toolname>` in JSX. */
+export const staticRules: LintRule[] = builtinRules.filter((r) => r.scope === "tool");
 
 const rules: Record<string, ReturnType<typeof createRule>> = Object.fromEntries(staticRules.map((r) => [r.id, createRule(r)]));
 

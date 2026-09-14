@@ -107,7 +107,23 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
     execute: async (args: Record<string, unknown>) => {
       const startedAt = Date.now();
       try {
-        const raw = await mc.executeTool(tool, args ?? {}, { __playwrightWebmcp: true });
+        // Same conventions as WebMCP.call(): JSON-string input first (Chrome 154), object as fallback; string result decoded.
+        let returned: unknown;
+        try {
+          returned = await mc.executeTool(tool, JSON.stringify(args ?? {}), { __playwrightWebmcp: true });
+        } catch (err) {
+          if (!/parse input/i.test(String((err as Error)?.message))) throw err;
+          returned = await mc.executeTool(tool, args ?? {}, { __playwrightWebmcp: true });
+        }
+        let raw: unknown = returned;
+        if (returned === "undefined") raw = undefined;
+        else if (typeof returned === "string") {
+          try {
+            raw = JSON.parse(returned);
+          } catch {
+            raw = returned;
+          }
+        }
         const cleaned = options.stripNulls ? stripNulls(safe(raw)) : safe(raw);
         calls.push({ name: tool.name, args: safe(args ?? {}) as Record<string, unknown>, result: cleaned, startedAt, durationMs: Date.now() - startedAt });
         return options.toolResultFormat === "object" ? cleaned : JSON.stringify(cleaned ?? {});

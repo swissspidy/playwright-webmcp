@@ -43,17 +43,22 @@
         });
       }, 1200);
       let flips = 0;
+      let flappy = null;
       const flap = setInterval(() => {
-        if (flips % 2 === 0)
-          mc.registerTool({
-            name: "flappy",
-            description: "A tool that is registered and unregistered repeatedly.",
-            inputSchema: { type: "object", properties: {} },
-            async execute() {
-              return {};
+        if (flips % 2 === 0) {
+          flappy = new AbortController();
+          mc.registerTool(
+            {
+              name: "flappy",
+              description: "A tool that is registered and unregistered repeatedly.",
+              inputSchema: { type: "object", properties: {} },
+              async execute() {
+                return {};
+              },
             },
-          });
-        else mc.unregisterTool("flappy");
+            { signal: flappy.signal },
+          );
+        } else flappy.abort();
         if (++flips >= 6) clearInterval(flap);
       }, 100);
     </script>

@@ -7,7 +7,7 @@ The shape is deliberately the same as axe-core: one engine that judges tool defi
 | Package                                          | What it is                                                                                                                                                                                                                                                                                          |
 | ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [`webmcp-lint`](packages/core)                   | The engine: snapshot model, rules, `lint()` and `lintTools()`, a `webmcp-lint` CLI for `tools.json` files, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. No dependencies, no browser.                                           |
-| [`eslint-plugin-webmcp`](packages/eslint-plugin) | The tool-scoped rules as ESLint rules, run statically against `registerTool()` literals in your source. `webmcp.configs.recommended` and done.                                                                                                                                                      |
+| [`eslint-plugin-webmcp`](packages/eslint-plugin) | The tool-scoped rules as ESLint rules, run statically against `registerTool()`, `useWebMCP()` and your own wrappers, and against `<form toolname>` in JSX. Loads in oxlint too. `webmcp.configs.recommended` and done.                                                                              |
 | [`playwright-webmcp`](packages/playwright)       | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, mock, drive the on-device model, and run evals cases. Ships a test-time shim so it runs on any Chromium, and a reporter that writes suite-wide `tools.json`, `coverage.json` and `TOOLS.md`. |
 | [`webmcp-audit`](packages/audit)                 | CLI and library that crawls a site, lints every page, calls read-only tools with schema-derived inputs, detects cross-page drift, and scores agent readiness. Point it at a URL.                                                                                                                    |
 
@@ -20,7 +20,9 @@ The shape is deliberately the same as axe-core: one engine that judges tool defi
 | Check a site you do not have the source or tests for                          | `webmcp-audit https://...`. Crawls, lints, optionally calls read-only tools, reports drift and a score.                                |
 | Lint a `tools.json`, a snapshot, or definitions from your own driver or tests | `webmcp-lint`: `lintTools()`, the `webmcp-lint` CLI, or `collectFrame` + `snapshotFromFrames()` with Puppeteer, WebDriver or jsdom.    |
 
-The rule engine is the same in all four; only what feeds it differs. Page-level rules (duplicate names, similar descriptions, tool count, cross-origin frames, declarative forms) need a live page and are therefore not in the ESLint plugin.
+The rule engine is the same in all four; only what feeds it differs. Page-level rules (duplicate names, similar descriptions, tool count, cross-origin frames) need a live page and are therefore not in the ESLint plugin. [`examples/react-shop`](examples/react-shop) shows the whole chain on a Vite + React app with [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool).
+
+Everything here is exercised against native WebMCP in Google Chrome Beta as well as against the test shim on plain Chromium; see [Running on native WebMCP](#running-on-native-webmcp).
 
 ## Quick start
 
@@ -182,6 +184,27 @@ test("model can add to cart", async ({ page, webmcp }) => {
 | `evaluate(evalCase, { strict? })`                                   | Send the case's user messages and reconcile the calls against `expectedCall`.               |
 | `useFake(plan)`                                                     | Install a scripted `LanguageModel` before navigation for deterministic CI runs.             |
 
+### Running on native WebMCP
+
+Google Chrome Beta ships the API behind a flag. Point the suites at it with the binary and the flag, and everything runs against the real implementation instead of the shim: the fixture detects native support and stays out of the way, the CDP `WebMCP` domain is attached, and `webmcp.call()` goes through `WebMCP.invokeTool`.
+
+```sh
+npx playwright install chrome-beta
+PW_CHROMIUM=/opt/google/chrome-beta/chrome PW_ARGS="--enable-features=WebMCP" pnpm run test:e2e   # or: pnpm run test:native
+npx webmcp-audit https://shop.example --executable /opt/google/chrome-beta/chrome --arg --enable-features=WebMCP
+```
+
+The repository's own suites pass on Chrome Beta 154 this way, and CI runs them there on every push. Things the shim mirrors from Chrome, because tests written against one must behave the same on the other:
+
+- `getTools()` returns `RegisteredTool` objects without `execute` (and, in Chrome 154, with `inputSchema` as a JSON string; the collector accepts both). `annotations` come back with all three hints, defaults filled in, when any were given.
+- `executeTool(tool, input)` takes the tool object, not a name. Chrome 154 wants `input` as a JSON string; the fixture sends that first and falls back to the object the specification describes. The promise resolves with a string: JSON for objects, `String(value)` for primitives, `"undefined"` when the callback returned nothing.
+- Registering a name twice rejects with `InvalidStateError`; unregistering is the `AbortSignal` passed to `registerTool()`. The pre-spec `unregisterTool`, `provideContext` and `clearContext` exist only in the shim.
+- `getTools({ fromOrigins })` rejects `"*"`; a frame whose `<iframe>` lacks `allow="tools"` cannot register at all (the `tools` permissions policy), so `iframe-allow-tools` only ever fires against the shim.
+- Declarative `<select>` fields get a schema with one `const` per option plus `enum`; `schema-unsupported-keywords` skips browser-derived schemas for that reason.
+- A declarative tool without `toolautosubmit` fills the form and keeps the call open until a person submits it; that submit event carries `agentInvoked` and `respondWith`, and the call resolves with what `respondWith()` received. `webmcp.call()` therefore stays pending until the test (or a human) submits; `examples/react-shop` shows the pattern.
+
+When both the page hooks and the CDP domain observe the same execution, the fixture keeps one record: the page side knows a page script started it (`via: "api"`), the domain knows the fixture did (`"fixture"`) or nobody it can see did (`"agent"`).
+
 ### Running against a real model
 
 Playwright launches Chrome with a fresh profile, so settings made in `chrome://flags` do not apply. Launch Chrome Canary yourself with the flags enabled in its profile and a DevTools port, then point the tests at it:
@@ -251,7 +274,9 @@ Descriptions are read by every agent that visits a page, and tool results go str
 npx webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
 ```
 
-Crawls same-origin links, lints every page, detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. With `--smoke` it also calls tools with inputs derived from their schemas, as described under [Smoke](#smoke-runtime-checks-from-schemas): only tools annotated read-only by default, every tool with `--all-tools`. The report lists each input that ran with its arguments and outcome, and says so when a page had no read-only tool to call. Exit code 1 when any page failed to load or a finding at or above `--fail-on` (default `error`) exists, 2 on usage errors. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses the Markdown on stdout, and `--help` lists everything. The same is available as `audit()` from the `webmcp-audit` package.
+Crawls same-origin links, lints every page, detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. With `--smoke` it also calls tools with inputs derived from their schemas, as described under [Smoke](#smoke-runtime-checks-from-schemas): only tools annotated read-only by default, every tool with `--all-tools`. The report lists each input that ran with its arguments and outcome, and says so when a page had no read-only tool to call. Exit code 1 when any page failed to load or a finding at or above `--fail-on` (default `error`) exists, 2 on usage errors.
+
+`--header "Authorization: Bearer …"` sends a header with every request, for a protected staging site; anything beyond headers (logins, cookies, storage state) is a job for the Playwright fixture. `--baseline report.json` compares each page's tools with a previous run and reports `contract-changed` and `baseline-page-missing`, so a site without a test suite still learns when its tool surface moves. `--format github` prints one workflow-command annotation per finding and appends the Markdown report to the job summary. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses stdout, and `--help` lists everything. The same is available as `audit()` from the `webmcp-audit` package.
 
 ## Smoke: runtime checks from schemas
 
@@ -270,6 +295,8 @@ Crawls same-origin links, lints every page, detects tools whose description or s
 | `result-suspicious-content`    | warning  | Result text looks like an instruction to the agent or has hidden characters. |
 
 Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it. Every run is recorded as a `SmokeRun` (tool, input kind and label, arguments, result or error, duration); `formatSmokeRuns()` renders them as a Markdown table, which is what `webmcp-audit` puts in its report.
+
+Results in the MCP shape, `{ content: [{ type: "text", text }], isError? }`, which `use-webmcp-tool` and MCP servers produce, are understood: `isError: true` counts as an error on valid input, an empty `content` array as no result, and text blocks are scanned like any other string.
 
 ```ts
 await expect(webmcp).toPassSmoke({ tools: ["search_products", "list_reviews"], failOn: "warning" });
@@ -314,7 +341,7 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | `naming-consistency`               | warning  | page  | Mixed naming styles across tool or parameter names.                                              |
 | `exposed-to-secure-origins`        | error    | tool  | `exposedTo` lists an insecure origin.                                                            |
 
-The declarative rules are tool-scoped but read `<form>` markup, so they run from a page snapshot rather than from the ESLint plugin.
+The declarative rules read `<form>` markup: from the page at runtime, or statically from JSX (`<form toolname="...">` in a React component) through the ESLint plugin.
 
 A project that runs the ESLint plugin can keep its Playwright assertion to the page-level rules, so a finding is reported once, where it is fixed: `await expect(webmcp).toPassLint({ scope: "page" })`. Without `scope` the assertion runs everything, which is the right default when there is no static lint.
 
@@ -333,7 +360,7 @@ Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRu
 
 The same engine runs wherever tool definitions are available.
 
-**In ESLint or oxlint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()`, `provideContext({ tools })` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed. The same package loads as an oxlint JS plugin (`"jsPlugins": ["eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
+**In ESLint or oxlint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()`, `provideContext({ tools })` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed. The same package loads as an oxlint JS plugin (`"jsPlugins": ["eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js
@@ -355,6 +382,7 @@ expect(result.counts.error).toBe(0);
 
 ```sh
 npx webmcp-lint .webmcp-report/tools.json --fail-on warning
+npx webmcp-lint .webmcp-report/tools.json --format github   # one annotation per finding in a GitHub Actions job
 ```
 
 **With another driver.** `collectFrame` is self-contained and runs in any frame; `snapshotFromFrames()` assembles what the Playwright fixture would have built:
@@ -373,7 +401,9 @@ pnpm install
 pnpm run build           # typecheck resolves workspace packages through their built declarations, so build first
 pnpm run typecheck
 pnpm run test:unit       # webmcp-lint and eslint-plugin-webmcp, node --test
-pnpm run test:e2e        # set PW_CHROMIUM=/path/to/chrome to use a specific binary
+pnpm run test:e2e        # set PW_CHROMIUM=/path/to/chrome to use a specific binary, PW_ARGS for flags
+pnpm run test:native     # the same on Google Chrome Beta with --enable-features=WebMCP
+pnpm run lint            # eslint-plugin-webmcp on examples/react-shop
 pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
 ```
@@ -408,8 +438,8 @@ Chrome reports declarative form problems as DevTools issues (missing tool name o
 ## Status and limits
 
 - Pre-1.0. APIs will move, and the WebMCP specification itself is still changing (Chrome 149 runs an origin trial).
-- The CDP collector is written against the `WebMCP` domain in `devtools-protocol` and unit tested with a scripted session, but has not yet been exercised against a real Chrome build that ships the domain.
-- The shim exists for tests only; it is not a production polyfill. Its cross-origin bridge approximates `exposedTo` and `allow="tools"` over `postMessage`; it does not implement `requestUserInteraction`, `toolcanceled`, or the `content` array result shape the specification describes.
+- The CDP collector and the fixture are exercised against Google Chrome Beta 154 with `--enable-features=WebMCP` (see [Running on native WebMCP](#running-on-native-webmcp)); the beta channel moves weekly, so the native CI job is informational until the API ships to stable.
+- The shim exists for tests only; it is not a production polyfill. Its cross-origin bridge approximates `exposedTo` and `allow="tools"` over `postMessage`; it does not implement `requestUserInteraction` or `toolcanceled`.
 - Page-side recording covers executions that go through `modelContext` in the page, including the ones `webmcp.promptApi` triggers. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.
 - The similarity rule is lexical. Embedding-based similarity was considered and left out for now.

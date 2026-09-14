@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ESLint, RuleTester } from "eslint";
 import plugin, { staticRules } from "../src/index.js";
 
-const tester = new RuleTester({ languageOptions: { ecmaVersion: 2024, sourceType: "module" } });
+const tester = new RuleTester({ languageOptions: { ecmaVersion: 2024, sourceType: "module", parserOptions: { ecmaFeatures: { jsx: true } } } });
 
 const good = `
 navigator.modelContext.registerTool({
@@ -23,7 +23,7 @@ test("exposes every tool-scoped imperative rule and a recommended config", () =>
   assert.ok(ids.includes("tool-name-valid"));
   assert.ok(ids.includes("description-injection"));
   assert.ok(!ids.includes("duplicate-tool-name"), "page rules are not exposed");
-  assert.ok(!ids.includes("declarative-description"), "form rules are not exposed");
+  assert.ok(ids.includes("declarative-description"), "form rules are exposed for JSX");
   assert.equal(ids.length, staticRules.length);
   assert.equal(plugin.meta.name, "eslint-plugin-webmcp");
   assert.match(plugin.meta.version, /^\d+\.\d+\.\d+/);
@@ -170,6 +170,68 @@ test("definitions behind identifiers and wrappers are found", () => {
 mc.registerTool({ name: "ok", inputSchema: schema });`,
         errors: [{ messageId: "finding", line: 1, column: 78 }],
       },
+    ],
+  });
+});
+
+test("JSX <form toolname> is linted with the declarative rules", () => {
+  const goodForm = `
+function Newsletter() {
+  return (
+    <form toolname="subscribe_newsletter" tooldescription="Subscribe an email address to the weekly newsletter.">
+      <label htmlFor="email">Email</label>
+      <input id="email" name="email" type="email" required />
+      <label>Frequency <select name="frequency"><option value="weekly">Weekly</option></select></label>
+      <textarea name="note" aria-label="Note" />
+      <input name="ref" toolparamdescription="Referral code" />
+      <input name="spread" {...props} />
+      <input name="dyn" toolparamdescription={t("dyn")} />
+      <button type="submit">Subscribe</button>
+    </form>
+  );
+}`;
+  tester.run("declarative-description", plugin.rules["declarative-description"], {
+    valid: [goodForm, `<form toolname="x" tooldescription={desc} />`, `<form toolName={name} />`, `<form onSubmit={f}><input name="q" /></form>`],
+    invalid: [
+      { code: `<form toolname="search_site"><input name="q" aria-label="Query" /></form>`, errors: [{ messageId: "finding", column: 1 }] },
+      { code: `<form toolname="search_site" tooldescription=""><input name="q" aria-label="Query" /></form>`, errors: [{ messageId: "finding" }] },
+    ],
+  });
+  tester.run("declarative-field-description", plugin.rules["declarative-field-description"], {
+    valid: [goodForm],
+    invalid: [
+      {
+        code: `<form toolname="search_site" tooldescription="Search this site for pages matching a query.">
+  <input name="q" />
+  <input name="page" type="number" />
+</form>`,
+        errors: [
+          { messageId: "finding", line: 2, column: 3 },
+          { messageId: "finding", line: 3, column: 3 },
+        ],
+      },
+    ],
+  });
+  tester.run("declarative-autosubmit-sensitive", plugin.rules["declarative-autosubmit-sensitive"], {
+    valid: [
+      goodForm,
+      `<form toolname="login" tooldescription="Log the user in with their credentials."><input name="password" type="password" aria-label="Password" /></form>`,
+    ],
+    invalid: [
+      {
+        code: `<form toolname="login" tooldescription="Log the user in with their credentials." toolautosubmit><input name="password" type="password" aria-label="Password" /></form>`,
+        errors: [{ messageId: "finding", column: 1 }],
+      },
+      {
+        code: `<form toolname="login" tooldescription="Log the user in with their credentials." toolautosubmit={true}><input name="password" type="password" aria-label="Password" /></form>`,
+        errors: [{ messageId: "finding" }],
+      },
+    ],
+  });
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [goodForm],
+    invalid: [
+      { code: `<form toolname="bad name" tooldescription="A description of the form tool that is long enough." />`, errors: [{ messageId: "finding" }] },
     ],
   });
 });

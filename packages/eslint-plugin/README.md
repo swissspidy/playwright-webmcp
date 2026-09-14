@@ -38,19 +38,22 @@ navigator.modelContext.registerTool({
 
 ## Rules
 
-| Rule                                 | Recommended | Checks                                                                                   |
-| ------------------------------------ | ----------- | ---------------------------------------------------------------------------------------- |
-| `webmcp/tool-name-valid`             | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                 |
-| `webmcp/description-missing`         | error       | The tool has a description.                                                              |
-| `webmcp/description-length`          | warn        | Between `min` (20) and `max` (600) characters.                                           |
-| `webmcp/param-description-missing`   | warn        | Every input property has a description.                                                  |
-| `webmcp/schema-shape`                | error       | Object schema; `required` entries exist in `properties`.                                 |
-| `webmcp/schema-no-null-literals`     | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                       |
-| `webmcp/schema-depth`                | warn        | Property nesting at most `max` (3) levels.                                               |
-| `webmcp/schema-unsupported-keywords` | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`. |
-| `webmcp/sensitive-params`            | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).        |
-| `webmcp/description-injection`       | error       | Instructions to the agent, role markers, or hidden characters in descriptions.           |
-| `webmcp/exposed-to-secure-origins`   | error       | `registerTool(tool, { exposedTo })` lists an insecure origin.                            |
+| Rule                                      | Recommended | Checks                                                                                   |
+| ----------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| `webmcp/tool-name-valid`                  | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                 |
+| `webmcp/description-missing`              | error       | The tool has a description.                                                              |
+| `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                           |
+| `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                  |
+| `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                 |
+| `webmcp/schema-no-null-literals`          | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                       |
+| `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                               |
+| `webmcp/schema-unsupported-keywords`      | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`. |
+| `webmcp/sensitive-params`                 | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).        |
+| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in descriptions.           |
+| `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists an insecure origin.                            |
+| `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                        |
+| `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.    |
+| `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field.                                        |
 
 Rule options are the same objects `webmcp-lint` accepts. `webmcp.configs.all` turns every rule into an error.
 
@@ -87,11 +90,15 @@ const searchTool = { name: "search", description: "...", inputSchema: {...}, exe
 useWebMCP(searchTool);
 ```
 
+## Declarative tools in JSX
+
+A `<form toolname="...">` in a React component is a declarative tool, and the three `declarative-*` rules judge it the way the browser collector would: the form needs a `tooldescription`, every named `<input>`, `<select>` and `<textarea>` needs a `<label htmlFor>`, a wrapping `<label>`, an `aria-label` or a `toolparamdescription`, and `toolautosubmit` must not sit on a form with a password field. Findings point at the form or the field. Attributes are matched case-insensitively, so `toolName` works too. An element with a spread (`{...props}`) or a computed `toolparamdescription` is assumed to be labelled.
+
 ## What it can and cannot see
 
 The plugin reads literals: strings, numbers, booleans, arrays and nested objects, including values wrapped in `as const` or `satisfies` when a TypeScript parser is used. A field whose value is computed (an import, a function call, a template with expressions, a spread) is treated as unknown, and the rules that depend on that field are skipped for that tool rather than guessed at. A tool whose `name` is not a literal is not linted at all. Definitions built by a helper in another module are out of reach; lint those with `lintTools()` from `webmcp-lint` in a unit test, or at runtime with `playwright-webmcp`.
 
-Rules that need the whole page are not here on purpose: duplicate names, near-identical descriptions, tool count, cross-origin frames, and the declarative `<form toolname>` rules depend on what the page actually registers at runtime. Run those with [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp) in a test, or with [`webmcp-audit`](https://www.npmjs.com/package/webmcp-audit) against a URL. The rule list and severities are documented in the [repository README](https://github.com/swissspidy/playwright-webmcp#readme).
+Rules that need the whole page are not here on purpose: duplicate names, near-identical descriptions, tool count and cross-origin frames depend on what the page actually registers at runtime. Run those with [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp) in a test, or with [`webmcp-audit`](https://www.npmjs.com/package/webmcp-audit) against a URL. The rule list and severities are documented in the [repository README](https://github.com/swissspidy/playwright-webmcp#readme).
 
 ## oxlint
 

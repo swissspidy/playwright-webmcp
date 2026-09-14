@@ -6,6 +6,7 @@
  */
 import { parseArgs } from "node:util";
 import { formatFindings, lint } from "./lint.js";
+import { toGitHubAnnotations } from "./github.js";
 import { toSnapshot } from "./from-tools.js";
 import { severityRank } from "./rules/helpers.js";
 import type { LintOptions, Severity } from "./types.js";
@@ -20,7 +21,8 @@ tools file ({ tools: [...] }) such as .webmcp-report/tools.json. Use "-" for std
 Options:
   --fail-on <severity>  Exit 1 when a finding of this severity or worse exists:
                         error (default), warning, info, or never
-  --format <format>     text (default) or json
+  --format <format>     text (default), json, or github (one workflow-command
+                        annotation per finding, for GitHub Actions)
   --rule <id=value>     Configure a rule; repeatable. Value is off, error, warning,
                         info, or a JSON object of options, e.g.
                         --rule too-many-tools='{"max":40}' --rule no-tools=off
@@ -82,7 +84,8 @@ export function parseCliArgs(argv: string[]) {
   if (!["error", "warning", "info", "never"].includes(failOn))
     throw new UsageError(`--fail-on expects error, warning, info or never, got ${JSON.stringify(failOn)}`);
   const format = String(values.format);
-  if (format !== "text" && format !== "json") throw new UsageError(`--format expects text or json, got ${JSON.stringify(format)}`);
+  if (format !== "text" && format !== "json" && format !== "github")
+    throw new UsageError(`--format expects text, json or github, got ${JSON.stringify(format)}`);
   const scope = String(values.scope);
   if (scope !== "all" && scope !== "tool") throw new UsageError(`--scope expects all or tool, got ${JSON.stringify(scope)}`);
   const rules: Record<string, RuleConfig> = {};
@@ -95,7 +98,7 @@ export function parseCliArgs(argv: string[]) {
     file: positionals[0],
     extra: positionals.slice(1),
     failOn: failOn as Severity | "never",
-    format: format as "text" | "json",
+    format: format as "text" | "json" | "github",
     scope: scope as "all" | "tool",
     url: values.url as string | undefined,
     rules,
@@ -125,7 +128,10 @@ export async function runLintCli(argv: string[], io: CliIo): Promise<number> {
     }
     const result = lint(snapshot, { rules: args.rules, scope: args.scope });
     if (args.format === "json") io.stdout(JSON.stringify({ url: snapshot.url, ...result }, null, 2) + "\n");
-    else {
+    else if (args.format === "github") {
+      const annotations = toGitHubAnnotations(result.findings, { file: args.file === "-" ? undefined : args.file, tool: "webmcp-lint" });
+      if (annotations) io.stdout(annotations + "\n");
+    } else {
       io.stdout(formatFindings(result) + "\n");
       io.stdout(`\n${result.counts.error} error(s), ${result.counts.warning} warning(s), ${result.counts.info} info in ${snapshot.tools.length} tool(s).\n`);
     }

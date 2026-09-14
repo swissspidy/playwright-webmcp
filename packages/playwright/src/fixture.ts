@@ -194,7 +194,7 @@ export class WebMCP {
           });
         } else {
           const { kind: _kind, ...call } = entry;
-          this.recorded.push(call as unknown as RecordedCall);
+          this.recordObserved(call as unknown as RecordedCall);
         }
       });
       await this.page.exposeBinding("__webmcpMock", async (_source, json: string) => {
@@ -227,7 +227,7 @@ export class WebMCP {
     } catch {
       return false;
     }
-    const collector = new CdpCollector(this.cdpSession, { onCall: (call) => this.recorded.push(call) });
+    const collector = new CdpCollector(this.cdpSession, { onCall: (call) => this.recordObserved(call) });
     const ok = await collector.enable();
     if (!ok) {
       await this.cdpSession.detach().catch(() => {});
@@ -476,7 +476,8 @@ export class WebMCP {
     if (this.cdp?.enabled && this.cdp.find(name)) {
       const outcome = await this.cdp.invoke(name, args);
       if (!outcome.ok) throw new Error(`Tool "${name}" failed: ${outcome.error}`);
-      return outcome.result as T;
+      // toolResponded.output carries the value the agent gets; Chrome sends the string "undefined" for no result.
+      return (outcome.result === "undefined" ? undefined : outcome.result) as T;
     }
     const frames = this.page.frames();
     const results = await Promise.all(frames.map((f) => collectInFrame(f)));
@@ -488,10 +489,30 @@ export class WebMCP {
         const w = window as unknown as Record<string, any>;
         const mc = (document as unknown as Record<string, any>).modelContext ?? w.navigator?.modelContext;
         const listed: any[] = (await mc.getTools()) ?? [];
-        const tool = listed.find((t) => t.name === toolName) ?? toolName;
+        const tool = listed.find((t) => t.name === toolName);
+        if (!tool) return { ok: false as const, error: `No WebMCP tool named "${toolName}" is registered` };
         try {
-          const result = await mc.executeTool(tool, toolArgs, { __playwrightWebmcp: true });
-          return { ok: true as const, result: JSON.parse(JSON.stringify(result === undefined ? null : result)) };
+          // executeTool() takes the RegisteredTool object. The specification declares the input as `any`;
+          // Chrome 154 accepts only a JSON string, so send the string first and fall back to the object.
+          let raw: unknown;
+          try {
+            raw = await mc.executeTool(tool, JSON.stringify(toolArgs), { __playwrightWebmcp: true });
+          } catch (err) {
+            if (!/parse input/i.test(String((err as Error)?.message))) throw err;
+            raw = await mc.executeTool(tool, toolArgs, { __playwrightWebmcp: true });
+          }
+          // The result arrives as a string: JSON for objects, String(value) for primitives, "undefined" for no result.
+          let result: unknown;
+          if (typeof raw !== "string") result = JSON.parse(JSON.stringify(raw === undefined ? null : raw));
+          else if (raw === "undefined") result = undefined;
+          else {
+            try {
+              result = JSON.parse(raw);
+            } catch {
+              result = raw;
+            }
+          }
+          return { ok: true as const, result };
         } catch (err) {
           return { ok: false as const, error: String((err as Error)?.message ?? err) };
         }
@@ -541,7 +562,39 @@ export class WebMCP {
 
   /** @internal */
   record(call: RecordedCall): void {
-    this.recorded.push(call);
+    this.recordObserved(call);
+  }
+
+  private readonly matchedObservations = new WeakSet<RecordedCall>();
+
+  /**
+   * Page-side hooks and the CDP domain both observe an execution the browser
+   * mediates. Keep one record: the page hook knows whether page script started
+   * it ("api"), the CDP collector knows whether the fixture did ("fixture") and
+   * sees agent calls the page cannot. Matching is by tool, arguments and time.
+   */
+  private recordObserved(call: RecordedCall): void {
+    const fromCdp = call.source === "cdp";
+    const key = JSON.stringify(call.args ?? {});
+    const twin = this.recorded.find(
+      (c) =>
+        !this.matchedObservations.has(c) &&
+        (c.source === "cdp") !== fromCdp &&
+        c.name === call.name &&
+        Math.abs(c.startedAt - call.startedAt) < 5000 &&
+        JSON.stringify(c.args ?? {}) === key,
+    );
+    if (!twin) {
+      this.recorded.push(call);
+      return;
+    }
+    this.matchedObservations.add(twin);
+    const cdp = fromCdp ? call : twin;
+    const page = fromCdp ? twin : call;
+    twin.source = "cdp";
+    twin.via = cdp.via === "fixture" ? "fixture" : page.via;
+    if (twin.result === undefined && cdp.result !== undefined && cdp.result !== "undefined") twin.result = cdp.result;
+    if (!twin.error && cdp.error) twin.error = cdp.error;
   }
 
   /** @internal */

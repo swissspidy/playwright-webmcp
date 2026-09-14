@@ -10,10 +10,10 @@ test.describe("mock and replay", () => {
       const tools = await mc.getTools();
       return mc.executeTool(
         tools.find((t) => t.name === "add_to_cart")!,
-        { productId: 1 },
+        JSON.stringify({ productId: 1 }),
       );
     });
-    expect(fromPage).toEqual({ items: 1, total: 999 });
+    expect(JSON.parse(fromPage as string)).toEqual({ items: 1, total: 999 });
     expect(webmcp.calls().map((c) => c.via)).toEqual(["fixture", "api"]);
 
     await webmcp.mock("search_products", { error: "search backend down" });
