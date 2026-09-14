@@ -29,6 +29,7 @@ jobs:
       - run: pnpm run typecheck
       - run: pnpm run lint:publish
       - run: pnpm run test:unit
+      - run: pnpm run lint
 
   e2e:
     name: Playwright (Node ${{ matrix.node }})
@@ -55,4 +56,34 @@ jobs:
           path: |
             packages/*/test-results
             packages/*/playwright-report
+            examples/*/test-results
+          retention-days: 7
+
+  native:
+    # The same suites on Google Chrome Beta with WebMCP enabled, so the shim,
+    # the collector and the CDP domain are checked against the real
+    # implementation. Chrome Beta moves every week; this job is informational
+    # until the API ships to stable, so it does not block merges.
+    name: Native WebMCP (Chrome Beta)
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm exec playwright install --with-deps chrome-beta
+      - run: /opt/google/chrome-beta/chrome --version
+      - run: pnpm run test:native
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-results-native
+          path: |
+            packages/*/test-results
+            examples/*/test-results
           retention-days: 7

@@ -4,6 +4,7 @@ const NAME_RE = /^[A-Za-z0-9_.-]{1,128}$/;
 
 export const toolNameValid = defineRule({
   id: "tool-name-valid",
+  scope: "tool",
   description: "Tool names must be 1-128 characters of letters, digits, '_', '-' or '.'.",
   severity: "error",
   check: (ctx) =>

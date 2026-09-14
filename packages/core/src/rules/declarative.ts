@@ -2,6 +2,7 @@ import { defineRule, finding, forEachTool } from "./helpers.js";
 
 export const declarativeDescription = defineRule({
   id: "declarative-description",
+  scope: "tool",
   description: "Forms with toolname should also carry tooldescription.",
   severity: "error",
   check: (ctx) =>
@@ -19,6 +20,7 @@ export const declarativeDescription = defineRule({
 
 export const declarativeFieldLabels = defineRule({
   id: "declarative-field-description",
+  scope: "tool",
   description: "Form fields that become tool parameters need a label or toolparamdescription so the agent understands them.",
   severity: "warning",
   check: (ctx) =>
@@ -42,6 +44,7 @@ const SENSITIVE_AUTOCOMPLETE = /^(cc-|new-password|current-password|one-time-cod
 
 export const declarativeAutosubmit = defineRule({
   id: "declarative-autosubmit-sensitive",
+  scope: "tool",
   description: "toolautosubmit on forms with credential or payment fields lets an agent submit them without a human in the loop.",
   severity: "error",
   check: (ctx) =>

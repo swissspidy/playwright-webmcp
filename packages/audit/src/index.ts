@@ -1,7 +1,7 @@
 /**
  * Crawl a site with Playwright and audit every page's WebMCP surface.
  */
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { WebMCP, runSmoke, type SmokeOptions } from "playwright-webmcp";
 import {
   computeCoverage,
@@ -9,9 +9,11 @@ import {
   formatChanges,
   formatFindings,
   formatScore,
+  formatSmokeRuns,
   lint,
   toContract,
   diffContracts,
+  type ContractChange,
   type Finding,
   type LintOptions,
   type LintResult,
@@ -40,6 +42,14 @@ export interface AuditOptions {
   executablePath?: string;
   /** Extra Chromium args, e.g. ["--enable-features=WebMCP"]. */
   args?: string[];
+  /**
+   * HTTP headers sent with every request to the audited origin, e.g. an
+   * Authorization header for a staging site. Requests to other origins
+   * (third-party frames, CDNs) do not carry them.
+   */
+  headers?: Record<string, string>;
+  /** A previous report to compare tool contracts against, page by page. */
+  baseline?: Pick<AuditReport, "pages">;
   /** Called after each page. */
   onPage?: (result: PageAudit) => void;
 }
@@ -67,6 +77,13 @@ export interface AuditReport {
   tools: string[];
   score: number;
   findings: Finding[];
+  /** Present when a baseline was supplied: per-page contract changes and pages the baseline had but this run did not reach. */
+  baseline?: BaselineComparison;
+}
+
+export interface BaselineComparison {
+  pages: Array<{ url: string; changes: ContractChange[] }>;
+  missing: string[];
 }
 
 function sameOrigin(a: string, b: string): boolean {
@@ -93,7 +110,12 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
   await webmcp.install();
   try {
     await page.goto(url, { waitUntil: "load" });
-    await page.waitForTimeout(options.settleMs ?? 500);
+    const settleMs = options.settleMs ?? 500;
+    await page.waitForTimeout(settleMs);
+    // Then require the tool list to hold still for as long again: on native Chrome an iframe's
+    // tools can land a few hundred milliseconds after the top page's, and two audits of the
+    // same page must see the same contract.
+    await webmcp.settle({ quietMs: Math.max(150, Math.min(settleMs, 1000)), timeoutMs: 5000 });
     const snapshot = await webmcp.snapshot();
     const lintResult = lint(snapshot, options.lint ?? {});
     let smoke: PageAudit["smoke"];
@@ -145,11 +167,77 @@ export function detectDrift(pages: PageAudit[]): AuditReport["drift"] {
   return out;
 }
 
+/** Compare each page's tool contract with the same page in a previous report. */
+export function compareWithBaseline(pages: PageAudit[], baseline: Pick<AuditReport, "pages">): BaselineComparison {
+  const key = (url: string) => {
+    try {
+      return normalize(url);
+    } catch {
+      return url;
+    }
+  };
+  const previous = new Map(baseline.pages.filter((p) => p.contract).map((p) => [key(p.url), p]));
+  const out: BaselineComparison = { pages: [], missing: [] };
+  const seen = new Set<string>();
+  for (const page of pages) {
+    const before = previous.get(key(page.url));
+    seen.add(key(page.url));
+    if (!before?.contract || !page.contract) continue;
+    const changes = diffContracts(before.contract, page.contract);
+    if (changes.length) out.pages.push({ url: page.url, changes });
+  }
+  for (const [url, page] of previous) if (!seen.has(url) && page.status === "ok") out.missing.push(page.url);
+  return out;
+}
+
+const MAX_REDIRECT_HOPS = 10;
+
+/**
+ * Send extra headers with every request to one origin and to no other. Not
+ * `extraHTTPHeaders`, which goes to every origin the page touches, and not a
+ * plain `route.continue({ headers })` either: Chromium carries the override
+ * into the request's redirects, which may leave the origin. So the redirect
+ * chain is followed here first, with the headers, up to the first hop that
+ * leaves the origin; the browser is then sent to that hop directly and goes
+ * without them. A document that stays on the origin is loaded by the browser
+ * itself (a fulfilled document breaks its cross-origin frames); anything else
+ * is served from the response fetched here.
+ */
+async function sendHeadersToOrigin(context: BrowserContext, origin: string, headers: Record<string, string>): Promise<void> {
+  const isRedirect = (status: number) => status >= 300 && status < 400;
+  await context.route(
+    (url) => url.origin === origin,
+    async (route) => {
+      const request = route.request();
+      const withHeaders = { ...request.headers(), ...headers };
+      try {
+        let url = request.url();
+        let response = await route.fetch({ headers: withHeaders, maxRedirects: 0 });
+        for (let hop = 0; ; hop++) {
+          const location = response.headers().location;
+          if (!isRedirect(response.status()) || !location) break;
+          const next = new URL(location, url);
+          if (next.origin !== origin || hop >= MAX_REDIRECT_HOPS) return route.fulfill({ status: response.status(), headers: { location: next.href } });
+          url = next.href;
+          response = await route.fetch({ url, headers: withHeaders, maxRedirects: 0 });
+        }
+        if (request.resourceType() === "document" && (request.method() === "GET" || request.method() === "HEAD")) {
+          return route.continue({ headers: withHeaders });
+        }
+        return route.fulfill({ response });
+      } catch {
+        return route.abort().catch(() => {});
+      }
+    },
+  );
+}
+
 export async function audit(options: AuditOptions): Promise<AuditReport> {
   const maxPages = options.maxPages ?? 10;
   const ownBrowser = !options.browser;
   const browser = options.browser ?? (await chromium.launch({ executablePath: options.executablePath, args: options.args }));
   const context = await browser.newContext();
+  if (options.headers && Object.keys(options.headers).length) await sendHeadersToOrigin(context, new URL(options.url).origin, options.headers);
   const queue = [normalize(options.url)];
   const visited = new Set<string>();
   const pages: PageAudit[] = [];
@@ -175,6 +263,7 @@ export async function audit(options: AuditOptions): Promise<AuditReport> {
   const tools = [...new Set(pages.flatMap((p) => p.contract?.tools.map((t) => t.name) ?? []))].sort();
   const scored = pages.filter((p) => p.score);
   const score = scored.length ? Math.round(scored.reduce((n, p) => n + p.score!.score, 0) / scored.length) : 0;
+  const baseline = options.baseline ? compareWithBaseline(pages, options.baseline) : undefined;
   const findings: Finding[] = [
     ...pages.flatMap((p) =>
       [...(p.lint?.findings ?? []), ...(p.smoke?.findings ?? [])].map((f) => ({ ...f, help: f.help, message: `${p.url}: ${f.message}` })),
@@ -185,8 +274,19 @@ export async function audit(options: AuditOptions): Promise<AuditReport> {
       tool: d.tool,
       message: `Tool "${d.tool}" differs across ${d.pages.length} pages: ${d.changes.join("; ")}.`,
     })),
+    ...(baseline?.pages ?? []).map((p) => ({
+      ruleId: "contract-changed",
+      severity: "warning" as const,
+      message: `${p.url}: tools changed since the baseline: ${p.changes.map((c) => `${c.kind} ${c.tool}`).join(", ")}.`,
+      help: formatChanges(p.changes),
+    })),
+    ...(baseline?.missing ?? []).map((url) => ({
+      ruleId: "baseline-page-missing",
+      severity: "warning" as const,
+      message: `${url} was in the baseline but was not reached in this run.`,
+    })),
   ];
-  return { startUrl: options.url, finishedAt: new Date().toISOString(), pages, drift, tools, score, findings };
+  return { startUrl: options.url, finishedAt: new Date().toISOString(), pages, drift, tools, score, findings, ...(baseline ? { baseline } : {}) };
 }
 
 export function renderMarkdown(report: AuditReport): string {
@@ -197,6 +297,13 @@ export function renderMarkdown(report: AuditReport): string {
     `Overall agent readiness: **${report.score}/100** across ${report.pages.length} page(s). ${report.tools.length} distinct tool(s): ${report.tools.map((t) => `\`${t}\``).join(", ") || "none"}.`,
     "",
   );
+  if (report.baseline) {
+    lines.push("## Changes since baseline", "");
+    if (!report.baseline.pages.length && !report.baseline.missing.length) lines.push("No tool changed on any page the baseline covered.", "");
+    for (const p of report.baseline.pages) lines.push(`### ${p.url}`, "", "```", formatChanges(p.changes), "```", "");
+    for (const url of report.baseline.missing) lines.push(`- ${url} was in the baseline but was not reached in this run.`);
+    if (report.baseline.missing.length) lines.push("");
+  }
   if (report.drift.length) {
     lines.push("## Cross-page drift", "");
     for (const d of report.drift) lines.push(`- \`${d.tool}\` on ${d.pages.join(", ")}: ${d.changes.join("; ")}`);
@@ -211,12 +318,20 @@ export function renderMarkdown(report: AuditReport): string {
     lines.push(`API: ${p.api}${p.cdp ? " (CDP collector attached)" : ""}. Tools: ${p.contract?.tools.map((t) => `\`${t.name}\``).join(", ") || "none"}.`, "");
     if (p.score) lines.push("```", formatScore(p.score), "```", "");
     if (p.lint?.findings.length) lines.push("Lint:", "", "```", formatFindings(p.lint), "```", "");
-    if (p.smoke)
+    if (p.smoke) {
+      const exercised = new Set(p.smoke.runs.map((r) => r.tool)).size;
       lines.push(
-        `Smoke: ${p.smoke.runs.length} run(s), ${p.smoke.findings.length} finding(s)${p.smoke.skipped.length ? `, skipped ${p.smoke.skipped.join(", ")}` : ""}.`,
+        `Smoke: ${p.smoke.runs.length} generated input(s) against ${exercised} tool(s), ${p.smoke.findings.length} finding(s)${p.smoke.skipped.length ? `; not called: ${p.smoke.skipped.map((t) => `\`${t}\``).join(", ")}` : ""}.`,
         "",
       );
-    if (p.smoke?.findings.length) lines.push("```", formatFindings({ findings: p.smoke.findings, counts: p.smoke.counts, rulesRun: [] }), "```", "");
+      if (!p.smoke.runs.length && p.smoke.skipped.length)
+        lines.push(
+          "No tool on this page is annotated read-only (`readOnlyHint`), so none was called. Annotate the tools that are safe to call, or pass `--all-tools` (`smokeOptions: { all: true }`) to call every tool.",
+          "",
+        );
+      if (p.smoke.findings.length) lines.push("```", formatFindings({ findings: p.smoke.findings, counts: p.smoke.counts, rulesRun: [] }), "```", "");
+      if (p.smoke.runs.length) lines.push(formatSmokeRuns(p.smoke.runs), "");
+    }
   }
   return lines.join("\n");
 }

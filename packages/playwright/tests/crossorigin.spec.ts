@@ -8,7 +8,9 @@ test.describe("cross-origin exposure", () => {
     expect(snapshot.frames[1].crossOriginFromTop).toBe(true);
     expect(snapshot.frames[1].allow).toBe("tools");
     expect(snapshot.frames[2].allow).toBeNull();
-    expect(snapshot.tools.find((t) => t.name === "partner_quote" && t.frame === 1)?.exposedTo).toEqual(["http://localhost:4173"]);
+    // RegisteredTool has no exposedTo member; only the shim surfaces it.
+    if (snapshot.frames[0].api === "shim")
+      expect(snapshot.tools.find((t) => t.name === "partner_quote" && t.frame === 1)?.exposedTo).toEqual(["http://localhost:4173"]);
 
     const reachable = await webmcp.reachableTools();
     expect(reachable.map((t) => t.name).sort()).toEqual(["host_tool", "partner_quote"]);
@@ -25,9 +27,11 @@ test.describe("cross-origin exposure", () => {
       const mc = (document.modelContext ?? navigator.modelContext)!;
       const tools = await mc.getTools({ fromOrigins: ["http://127.0.0.1:4173"] });
       const remote = tools.find((t) => t.name === "partner_quote")!;
-      return mc.executeTool(remote, { country: "CH", weightKg: 2 });
+      return mc.executeTool(remote, JSON.stringify({ country: "CH", weightKg: 2 }));
     });
-    expect(quote).toEqual({ country: "CH", weightKg: 2, price: 15, currency: "CHF" });
+    // executeTool() resolves with the JSON-serialized result, as the specification says.
+    expect(typeof quote).toBe("string");
+    expect(JSON.parse(quote as string)).toEqual({ country: "CH", weightKg: 2, price: 15, currency: "CHF" });
     const denied = await page.evaluate(async () => {
       const mc = (document.modelContext ?? navigator.modelContext)!;
       const tools = await mc.getTools({ fromOrigins: ["http://127.0.0.1:4173"] });
@@ -41,8 +45,11 @@ test.describe("cross-origin exposure", () => {
   test('lint flags a cross-origin frame that registers tools without allow="tools"', async ({ page, webmcp }) => {
     await page.goto("/embed.html");
     const result = await webmcp.lint({ rules: { "duplicate-tool-name": false } });
+    const snapshot = await webmcp.snapshot();
     const f = result.findings.find((x) => x.ruleId === "iframe-allow-tools");
-    expect(f?.frame).toBe(2);
+    // Chrome enforces the "tools" permissions policy: a frame without allow="tools" cannot register at all.
+    if (snapshot.frames[0].api === "native") expect(snapshot.tools.filter((t) => t.frame === 2)).toEqual([]);
+    else expect(f?.frame).toBe(2);
     expect(result.findings.find((x) => x.ruleId === "exposed-to-secure-origins")).toBeUndefined();
     await expect(async () => {
       await page.evaluate(async () => {
@@ -61,10 +68,10 @@ test.describe("cross-origin exposure", () => {
       const tools = await mc.getTools({ fromOrigins: ["http://127.0.0.1:4173"] });
       return mc.executeTool(
         tools.find((t) => t.name === "partner_quote")!,
-        { country: "CH" },
+        JSON.stringify({ country: "CH" }),
       );
     });
-    expect(viaEmbedder).toEqual({ price: 1, currency: "CHF", mocked: true });
+    expect(JSON.parse(viaEmbedder as string)).toEqual({ price: 1, currency: "CHF", mocked: true });
     expect(await webmcp.unmock("partner_quote")).toBe(true);
     await expect(webmcp).toReachTool("partner_quote");
     expect(await webmcp.call("partner_quote", { country: "CH", weightKg: 2 })).toMatchObject({ price: 15 });

@@ -1,7 +1,9 @@
+import type { Finding } from "../types.js";
 import { defineRule, finding, forEachTool, opt, walk } from "./helpers.js";
 
 export const schemaShape = defineRule({
   id: "schema-shape",
+  scope: "tool",
   description: "inputSchema must be an object schema whose `required` entries exist in `properties`.",
   severity: "error",
   check: (ctx) =>
@@ -38,6 +40,7 @@ export const schemaShape = defineRule({
 
 export const schemaNulls = defineRule({
   id: "schema-no-null-literals",
+  scope: "tool",
   description: "Chrome's Prompt API rejects JSON null at any depth; avoid null literals in schemas.",
   severity: "error",
   check: (ctx) =>
@@ -59,6 +62,7 @@ export const schemaNulls = defineRule({
 
 export const schemaDepth = defineRule({
   id: "schema-depth",
+  scope: "tool",
   description: "Deeply nested input schemas are hard for small models to fill.",
   severity: "warning",
   defaults: { max: 3 },
@@ -86,13 +90,16 @@ const RISKY_KEYWORDS = ["$ref", "allOf", "oneOf", "anyOf", "not", "patternProper
 
 export const schemaKeywords = defineRule({
   id: "schema-unsupported-keywords",
+  scope: "tool",
   description: "Composition keywords are unevenly supported across agents and model tool mappers.",
   severity: "warning",
   defaults: { keywords: RISKY_KEYWORDS },
   check: (ctx) => {
     const keywords = new Set(opt<string[]>(ctx, "keywords", RISKY_KEYWORDS));
     return forEachTool(ctx, (tool) => {
-      const out = [];
+      const out: Finding[] = [];
+      // Declarative schemas are derived by the browser (Chrome emits anyOf/const for <select>); the author cannot change them.
+      if (tool.source === "declarative") return out;
       for (const [path, value] of walk(tool.inputSchema)) {
         if (!value || typeof value !== "object" || Array.isArray(value)) continue;
         for (const k of Object.keys(value as object)) {
@@ -117,6 +124,7 @@ const SENSITIVE_RE =
 
 export const sensitiveParams = defineRule({
   id: "sensitive-params",
+  scope: "tool",
   description: "Tools should not ask agents for credentials or payment secrets; collect those through the page UI instead.",
   severity: "warning",
   defaults: { pattern: SENSITIVE_RE.source },

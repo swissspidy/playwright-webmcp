@@ -51,7 +51,15 @@ const SHIM_TEMPLATE = String.raw`(() => {
       title: typeof tool.title === "string" ? tool.title : "",
       description: typeof tool.description === "string" ? tool.description : "",
       inputSchema: tool.inputSchema === undefined ? null : tool.inputSchema,
-      annotations: tool.annotations,
+      // Chrome fills the ToolAnnotations dictionary defaults when annotations are given at all.
+      annotations:
+        tool.annotations && typeof tool.annotations === "object"
+          ? {
+              readOnlyHint: Boolean(tool.annotations.readOnlyHint),
+              untrustedContentHint: Boolean(tool.annotations.untrustedContentHint),
+              consequentialHint: Boolean(tool.annotations.consequentialHint),
+            }
+          : undefined,
       execute: typeof tool.execute === "function" ? tool.execute : undefined,
       window,
       origin: location.origin,
@@ -69,6 +77,16 @@ const SHIM_TEMPLATE = String.raw`(() => {
     return out;
   }
 
+  // executeTool() resolves with a string. The specification serializes the result
+  // to JSON; Chrome 154 does that for objects and uses String(value) otherwise
+  // ("undefined" when the callback returned nothing). Mirror Chrome so the same
+  // page code behaves the same on both.
+  function serializeResult(name, value) {
+    if (value === null || typeof value !== "object") return String(value);
+    try { return JSON.stringify(value); } catch (err) {
+      throw new DOMException("Tool " + name + " returned a value that cannot be serialized to JSON: " + ((err && err.message) || err), "DataError");
+    }
+  }
   const mc = {
     __webmcpShim: true,
     ontoolchange: null,
@@ -77,6 +95,7 @@ const SHIM_TEMPLATE = String.raw`(() => {
     dispatchEvent: (e) => target.dispatchEvent(e),
     async registerTool(tool, options = {}) {
       const t = normalize(tool);
+      if (tools.has(t.name)) throw new DOMException("Duplicate tool name", "InvalidStateError");
       if (Array.isArray(options.exposedTo)) {
         for (const o of options.exposedTo) {
           if (o !== "*" && !/^https:\/\//.test(o) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)) throw new DOMException("exposedTo origins must be secure: " + o, "NotAllowedError");
@@ -106,9 +125,11 @@ const SHIM_TEMPLATE = String.raw`(() => {
         try { nested.push(...(await child.getTools())); } catch {}
       }
       const wanted = Array.isArray(options.fromOrigins) ? options.fromOrigins : [];
+      if (wanted.some((o) => !/^https:\/\//.test(o) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o)))
+        throw new TypeError("Only secure origins are allowed in the fromOrigins list.");
       if (wanted.length) {
         for (const f of crossOriginFrames()) {
-          if (!wanted.includes("*") && !wanted.includes(f.origin)) continue;
+          if (!wanted.includes(f.origin)) continue;
           if (!allowsTools(f.element)) continue;
           try {
             const list = await bridgeRequest(f.element.contentWindow, f.origin, { type: "webmcp:list" });
@@ -136,7 +157,7 @@ const SHIM_TEMPLATE = String.raw`(() => {
       }
       const parsed = typeof args === "string" ? JSON.parse(args) : (args || {});
       if (!t.execute) throw new DOMException("Tool " + name + " has no execute callback", "InvalidStateError");
-      return await t.execute(parsed, { signal: options.signal });
+      return serializeResult(name, await t.execute(parsed, { signal: options.signal }));
     },
   };
 
@@ -185,8 +206,7 @@ const SHIM_TEMPLATE = String.raw`(() => {
       const t = tools.get(data.name);
       if (!t || !exposedToOrigin(t, event.origin)) return reply({ __error: "Tool " + data.name + " is not exposed to " + event.origin });
       try {
-        const result = await mc.executeTool(data.name, data.args || {}, {});
-        reply(result === undefined ? null : JSON.parse(JSON.stringify(result)));
+        reply(await mc.executeTool(data.name, data.args || {}, {}));
       } catch (err) {
         reply({ __error: String((err && err.message) || err) });
       }
@@ -210,7 +230,12 @@ const SHIM_TEMPLATE = String.raw`(() => {
       const prop = { type: type === "number" || type === "range" ? "number" : type === "checkbox" ? "boolean" : "string" };
       const d = el.getAttribute("toolparamdescription");
       if (d) prop.description = d;
-      if (el.tagName.toLowerCase() === "select") prop.enum = Array.from(el.options).map((o) => o.value);
+      if (el.tagName.toLowerCase() === "select") {
+        // Chrome 154 derives one const per option, titled with the option label, plus the enum.
+        const options = Array.from(el.options);
+        prop.anyOf = options.map((o) => ({ type: "string", const: o.value, title: o.label || o.textContent || o.value }));
+        prop.enum = options.map((o) => o.value);
+      }
       properties[name] = prop;
       if (el.hasAttribute("required")) required.push(name);
     }
@@ -242,6 +267,21 @@ const SHIM_TEMPLATE = String.raw`(() => {
       resolve({ status: "Navigating" });
     });
   }
+  // Without toolautosubmit Chrome fills the form and keeps the promise open until
+  // the user submits; that submit event carries agentInvoked and respondWith.
+  function awaitUserSubmit(form) {
+    return new Promise((resolve) => {
+      const onSubmit = (ev) => {
+        form.removeEventListener("submit", onSubmit, true);
+        let responded = null;
+        Object.defineProperty(ev, "agentInvoked", { value: true });
+        Object.defineProperty(ev, "respondWith", { value: (p) => { responded = Promise.resolve(p); ev.preventDefault(); } });
+        // Resolve once the page's own listeners have run.
+        setTimeout(() => resolve(responded || (ev.defaultPrevented ? { status: "Completed" } : { status: "Navigating" })), 0);
+      };
+      form.addEventListener("submit", onSubmit, true);
+    });
+  }
   function registerForm(form) {
     const name = form.getAttribute("toolname");
     if (!name || !NAME_RE.test(name)) return;
@@ -255,7 +295,7 @@ const SHIM_TEMPLATE = String.raw`(() => {
         fill(form, args);
         form.dispatchEvent(new Event("toolactivated", { bubbles: true }));
         if (form.hasAttribute("toolautosubmit")) return submitAsAgent(form);
-        return { status: "Pending", message: "Form filled; awaiting user submission." };
+        return awaitUserSubmit(form);
       },
     };
     formTools.set(form, name);

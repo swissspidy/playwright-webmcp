@@ -23,6 +23,7 @@ function dominant(styles: NamingStyle[]): { style: NamingStyle; count: number } 
 
 export const namingConsistency = defineRule({
   id: "naming-consistency",
+  scope: "page",
   description: "Tool and parameter names should follow one naming style; mixed styles make names harder for models to reproduce.",
   severity: "warning",
   check: (ctx) => {
@@ -57,6 +58,7 @@ export const namingConsistency = defineRule({
 
 export const exposedToInsecure = defineRule({
   id: "exposed-to-secure-origins",
+  scope: "tool",
   description: "exposedTo must list secure origins; http:// origins other than localhost are rejected by the API.",
   severity: "error",
   check: (ctx) =>

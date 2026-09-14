@@ -16,6 +16,7 @@
           properties: { productId: { type: "number", description: "Product id to list reviews for" } },
           required: ["productId"],
         },
+        annotations: { readOnlyHint: true },
         async execute({ productId }) {
           return { reviews: [{ productId, rating: 5, text: "Great" }] };
         },

@@ -9,7 +9,7 @@ export interface CodegenOptions {
   /** Path passed to page.goto(). Default "/". */
   url?: string;
   calls: RecordedCall[];
-  /** When set, agent-made calls are reproduced with promptApi.run(prompt) instead of call(). */
+  /** When set, agent-made calls are reproduced with the promptApi fixture's run(prompt) instead of call(). */
   prompt?: string;
   /** How arguments are asserted in toMatchCalls. Default "exact". */
   argumentsMode?: ArgumentsMode;
@@ -27,12 +27,12 @@ export function toPlaywrightTest(options: CodegenOptions): string {
   const { name, url = "/", calls, prompt, argumentsMode = "exact", importFrom = "playwright-webmcp" } = options;
   const lines: string[] = [];
   lines.push(`import { test, expect } from ${JSON.stringify(importFrom)};`, "");
-  lines.push(`test(${JSON.stringify(name)}, async ({ page, webmcp }) => {`);
+  lines.push(`test(${JSON.stringify(name)}, async ({ page, webmcp${prompt ? ", promptApi" : ""} }) => {`);
   lines.push(`  await page.goto(${JSON.stringify(url)});`);
   const agentCalls = calls.filter((c) => c.via === "agent");
   const directCalls = calls.filter((c) => c.via !== "agent");
   if (prompt && agentCalls.length) {
-    lines.push(`  const run = await webmcp.promptApi.run(${JSON.stringify(prompt)});`);
+    lines.push(`  const run = await promptApi.run(${JSON.stringify(prompt)});`);
     lines.push(`  expect(run.status).toBe("ok");`);
   }
   for (const c of prompt ? directCalls : calls) {

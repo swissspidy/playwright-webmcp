@@ -83,3 +83,57 @@ test("records external invocations as agent calls and own invocations as fixture
   expect(calls[1].error).toBe("boom");
   expect(session.sent.find((s) => s.method === "WebMCP.invokeTool")?.params).toEqual({ frameId: "F1", toolName: "search", input: { query: "shirt" } });
 });
+
+test("invoke() resolves when the tool events are dispatched before the command response settles", async () => {
+  const calls: RecordedCall[] = [];
+  const session = new FakeSession();
+  // Deliver toolInvoked and toolResponded synchronously inside send(), before the
+  // response promise resolves, as happens when Chrome writes them in one chunk.
+  session.send = async function (method: string, params?: Record<string, unknown>) {
+    this.sent.push({ method, params });
+    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "F1", url: "http://top/" }, childFrames: [] } };
+    if (method === "WebMCP.invokeTool") {
+      const invocationId = `inv-${this.nextInvocation++}`;
+      this.emit("WebMCP.toolInvoked", { toolName: params!.toolName, frameId: "F1", invocationId, input: JSON.stringify(params!.input) });
+      this.emit("WebMCP.toolResponded", { invocationId, status: "Completed", output: { fast: true } });
+      return { invocationId };
+    }
+    return {};
+  };
+  const collector = new CdpCollector(session, { onCall: (c) => calls.push(c) });
+  await collector.enable();
+  session.emit("WebMCP.toolsAdded", { tools: [{ name: "search", description: "", frameId: "F1" }] });
+
+  const outcome = await collector.invoke("search", { query: "shirt" }, undefined, 500, "agent");
+  expect(outcome).toEqual({ ok: true, result: { fast: true }, error: undefined });
+  expect(calls.map((c) => [c.name, c.via, c.source])).toEqual([["search", "agent", "cdp"]]);
+});
+
+test("invoke() hands back an invocation another client started when the response names a different id", async () => {
+  const calls: Array<[RecordedCall, boolean]> = [];
+  const session = new FakeSession();
+  session.send = async function (method: string, params?: Record<string, unknown>) {
+    this.sent.push({ method, params });
+    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "F1", url: "http://top/" }, childFrames: [] } };
+    if (method === "WebMCP.invokeTool") {
+      // Someone else's invocation of the same tool lands, start to finish, before our command's response.
+      this.emit("WebMCP.toolInvoked", { toolName: params!.toolName, frameId: "F1", invocationId: "inv-theirs", input: '{"query":"hat"}' });
+      this.emit("WebMCP.toolResponded", { invocationId: "inv-theirs", status: "Completed", output: { theirs: true } });
+      return { invocationId: "inv-ours" };
+    }
+    return {};
+  };
+  const collector = new CdpCollector(session, { onCall: (c, meta) => calls.push([c, meta.ours]) });
+  await collector.enable();
+  session.emit("WebMCP.toolsAdded", { tools: [{ name: "search", description: "", frameId: "F1" }] });
+
+  const pending = collector.invoke("search", { query: "shirt" }, undefined, 500);
+  await new Promise((r) => setTimeout(r, 0));
+  session.emit("WebMCP.toolInvoked", { toolName: "search", frameId: "F1", invocationId: "inv-ours", input: '{"query":"shirt"}' });
+  session.emit("WebMCP.toolResponded", { invocationId: "inv-ours", status: "Completed", output: { ours: true } });
+  expect(await pending).toEqual({ ok: true, result: { ours: true }, error: undefined });
+  expect(calls.map(([c, ours]) => [c.args, c.via, ours])).toEqual([
+    [{ query: "hat" }, "agent", false],
+    [{ query: "shirt" }, "fixture", true],
+  ]);
+});

@@ -1,0 +1,26 @@
+{
+  "name": "react-shop",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview --port 4174 --strictPort",
+    "lint": "eslint .",
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "use-webmcp-tool": "^0.3.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@vitejs/plugin-react": "^6.0.0",
+    "eslint": "^10.10.0",
+    "eslint-plugin-webmcp": "workspace:*",
+    "playwright-webmcp": "workspace:*",
+    "vite": "^8.0.0"
+  }
+}

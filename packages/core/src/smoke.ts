@@ -57,6 +57,21 @@ export const SMOKE_RULES = {
 
 export type SmokeRuleId = keyof typeof SMOKE_RULES;
 
+/**
+ * MCP-style tool result, the shape `use-webmcp-tool` and MCP servers produce:
+ * `{ content: [{ type: "text", text }, ...], isError?: boolean }`.
+ */
+export interface ContentResult {
+  content: Array<{ type: string; [key: string]: unknown }>;
+  isError?: boolean;
+}
+
+export function isContentResult(value: unknown): value is ContentResult {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const content = (value as { content?: unknown }).content;
+  return Array.isArray(content) && content.every((item) => item && typeof item === "object" && typeof (item as { type?: unknown }).type === "string");
+}
+
 function make(id: SmokeRuleId, run: SmokeRun, message: string, help?: string): Finding {
   return { ruleId: id, severity: SMOKE_RULES[id].severity, message, tool: run.tool, help };
 }
@@ -85,10 +100,23 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
     return out;
   }
 
+  if (isContentResult(run.result) && run.result.isError === true) {
+    const text = run.result.content
+      .map((c) => (typeof c.text === "string" ? c.text : ""))
+      .filter(Boolean)
+      .join(" ");
+    out.push(make("result-error-on-valid-input", run, `${where} reported isError: ${text || "no message"}.`, `Input was ${JSON.stringify(run.args)}.`));
+    return out;
+  }
+
   if (run.durationMs > maxMs) out.push(make("result-slow", run, `${where} took ${run.durationMs} ms; budget is ${maxMs} ms.`));
 
   if (run.result === undefined) {
     out.push(make("result-undefined", run, `${where} returned undefined.`, SMOKE_RULES["result-undefined"].description));
+    return out;
+  }
+  if (isContentResult(run.result) && run.result.content.length === 0) {
+    out.push(make("result-undefined", run, `${where} returned an empty content array.`, SMOKE_RULES["result-undefined"].description));
     return out;
   }
 
@@ -145,4 +173,26 @@ export function judgeRuns(runs: SmokeRun[], budgets: SmokeBudgets = {}): SmokeRe
   const counts: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
   for (const f of findings) counts[f.severity]++;
   return { runs, findings, counts };
+}
+
+/** Markdown table of the generated inputs a smoke run executed and what came back. */
+export function formatSmokeRuns(runs: SmokeRun[]): string {
+  if (!runs.length) return "";
+  const cell = (v: string) => v.replace(/\|/g, "\\|").replace(/\n/g, " ");
+  const clip = (v: string, n = 80) => (v.length > n ? `${v.slice(0, n - 1)}…` : v);
+  // A code span whose fence is longer than any backtick run inside it, padded when the content touches the fence.
+  const code = (v: string) => {
+    const longest = Math.max(0, ...(v.match(/`+/g) ?? []).map((run) => run.length));
+    const fence = "`".repeat(longest + 1);
+    const padded = v.startsWith("`") || v.endsWith("`") || (v.startsWith(" ") && v.endsWith(" ")) ? ` ${v} ` : v;
+    return `${fence}${padded}${fence}`;
+  };
+  const lines = ["| Tool | Input | Arguments | Outcome | ms |", "| --- | --- | --- | --- | ---: |"];
+  for (const r of runs) {
+    const outcome = r.ok ? "ok" : `error: ${clip(r.error ?? "unknown", 60)}`;
+    lines.push(
+      `| ${code(cell(r.tool))} | ${cell(r.kind)}: ${cell(r.label)} | ${code(cell(clip(JSON.stringify(r.args))))} | ${cell(outcome)} | ${r.durationMs} |`,
+    );
+  }
+  return lines.join("\n");
 }

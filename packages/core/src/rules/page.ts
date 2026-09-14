@@ -4,6 +4,7 @@ import { defineRule, finding, opt } from "./helpers.js";
 
 export const duplicateToolName = defineRule({
   id: "duplicate-tool-name",
+  scope: "page",
   description: "Two tools with the same name on one page leave the agent guessing which one it gets.",
   severity: "error",
   check: (ctx) => {
@@ -21,6 +22,7 @@ export const duplicateToolName = defineRule({
 
 export const similarDescriptions = defineRule({
   id: "similar-descriptions",
+  scope: "page",
   description: "Tools whose descriptions read almost the same get confused by models; make the distinction explicit.",
   severity: "warning",
   defaults: { threshold: 0.7 },
@@ -47,6 +49,7 @@ export const similarDescriptions = defineRule({
 
 export const tooManyTools = defineRule({
   id: "too-many-tools",
+  scope: "page",
   description: "Large tool lists overflow small on-device model contexts and degrade tool selection.",
   severity: "warning",
   defaults: { max: 20 },
@@ -65,6 +68,7 @@ export const tooManyTools = defineRule({
 
 export const noTools = defineRule({
   id: "no-tools",
+  scope: "page",
   description: "Reports pages that expose no tools at all, which usually means registration failed.",
   severity: "info",
   check: (ctx) => (ctx.snapshot.tools.length === 0 ? [finding(noTools, `No WebMCP tools were found on ${ctx.snapshot.url}.`)] : []),
@@ -72,6 +76,7 @@ export const noTools = defineRule({
 
 export const iframeAllowTools = defineRule({
   id: "iframe-allow-tools",
+  scope: "page",
   description: 'Cross-origin iframes only expose tools when the embedding element carries allow="tools".',
   severity: "info",
   check: (ctx) => {

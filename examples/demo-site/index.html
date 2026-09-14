@@ -48,6 +48,7 @@
           properties: { query: { type: "string", description: "Keyword to search for, matched against product names" } },
           required: ["query"],
         },
+        annotations: { readOnlyHint: true },
         async execute({ query }) {
           const q = String(query).toLowerCase();
           return { products: catalogue.filter((p) => p.name.toLowerCase().includes(q)) };

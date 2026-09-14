@@ -17,12 +17,28 @@ export const RECORDER_SOURCE = String.raw`(() => {
   function safe(v) {
     try { return JSON.parse(JSON.stringify(v === undefined ? null : v)); } catch { return String(v); }
   }
+  // executeTool() resolves with the result serialized to a JSON string; record the value it encodes.
+  function fromExecuteTool(v) {
+    if (typeof v !== "string") return safe(v);
+    if (v === "undefined") return undefined;
+    try { return JSON.parse(v); } catch { return v; }
+  }
+  // Mocks installed from the test take over inside the execute wrapper, so no
+  // re-registration is needed (native rejects duplicate names).
+  const mocks = (window.__webmcpMocks = window.__webmcpMocks || Object.create(null));
+  const wrappedNames = (window.__webmcpWrappedTools = window.__webmcpWrappedTools || new Set());
+  async function runMock(name, args) {
+    const reply = JSON.parse(await window.__webmcpMock(JSON.stringify({ name, args: args === undefined ? {} : args })));
+    if (reply && reply.__error) throw new Error(reply.__error);
+    return reply === null ? undefined : reply;
+  }
   function wrapExecute(name, execute) {
     const wrapped = async function (args, options) {
       const startedAt = Date.now();
-      if (suppress > 0) return execute.call(this, args, options);
+      const impl = mocks[name] ? runMock.bind(null, name) : execute;
+      if (suppress > 0) return impl.call(this, args, options);
       try {
-        const result = await execute.call(this, args, options);
+        const result = await impl.call(this, args, options);
         report({ kind: "call", name, args: safe(args), result: safe(result), startedAt, durationMs: Date.now() - startedAt, via: "api" });
         return result;
       } catch (err) {
@@ -45,6 +61,9 @@ export const RECORDER_SOURCE = String.raw`(() => {
     }
     return tool;
   }
+  function isWrapped(tool) {
+    return Boolean(tool && typeof tool.execute === "function");
+  }
   function install(mc) {
     if (!mc || mc[marker]) return;
     Object.defineProperty(mc, marker, { value: true });
@@ -54,18 +73,31 @@ export const RECORDER_SOURCE = String.raw`(() => {
     const origUnregister = typeof mc.unregisterTool === "function" ? mc.unregisterTool.bind(mc) : null;
     const origClear = typeof mc.clearContext === "function" ? mc.clearContext.bind(mc) : null;
     if (origRegister) mc.registerTool = async (tool, options) => {
-      if (options && options.signal) options.signal.addEventListener("abort", () => reportRegistration("unregistered", tool && tool.name), { once: true });
+      const name = tool && tool.name;
+      // Only a registration the browser accepted is mockable, and only its own abort signal removes it:
+      // a rejected duplicate must neither mark the original nor unmark it later.
       const r = await origRegister(wrapTool(tool), options);
-      reportRegistration("registered", tool && tool.name);
+      if (isWrapped(tool)) wrappedNames.add(name);
+      reportRegistration("registered", name);
+      if (options && options.signal) options.signal.addEventListener("abort", () => {
+        wrappedNames.delete(name);
+        reportRegistration("unregistered", name);
+      }, { once: true });
       return r;
     };
     if (origProvide) mc.provideContext = async (ctx) => {
+      const provided = (ctx && Array.isArray(ctx.tools) ? ctx.tools : []);
       const r = await origProvide(ctx && Array.isArray(ctx.tools) ? Object.assign({}, ctx, { tools: ctx.tools.map(wrapTool) }) : ctx);
-      for (const t of (ctx && ctx.tools) || []) reportRegistration("registered", t && t.name);
+      // provideContext replaces the context's tools, so earlier ones are no longer mockable.
+      wrappedNames.clear();
+      for (const t of provided) {
+        if (isWrapped(t)) wrappedNames.add(t.name);
+        reportRegistration("registered", t && t.name);
+      }
       return r;
     };
-    if (origUnregister) mc.unregisterTool = (name) => { const r = origUnregister(name); reportRegistration("unregistered", name); return r; };
-    if (origClear) mc.clearContext = () => { const r = origClear(); reportRegistration("unregistered", "*"); return r; };
+    if (origUnregister) mc.unregisterTool = (name) => { const r = origUnregister(name); wrappedNames.delete(name); reportRegistration("unregistered", name); return r; };
+    if (origClear) mc.clearContext = () => { const r = origClear(); wrappedNames.clear(); reportRegistration("unregistered", "*"); return r; };
     if (origExecuteTool) {
       mc.executeTool = async (tool, args, options) => {
         const fromFixture = Boolean(options && options.__playwrightWebmcp);
@@ -76,7 +108,7 @@ export const RECORDER_SOURCE = String.raw`(() => {
         try {
           const result = await origExecuteTool(tool, args, options);
           suppress--;
-          if (!fromFixture) report({ kind: "call", name, args: safe(parsedArgs), result: safe(result), startedAt, durationMs: Date.now() - startedAt, via: "api" });
+          if (!fromFixture) report({ kind: "call", name, args: safe(parsedArgs), result: fromExecuteTool(result), startedAt, durationMs: Date.now() - startedAt, via: "api" });
           return result;
         } catch (err) {
           suppress--;
@@ -86,34 +118,18 @@ export const RECORDER_SOURCE = String.raw`(() => {
       };
     }
   }
-  // Re-registering a tool must keep the origins it was exposed to, when the API tells us (the shim does).
-  function registerOptions(tool) {
-    return tool && Array.isArray(tool.exposedTo) ? { exposedTo: tool.exposedTo.slice() } : undefined;
-  }
-  // Mocks installed from the test replace a tool's execute with a call into Node.
   window.__webmcpInstallMock = async function (name) {
     const mc = document.modelContext || navigator.modelContext;
     if (!mc) throw new Error("No modelContext to mock on");
     const listed = await mc.getTools();
-    const existing = listed.find((t) => t.name === name);
-    if (!existing) throw new Error("No tool named " + name + " to mock");
-    window.__webmcpOriginals = window.__webmcpOriginals || {};
-    if (!window.__webmcpOriginals[name]) window.__webmcpOriginals[name] = existing;
-    const execute = async (args) => {
-      const reply = JSON.parse(await window.__webmcpMock(JSON.stringify({ name, args: args === undefined ? {} : args })));
-      if (reply && reply.__error) throw new Error(reply.__error);
-      return reply === null ? undefined : reply;
-    };
-    await mc.registerTool({ name, title: existing.title, description: existing.description, inputSchema: existing.inputSchema, annotations: existing.annotations, execute }, registerOptions(existing));
+    if (!listed.some((t) => t.name === name)) throw new Error("No tool named " + name + " to mock");
+    if (!wrappedNames.has(name)) throw new Error("Tool " + name + " cannot be mocked: it was not registered through modelContext.registerTool() in this frame");
+    mocks[name] = true;
   };
   window.__webmcpRestoreMock = async function (name) {
-    const mc = document.modelContext || navigator.modelContext;
-    const original = window.__webmcpOriginals && window.__webmcpOriginals[name];
-    if (!original) return false;
-    if (typeof original.execute !== "function") return false;
-    await mc.registerTool({ name: original.name, title: original.title, description: original.description, inputSchema: original.inputSchema, annotations: original.annotations, execute: original.execute }, registerOptions(original));
-    delete window.__webmcpOriginals[name];
-    return true;
+    const had = Boolean(mocks[name]);
+    delete mocks[name];
+    return had;
   };
   const tryInstall = () => {
     install(document.modelContext);
