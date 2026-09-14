@@ -24,6 +24,28 @@ test.describe("mock and replay", () => {
     await expect(webmcp).toHaveTool("add_to_cart", { inputSchema: { required: ["productId"] } });
   });
 
+  test("a rejected duplicate registration does not make the original mockable", async ({ page, webmcp }) => {
+    await page.goto("/");
+    await expect(webmcp).toHaveTool("subscribe_newsletter", { source: "declarative" });
+    // The form tool has no execute() to wrap, so it cannot be mocked; a failed attempt to register an
+    // imperative twin must not change that.
+    const rejected = await page.evaluate(async () => {
+      const mc = (document.modelContext ?? navigator.modelContext)!;
+      try {
+        await mc.registerTool({
+          name: "subscribe_newsletter",
+          description: "twin",
+          inputSchema: { type: "object", properties: {} },
+          execute: async () => ({}),
+        });
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    if (rejected) await expect(webmcp.mock("subscribe_newsletter", { result: {} })).rejects.toThrow(/cannot be mocked/);
+  });
+
   test("replay serves recorded results to an agent run", async ({ page, webmcp }) => {
     await page.goto("/");
     await webmcp.call("search_products", { query: "shirt" });

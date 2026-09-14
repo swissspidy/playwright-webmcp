@@ -34,6 +34,12 @@ export interface ExtractedForm {
   definition: ToolDefinitionLike;
   /** Opening elements of the fields, by field name, for locating findings. */
   fieldNodes: Map<string, JSXOpeningElementNode>;
+  /**
+   * What could not be read statically: "description" for a computed
+   * `tooldescription`, and "/properties/<field>" for a field with a spread or
+   * a computed `toolparamdescription`. Findings about these are not reported.
+   */
+  dynamic: Set<string>;
 }
 
 function tagName(el: JSXElementNode): string | undefined {
@@ -59,6 +65,11 @@ function attribute(el: JSXOpeningElementNode, name: string, resolve: Resolver): 
     return DYNAMIC;
   }
   return undefined;
+}
+
+/** Whether a boolean-ish attribute was written with a static value: bare, or any string. */
+function isPresent(value: unknown): boolean {
+  return value === true || typeof value === "string";
 }
 
 function hasSpread(el: JSXOpeningElementNode): boolean {
@@ -100,6 +111,8 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
 
   const fields: DeclarativeField[] = [];
   const fieldNodes = new Map<string, JSXOpeningElementNode>();
+  const dynamic = new Set<string>();
+  if (description === DYNAMIC) dynamic.add("description");
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
   const labelledIds = new Set<string>();
@@ -130,15 +143,13 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
     const ariaLabel = attribute(child.openingElement, "aria-label", resolve);
     const ariaLabelledBy = attribute(child.openingElement, "aria-labelledby", resolve);
     const requiredValue = attribute(child.openingElement, "required", resolve);
-    // Anything computed or spread onto the element may carry a label; do not report what cannot be seen.
-    const hasLabel =
-      Boolean(ariaLabel) ||
-      Boolean(ariaLabelledBy) ||
-      (typeof id === "string" && labelledIds.has(id)) ||
-      labelledNames.has(fieldName) ||
-      hasSpread(child.openingElement) ||
-      paramDescriptionValue === DYNAMIC;
-    const isRequired = requiredValue === true || (typeof requiredValue === "string" && requiredValue !== "false") || requiredValue === DYNAMIC;
+    // Anything computed or spread onto the element may carry a label; findings about the field are dropped.
+    if (hasSpread(child.openingElement) || paramDescriptionValue === DYNAMIC || ariaLabel === DYNAMIC || ariaLabelledBy === DYNAMIC) {
+      dynamic.add(`/properties/${fieldName}`);
+    }
+    const hasLabel = isPresent(ariaLabel) || isPresent(ariaLabelledBy) || (typeof id === "string" && labelledIds.has(id)) || labelledNames.has(fieldName);
+    // A boolean attribute is present whatever its value, as in HTML (`required="false"` still requires).
+    const isRequired = isPresent(requiredValue) || requiredValue === DYNAMIC;
     fields.push({ name: fieldName, type, required: isRequired, hasLabel, paramDescription });
     fieldNodes.set(fieldName, child.openingElement);
     const prop: JsonSchema = { type: type === "number" || type === "range" ? "number" : type === "checkbox" ? "boolean" : "string" };
@@ -151,9 +162,8 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
   if (required.length) schema.required = required;
   const info: DeclarativeInfo = {
     formLocator: `form[toolname="${name}"]`,
-    autosubmit: autosubmit === true || (typeof autosubmit === "string" && autosubmit !== "false"),
-    // A computed description cannot be judged; treat it as present.
-    hasDescription: description === DYNAMIC || (typeof description === "string" && description.trim().length > 0),
+    autosubmit: isPresent(autosubmit),
+    hasDescription: typeof description === "string" && description.trim().length > 0,
     fields,
   };
   return {
@@ -166,5 +176,6 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
       declarative: info,
     },
     fieldNodes,
+    dynamic,
   };
 }

@@ -54,10 +54,16 @@ export function normalizeSite(entry: DefinitionSiteSetting): DefinitionSite | un
 /** Definition sites for a lint run: the defaults plus whatever `settings.webmcp.definitions` adds. */
 export function definitionSites(settings: unknown): DefinitionSite[] {
   const extra = ((settings as { webmcp?: WebMCPSettings } | undefined)?.webmcp?.definitions ?? []) as DefinitionSiteSetting[];
-  const out = [...DEFAULT_DEFINITION_SITES];
-  for (const entry of Array.isArray(extra) ? extra : []) {
+  // The same definition location listed twice (a default repeated in settings, say) would report
+  // every finding twice; keep one entry per call/argument/tools and let a later entry add `options`.
+  const byLocation = new Map<string, DefinitionSite>();
+  for (const entry of [...DEFAULT_DEFINITION_SITES, ...(Array.isArray(extra) ? extra : [])]) {
     const site = normalizeSite(entry);
-    if (site) out.push(site);
+    if (!site) continue;
+    const key = JSON.stringify([site.call, site.argument ?? 0, site.tools ?? null]);
+    const existing = byLocation.get(key);
+    if (!existing) byLocation.set(key, { ...site });
+    else if (existing.options === undefined) existing.options = site.options;
   }
-  return out;
+  return [...byLocation.values()];
 }

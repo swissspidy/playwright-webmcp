@@ -1,7 +1,7 @@
 /**
  * Crawl a site with Playwright and audit every page's WebMCP surface.
  */
-import { chromium, type Browser, type Page } from "@playwright/test";
+import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { WebMCP, runSmoke, type SmokeOptions } from "playwright-webmcp";
 import {
   computeCoverage,
@@ -42,7 +42,11 @@ export interface AuditOptions {
   executablePath?: string;
   /** Extra Chromium args, e.g. ["--enable-features=WebMCP"]. */
   args?: string[];
-  /** HTTP headers sent with every request, e.g. an Authorization header for a staging site. */
+  /**
+   * HTTP headers sent with every request to the audited origin, e.g. an
+   * Authorization header for a staging site. Requests to other origins
+   * (third-party frames, CDNs) do not carry them.
+   */
   headers?: Record<string, string>;
   /** A previous report to compare tool contracts against, page by page. */
   baseline?: Pick<AuditReport, "pages">;
@@ -182,11 +186,54 @@ export function compareWithBaseline(pages: PageAudit[], baseline: Pick<AuditRepo
   return out;
 }
 
+const MAX_REDIRECT_HOPS = 10;
+
+/**
+ * Send extra headers with every request to one origin and to no other. Not
+ * `extraHTTPHeaders`, which goes to every origin the page touches, and not a
+ * plain `route.continue({ headers })` either: Chromium carries the override
+ * into the request's redirects, which may leave the origin. So the redirect
+ * chain is followed here first, with the headers, up to the first hop that
+ * leaves the origin; the browser is then sent to that hop directly and goes
+ * without them. A document that stays on the origin is loaded by the browser
+ * itself (a fulfilled document breaks its cross-origin frames); anything else
+ * is served from the response fetched here.
+ */
+async function sendHeadersToOrigin(context: BrowserContext, origin: string, headers: Record<string, string>): Promise<void> {
+  const isRedirect = (status: number) => status >= 300 && status < 400;
+  await context.route(
+    (url) => url.origin === origin,
+    async (route) => {
+      const request = route.request();
+      const withHeaders = { ...request.headers(), ...headers };
+      try {
+        let url = request.url();
+        let response = await route.fetch({ headers: withHeaders, maxRedirects: 0 });
+        for (let hop = 0; ; hop++) {
+          const location = response.headers().location;
+          if (!isRedirect(response.status()) || !location) break;
+          const next = new URL(location, url);
+          if (next.origin !== origin || hop >= MAX_REDIRECT_HOPS) return route.fulfill({ status: response.status(), headers: { location: next.href } });
+          url = next.href;
+          response = await route.fetch({ url, headers: withHeaders, maxRedirects: 0 });
+        }
+        if (request.resourceType() === "document" && (request.method() === "GET" || request.method() === "HEAD")) {
+          return route.continue({ headers: withHeaders });
+        }
+        return route.fulfill({ response });
+      } catch {
+        return route.abort().catch(() => {});
+      }
+    },
+  );
+}
+
 export async function audit(options: AuditOptions): Promise<AuditReport> {
   const maxPages = options.maxPages ?? 10;
   const ownBrowser = !options.browser;
   const browser = options.browser ?? (await chromium.launch({ executablePath: options.executablePath, args: options.args }));
-  const context = await browser.newContext({ extraHTTPHeaders: options.headers });
+  const context = await browser.newContext();
+  if (options.headers && Object.keys(options.headers).length) await sendHeadersToOrigin(context, new URL(options.url).origin, options.headers);
   const queue = [normalize(options.url)];
   const visited = new Set<string>();
   const pages: PageAudit[] = [];

@@ -54,7 +54,11 @@ interface Ticket {
   name: string;
   via: "fixture" | "agent";
   invocationId?: string;
+  /** True once the command response has named the invocation id this ticket belongs to. */
+  confirmed: boolean;
   outcome?: Outcome;
+  /** A completed call recorded while the claim was still provisional. */
+  held?: RecordedCall;
   resolve?: (outcome: Outcome) => void;
 }
 
@@ -85,6 +89,8 @@ export class CdpCollector {
   private readonly waiting = new Map<string, Ticket[]>();
   /** invoke() calls by invocation id. */
   private readonly tickets = new Map<string, Ticket>();
+  /** Outcomes of recent invocations, so an invoke() that learns its id late can still find its response. */
+  private readonly recent = new Map<string, Outcome>();
   private frameUrls = new Map<string, string>();
   enabled = false;
 
@@ -158,6 +164,13 @@ export class CdpCollector {
     return this.frameUrls.get(frameId);
   }
 
+  /** Frame ids with this URL, in frame-tree order (parents before children, siblings in document order). */
+  frameIdsFor(url: string): string[] {
+    const out: string[] = [];
+    for (const [id, u] of this.frameUrls) if (u === url) out.push(id);
+    return out;
+  }
+
   /** Native registrations currently known to the browser. */
   list(): CdpTool[] {
     return [...this.tools.values()];
@@ -172,12 +185,14 @@ export class CdpCollector {
    * Invoke a tool through the browser and wait for its response event.
    * A ticket is queued under the tool's name before the command is sent, so
    * the toolInvoked event can claim it whether it arrives before or after the
-   * command's response.
+   * command's response. A claim made before the response is provisional: the
+   * response's invocation id confirms it, or hands the claimed invocation
+   * back as someone else's.
    */
   async invoke(name: string, input: Record<string, unknown>, frameId?: string, timeoutMs = 30_000, via: "fixture" | "agent" = "fixture"): Promise<Outcome> {
     const tool = this.find(name, frameId);
     if (!tool) throw new Error(`CDP collector knows no tool named "${name}"`);
-    const ticket: Ticket = { name, via };
+    const ticket: Ticket = { name, via, confirmed: false };
     const queue = this.waiting.get(name) ?? [];
     queue.push(ticket);
     this.waiting.set(name, queue);
@@ -189,12 +204,29 @@ export class CdpCollector {
     } catch (err) {
       debug("invoke failed", name, String((err as Error)?.message));
       this.unqueue(ticket);
+      this.release(ticket);
       throw err;
+    }
+    if (ticket.invocationId !== undefined && ticket.invocationId !== invocationId) {
+      // The events that claimed this ticket belonged to another invocation of the same tool
+      // (another client's, or the browser's own agent) that landed first.
+      debug("invoke rebinding", name, "claimed", ticket.invocationId, "actual", invocationId);
+      this.release(ticket);
+    }
+    ticket.confirmed = true;
+    if (ticket.held) {
+      this.options.onCall?.(ticket.held, { ours: true });
+      ticket.held = undefined;
     }
     if (ticket.outcome) return ticket.outcome;
     if (ticket.invocationId === undefined) {
-      // The events have not arrived yet; bind the ticket to the id so they find it.
       this.unqueue(ticket);
+      // The response for our id may already have gone by while the ticket was bound elsewhere.
+      const done = this.recent.get(invocationId);
+      if (done) return done;
+      const inFlight = this.pending.get(invocationId);
+      if (inFlight) inFlight.ticket = ticket;
+      // Otherwise the events have not arrived yet; bind the ticket to the id so they find it.
       ticket.invocationId = invocationId;
       this.tickets.set(invocationId, ticket);
     }
@@ -210,6 +242,23 @@ export class CdpCollector {
       };
       if (ticket.outcome) ticket.resolve(ticket.outcome);
     });
+  }
+
+  /** Undo a provisional claim: the invocation the ticket took was not ours after all. */
+  private release(ticket: Ticket): void {
+    if (ticket.invocationId === undefined) return;
+    const claimed = this.pending.get(ticket.invocationId);
+    if (claimed) claimed.ticket = undefined;
+    this.tickets.delete(ticket.invocationId);
+    if (ticket.held) this.options.onCall?.({ ...ticket.held, via: "agent" }, { ours: false });
+    ticket.invocationId = undefined;
+    ticket.outcome = undefined;
+    ticket.held = undefined;
+  }
+
+  private remember(invocationId: string, outcome: Outcome): void {
+    this.recent.set(invocationId, outcome);
+    while (this.recent.size > 100) this.recent.delete(this.recent.keys().next().value!);
   }
 
   private unqueue(ticket: Ticket): void {
@@ -273,6 +322,7 @@ export class CdpCollector {
     this.tickets.delete(params.invocationId);
     const ok = params.status === "Completed";
     const error = ok ? undefined : params.errorText || params.exception?.description || params.status;
+    this.remember(params.invocationId, { ok, result: params.output, error });
     const ticket = entry.ticket;
     const call: RecordedCall = {
       name: entry.name,
@@ -283,7 +333,9 @@ export class CdpCollector {
       source: "cdp" as const,
       ...(ok ? { result: params.output } : { error }),
     };
-    this.options.onCall?.(call, { ours: Boolean(ticket) });
+    // A provisional claim is reported once the command response confirms whose invocation it was.
+    if (ticket && !ticket.confirmed) ticket.held = call;
+    else this.options.onCall?.(call, { ours: Boolean(ticket) });
     if (ticket) {
       ticket.outcome = { ok, result: params.output, error };
       ticket.resolve?.(ticket.outcome);

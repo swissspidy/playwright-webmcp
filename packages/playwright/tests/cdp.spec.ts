@@ -108,3 +108,32 @@ test("invoke() resolves when the tool events are dispatched before the command r
   expect(outcome).toEqual({ ok: true, result: { fast: true }, error: undefined });
   expect(calls.map((c) => [c.name, c.via, c.source])).toEqual([["search", "agent", "cdp"]]);
 });
+
+test("invoke() hands back an invocation another client started when the response names a different id", async () => {
+  const calls: Array<[RecordedCall, boolean]> = [];
+  const session = new FakeSession();
+  session.send = async function (method: string, params?: Record<string, unknown>) {
+    this.sent.push({ method, params });
+    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "F1", url: "http://top/" }, childFrames: [] } };
+    if (method === "WebMCP.invokeTool") {
+      // Someone else's invocation of the same tool lands, start to finish, before our command's response.
+      this.emit("WebMCP.toolInvoked", { toolName: params!.toolName, frameId: "F1", invocationId: "inv-theirs", input: '{"query":"hat"}' });
+      this.emit("WebMCP.toolResponded", { invocationId: "inv-theirs", status: "Completed", output: { theirs: true } });
+      return { invocationId: "inv-ours" };
+    }
+    return {};
+  };
+  const collector = new CdpCollector(session, { onCall: (c, meta) => calls.push([c, meta.ours]) });
+  await collector.enable();
+  session.emit("WebMCP.toolsAdded", { tools: [{ name: "search", description: "", frameId: "F1" }] });
+
+  const pending = collector.invoke("search", { query: "shirt" }, undefined, 500);
+  await new Promise((r) => setTimeout(r, 0));
+  session.emit("WebMCP.toolInvoked", { toolName: "search", frameId: "F1", invocationId: "inv-ours", input: '{"query":"shirt"}' });
+  session.emit("WebMCP.toolResponded", { invocationId: "inv-ours", status: "Completed", output: { ours: true } });
+  expect(await pending).toEqual({ ok: true, result: { ours: true }, error: undefined });
+  expect(calls.map(([c, ours]) => [c.args, c.via, ours])).toEqual([
+    [{ query: "hat" }, "agent", false],
+    [{ query: "shirt" }, "fixture", true],
+  ]);
+});

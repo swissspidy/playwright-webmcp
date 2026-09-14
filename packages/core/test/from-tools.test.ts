@@ -96,3 +96,10 @@ test("snapshotFromFrames assembles frames like the Playwright fixture", () => {
   const allowed = lint(snapshotFromFrames([top, { ...partner, allow: "tools" }]));
   assert.ok(!allowed.findings.some((f) => f.ruleId === "iframe-allow-tools"));
 });
+
+test("a malformed inputSchema is kept so schema-shape can report it", () => {
+  const snapshot = snapshotFromTools([{ name: "ok_tool", description: "A description that is long enough.", inputSchema: "not a schema" as never }]);
+  assert.equal(snapshot.tools[0].inputSchema as unknown, "not a schema");
+  const result = lintTools([{ name: "ok_tool", description: "A description that is long enough.", inputSchema: "not a schema" as never }], { scope: "tool" });
+  assert.ok(result.findings.some((f) => f.ruleId === "schema-shape" && f.message.includes("not an object")));
+});

@@ -155,6 +155,16 @@ test("formatSmokeRuns renders a Markdown table and escapes pipes", () => {
   assert.equal(rows[3], '| `search` | invalid: q has wrong type | `{"q":1}` | error: bad input | 1 |');
 });
 
+test("formatSmokeRuns keeps backticks in tool names and arguments inside a longer code fence", () => {
+  const md = formatSmokeRuns([
+    { tool: "run`cmd", kind: "valid-minimal", label: "required parameters only", args: { code: "``x``" }, ok: true, result: {}, durationMs: 2 },
+    { tool: "`quoted`", kind: "valid-minimal", label: "required parameters only", args: {}, ok: true, result: {}, durationMs: 2 },
+  ]);
+  const rows = md.split("\n");
+  assert.equal(rows[2], '| ``run`cmd`` | valid-minimal: required parameters only | ```{"code":"``x``"}``` | ok | 2 |');
+  assert.equal(rows[3], "| `` `quoted` `` | valid-minimal: required parameters only | `{}` | ok | 2 |");
+});
+
 test("toGitHubAnnotations escapes data and properties", () => {
   const out = toGitHubAnnotations(
     [

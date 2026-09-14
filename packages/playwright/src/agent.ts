@@ -101,16 +101,21 @@ export function defineAgent(webmcp: WebMCP, drive: (context: AgentContext) => Pr
   return {
     async run(options) {
       const opts = typeof options === "string" ? { prompts: [options] } : options;
-      const tools = await toolsForAgent(webmcp, { toolNames: opts.toolNames });
       const before = new Set(webmcp.calls());
       const controller = new AbortController();
       const timeoutMs = opts.timeoutMs ?? 60_000;
       const timer = setTimeout(() => controller.abort(new Error(`Agent run exceeded ${timeoutMs} ms`)), timeoutMs);
-      const result: AgentRunResult = { status: "ok", responses: [], calls: [], toolsOffered: tools.map((t) => t.name) };
+      const result: AgentRunResult = { status: "ok", responses: [], calls: [], toolsOffered: [] };
+      const aborted = new Promise<never>((_resolve, reject) =>
+        controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }),
+      );
       try {
+        // Discovering the tools counts against the budget too, and a page whose getTools() fails is an error, not a crash.
+        const tools = await Promise.race([toolsForAgent(webmcp, { toolNames: opts.toolNames }), aborted]);
+        result.toolsOffered = tools.map((t) => t.name);
         const outcome = await Promise.race([
           drive({ webmcp, tools, prompts: opts.prompts, systemPrompt: opts.systemPrompt, signal: controller.signal }),
-          new Promise<never>((_resolve, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true })),
+          aborted,
         ]);
         result.responses = typeof outcome === "string" ? [outcome] : Array.isArray(outcome) ? outcome : (outcome?.responses ?? []);
         if (controller.signal.aborted) {

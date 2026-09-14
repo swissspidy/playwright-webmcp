@@ -29,7 +29,12 @@ export function defineShopTool(tool) {
   return { ...tool, annotations: { consequentialHint: true, ...tool.annotations } };
 }
 
-export const addToCartTool = (cart, setCart) =>
+/**
+ * `addToCart` appends an item and returns the new cart. It reads the current
+ * cart from a ref rather than from render state, so two agent calls in a row
+ * both land even when React has not re-rendered in between.
+ */
+export const addToCartTool = (addToCart) =>
   defineShopTool({
     name: "add_to_cart",
     description: "Add a product to the shopping cart by product id, with an optional quantity. Returns the cart total.",
@@ -44,8 +49,7 @@ export const addToCartTool = (cart, setCart) =>
     execute({ productId, quantity = 1 }) {
       const product = catalogue.find((p) => p.id === productId);
       if (!product) throw new Error(`Unknown product ${productId}`);
-      const next = [...cart, { product, quantity }];
-      setCart(next);
+      const next = addToCart({ product, quantity });
       return { items: next.length, total: next.reduce((sum, item) => sum + item.product.price * item.quantity, 0) };
     },
   });

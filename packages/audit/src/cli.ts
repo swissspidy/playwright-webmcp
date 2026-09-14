@@ -30,8 +30,9 @@ Options:
   --baseline <file>     A previous report.json; report tools whose description, schema
                         or annotations changed on a page since then (contract-changed)
   --header <name: value>
-                        HTTP header sent with every request, e.g. an Authorization
-                        header for a protected staging site; repeatable
+                        HTTP header sent with every request to the audited origin
+                        (not to third-party frames or resources), e.g. an
+                        Authorization header for a protected staging site; repeatable
   --settle <ms>         Wait this long after load for tools to register (default 500)
   --out <dir>           Output directory (default .webmcp-audit)
   --format <format>     What to print: md (default, the Markdown report), json (the
@@ -63,8 +64,9 @@ export function parseHeaders(specs: string[]): Record<string, string> {
   const out: Record<string, string> = {};
   for (const spec of specs) {
     const colon = spec.indexOf(":");
-    if (colon <= 0) fail(`--header expects "Name: value", got ${JSON.stringify(spec)}`);
-    out[spec.slice(0, colon).trim()] = spec.slice(colon + 1).trim();
+    const name = colon > 0 ? spec.slice(0, colon).trim() : "";
+    if (!name) fail(`--header expects "Name: value", got ${JSON.stringify(spec)}`);
+    out[name] = spec.slice(colon + 1).trim();
   }
   return out;
 }
@@ -76,7 +78,10 @@ function readBaseline(path: string): Pick<AuditReport, "pages"> {
   } catch (err) {
     return fail(`could not read --baseline ${path}: ${(err as Error).message}`);
   }
-  if (!parsed || typeof parsed !== "object" || !Array.isArray((parsed as AuditReport).pages)) fail(`--baseline ${path} is not a webmcp-audit report.json`);
+  const pages = (parsed as AuditReport | null)?.pages;
+  const isPage = (p: unknown) =>
+    Boolean(p && typeof p === "object" && typeof (p as { url?: unknown }).url === "string" && typeof (p as { status?: unknown }).status === "string");
+  if (!parsed || typeof parsed !== "object" || !Array.isArray(pages) || !pages.every(isPage)) fail(`--baseline ${path} is not a webmcp-audit report.json`);
   return parsed as Pick<AuditReport, "pages">;
 }
 
@@ -156,12 +161,13 @@ async function main(): Promise<number> {
   mkdirSync(values.out, { recursive: true });
   writeFileSync(join(values.out, "report.json"), JSON.stringify(report, null, 2) + "\n");
   writeFileSync(join(values.out, "report.md"), renderMarkdown(report));
+  // The step summary is a report destination like --out, not console output, so --quiet does not suppress it.
+  if (format === "github" && process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, renderMarkdown(report) + "\n");
   if (!values.quiet) {
     if (format === "json") console.log(JSON.stringify(report, null, 2));
     else if (format === "github") {
       const annotations = toGitHubAnnotations(report.findings, { tool: "webmcp-audit" });
       if (annotations) console.log(annotations);
-      if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, renderMarkdown(report) + "\n");
     } else console.log(renderMarkdown(report));
   }
   const failedPages = report.pages.filter((p) => p.status === "error");

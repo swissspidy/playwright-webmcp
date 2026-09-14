@@ -1,14 +1,21 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useWebMCP } from "use-webmcp-tool";
 import { addToCartTool, catalogue, searchTool } from "./tools.js";
 
 export function App() {
   const [cart, setCart] = useState([]);
   const [subscribed, setSubscribed] = useState("");
+  // The cart as the tools see it: updated synchronously, so consecutive calls do not read stale state.
+  const cartRef = useRef(cart);
+  const addToCart = (item) => {
+    cartRef.current = [...cartRef.current, item];
+    setCart(cartRef.current);
+    return cartRef.current;
+  };
 
   // Imperative tools: registered while the component is mounted, unregistered on unmount.
   const search = useWebMCP(searchTool);
-  useWebMCP(addToCartTool(cart, setCart));
+  useWebMCP(addToCartTool(addToCart));
 
   // A declarative tool: the form itself, with a name, a description and labelled fields.
   function onSubscribe(event) {

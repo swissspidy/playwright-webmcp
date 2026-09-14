@@ -110,9 +110,12 @@ export class WebMCP {
     if (this.installed) return;
     this.installed = true;
     if (this.options.record) {
-      await this.page.exposeBinding("__webmcpReport", (_source, json: string) => {
+      await this.page.exposeBinding("__webmcpReport", (source, json: string) => {
         const entry = JSON.parse(json) as { kind?: string } & Record<string, unknown>;
         if (entry.kind === "registration") {
+          // A report from a document that has since been navigated away can arrive after the
+          // navigation reset the timeline; it belongs to the old page, not this one.
+          if (typeof entry.frameUrl === "string" && source.frame.url() !== entry.frameUrl) return;
           this.timelineEvents.push({
             type: entry.type as RegistrationEvent["type"],
             name: String(entry.name),
@@ -172,6 +175,15 @@ export class WebMCP {
     // With the CDP registry at hand a page-side getTools() that hangs is not fatal, so wait less for it.
     const getToolsTimeoutMs = this.cdp?.enabled ? 1000 : 3000;
     const results = await Promise.all(frames.map((f) => collectInFrame(f, getToolsTimeoutMs)));
+    // Playwright and CDP both list frames parents first, siblings in document order, so the n-th
+    // frame with a URL on one side is the n-th with that URL on the other. Matching by URL alone
+    // would give two same-URL iframes each other's tools.
+    const registryFor = (i: number): CdpTool[] => {
+      const url = frames[i].url();
+      const position = frames.slice(0, i).filter((f) => f.url() === url).length;
+      const frameId = this.cdp!.frameIdsFor(url)[position];
+      return frameId === undefined ? [] : this.cdp!.list().filter((c) => c.frameId === frameId);
+    };
     if (this.cdp?.enabled) {
       // The browser's registry is the source of truth. When a frame's own getTools() has not
       // caught up with a tool the CDP domain already reported for it, look at that frame again.
@@ -182,9 +194,8 @@ export class WebMCP {
           .filter((i) => {
             const r = results[i];
             if (!r || r.frame.error) return false; // filled from the registry below
-            const url = frames[i].url();
             const listed = new Set(r.tools.map((t) => t.name));
-            return this.cdp!.list().some((c) => this.cdp!.frameUrl(c.frameId) === url && !listed.has(c.name));
+            return registryFor(i).some((c) => !listed.has(c.name));
           });
         if (!lagging.length) break;
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -199,7 +210,7 @@ export class WebMCP {
         // getTools() failed or never settled in this frame (seen on Chrome 154 under load); the
         // registry the browser reported over CDP stands in for it.
         const url = frames[i].url();
-        const fromRegistry = this.cdp.list().filter((c) => this.cdp!.frameUrl(c.frameId) === url);
+        const fromRegistry = registryFor(i);
         if (fromRegistry.length) {
           const frame: FrameCollectResult["frame"] = {
             url,
@@ -232,9 +243,7 @@ export class WebMCP {
     if (this.cdp?.enabled) {
       await this.cdp.refreshFrames();
       for (const tool of snapshot.tools) {
-        const frameUrl = snapshot.frames[tool.frame]?.url;
-        const native =
-          this.cdp.list().find((c) => c.name === tool.name && (this.cdp!.frameUrl(c.frameId) ?? frameUrl) === frameUrl) ?? this.cdp.find(tool.name);
+        const native = registryFor(tool.frame).find((c) => c.name === tool.name) ?? this.cdp.find(tool.name);
         if (!native) continue;
         if (native.location) tool.location = native.location;
         if (native.annotations && !tool.annotations) tool.annotations = { ...native.annotations };

@@ -9,6 +9,7 @@ import { test, expect, defineAgent, toolsForAgent } from "../src/index.js";
 test.describe("bring your own agent", () => {
   test("defineAgent hands the page's tools to a driver and records what it calls", async ({ page, webmcp }) => {
     await page.goto("/");
+    await expect(webmcp).toHaveTool("list_reviews"); // the reviews iframe registers a little after the top page natively
     const seen: string[] = [];
     const agent = defineAgent(webmcp, async ({ tools, prompts, systemPrompt }) => {
       seen.push(systemPrompt ?? "", ...prompts);
@@ -68,6 +69,13 @@ test.describe("bring your own agent", () => {
     const slow = defineAgent(webmcp, ({ signal }) => new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve())));
     const timedOut = await slow.run({ prompts: ["x"], timeoutMs: 100 });
     expect(timedOut.status).toBe("timeout");
+
+    // Tool discovery failing is an error status, not a rejected run.
+    const broken = defineAgent(
+      { tools: async () => Promise.reject(new Error("getTools exploded")), calls: () => [] } as unknown as typeof webmcp,
+      async () => {},
+    );
+    expect(await broken.run("x")).toMatchObject({ status: "error", reason: "getTools exploded", toolsOffered: [] });
 
     const tools = await toolsForAgent(webmcp, { toolNames: ["add_to_cart"] });
     await expect(tools[0].execute({ productId: 999 })).rejects.toThrow(/Unknown product 999/);

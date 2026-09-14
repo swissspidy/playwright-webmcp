@@ -26,6 +26,8 @@ test.describe("prompt api harness", () => {
       ],
     });
     await page.goto("/");
+    // list_reviews lives in the reviews iframe, which natively registers a little after the top page.
+    await expect(webmcp).toHaveTool("list_reviews");
     expect(await promptApi.availability()).toBe("available");
 
     const result = await promptApi.run({ prompts: ["Add two red shirts to my cart"], systemPrompt: "You are a shop assistant." });
@@ -56,6 +58,8 @@ test.describe("prompt api harness", () => {
       ],
     });
     await page.goto("/");
+    // list_reviews lives in the reviews iframe, which natively registers a little after the top page.
+    await expect(webmcp).toHaveTool("list_reviews");
     const evalCase = {
       name: "hat reviews",
       messages: [
@@ -88,6 +92,8 @@ test.describe("prompt api harness", () => {
       ],
     });
     await page.goto("/");
+    // list_reviews lives in the reviews iframe, which natively registers a little after the top page.
+    await expect(webmcp).toHaveTool("list_reviews");
     const evalCase = {
       name: "hat",
       messages: [{ role: "user" as const, type: "message" as const, content: "Find me a hat" }],

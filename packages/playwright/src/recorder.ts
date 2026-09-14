@@ -57,10 +57,12 @@ export const RECORDER_SOURCE = String.raw`(() => {
   }
   function wrapTool(tool) {
     if (tool && typeof tool.execute === "function" && !tool.execute.__webmcpWrapped) {
-      wrappedNames.add(tool.name);
       return Object.assign({}, tool, { execute: wrapExecute(tool.name, tool.execute) });
     }
     return tool;
+  }
+  function isWrapped(tool) {
+    return Boolean(tool && typeof tool.execute === "function");
   }
   function install(mc) {
     if (!mc || mc[marker]) return;
@@ -71,18 +73,31 @@ export const RECORDER_SOURCE = String.raw`(() => {
     const origUnregister = typeof mc.unregisterTool === "function" ? mc.unregisterTool.bind(mc) : null;
     const origClear = typeof mc.clearContext === "function" ? mc.clearContext.bind(mc) : null;
     if (origRegister) mc.registerTool = async (tool, options) => {
-      if (options && options.signal) options.signal.addEventListener("abort", () => reportRegistration("unregistered", tool && tool.name), { once: true });
+      const name = tool && tool.name;
+      // Only a registration the browser accepted is mockable, and only its own abort signal removes it:
+      // a rejected duplicate must neither mark the original nor unmark it later.
       const r = await origRegister(wrapTool(tool), options);
-      reportRegistration("registered", tool && tool.name);
+      if (isWrapped(tool)) wrappedNames.add(name);
+      reportRegistration("registered", name);
+      if (options && options.signal) options.signal.addEventListener("abort", () => {
+        wrappedNames.delete(name);
+        reportRegistration("unregistered", name);
+      }, { once: true });
       return r;
     };
     if (origProvide) mc.provideContext = async (ctx) => {
+      const provided = (ctx && Array.isArray(ctx.tools) ? ctx.tools : []);
       const r = await origProvide(ctx && Array.isArray(ctx.tools) ? Object.assign({}, ctx, { tools: ctx.tools.map(wrapTool) }) : ctx);
-      for (const t of (ctx && ctx.tools) || []) reportRegistration("registered", t && t.name);
+      // provideContext replaces the context's tools, so earlier ones are no longer mockable.
+      wrappedNames.clear();
+      for (const t of provided) {
+        if (isWrapped(t)) wrappedNames.add(t.name);
+        reportRegistration("registered", t && t.name);
+      }
       return r;
     };
-    if (origUnregister) mc.unregisterTool = (name) => { const r = origUnregister(name); reportRegistration("unregistered", name); return r; };
-    if (origClear) mc.clearContext = () => { const r = origClear(); reportRegistration("unregistered", "*"); return r; };
+    if (origUnregister) mc.unregisterTool = (name) => { const r = origUnregister(name); wrappedNames.delete(name); reportRegistration("unregistered", name); return r; };
+    if (origClear) mc.clearContext = () => { const r = origClear(); wrappedNames.clear(); reportRegistration("unregistered", "*"); return r; };
     if (origExecuteTool) {
       mc.executeTool = async (tool, args, options) => {
         const fromFixture = Boolean(options && options.__playwrightWebmcp);

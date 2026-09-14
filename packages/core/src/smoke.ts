@@ -180,10 +180,19 @@ export function formatSmokeRuns(runs: SmokeRun[]): string {
   if (!runs.length) return "";
   const cell = (v: string) => v.replace(/\|/g, "\\|").replace(/\n/g, " ");
   const clip = (v: string, n = 80) => (v.length > n ? `${v.slice(0, n - 1)}…` : v);
+  // A code span whose fence is longer than any backtick run inside it, padded when the content touches the fence.
+  const code = (v: string) => {
+    const longest = Math.max(0, ...(v.match(/`+/g) ?? []).map((run) => run.length));
+    const fence = "`".repeat(longest + 1);
+    const padded = v.startsWith("`") || v.endsWith("`") || (v.startsWith(" ") && v.endsWith(" ")) ? ` ${v} ` : v;
+    return `${fence}${padded}${fence}`;
+  };
   const lines = ["| Tool | Input | Arguments | Outcome | ms |", "| --- | --- | --- | --- | ---: |"];
   for (const r of runs) {
     const outcome = r.ok ? "ok" : `error: ${clip(r.error ?? "unknown", 60)}`;
-    lines.push(`| \`${cell(r.tool)}\` | ${cell(r.kind)}: ${cell(r.label)} | \`${cell(clip(JSON.stringify(r.args)))}\` | ${cell(outcome)} | ${r.durationMs} |`);
+    lines.push(
+      `| ${code(cell(r.tool))} | ${cell(r.kind)}: ${cell(r.label)} | ${code(cell(clip(JSON.stringify(r.args))))} | ${cell(outcome)} | ${r.durationMs} |`,
+    );
   }
   return lines.join("\n");
 }

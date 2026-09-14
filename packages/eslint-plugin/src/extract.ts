@@ -33,6 +33,8 @@ export interface ExtractedTool {
   definition: ToolDefinitionLike;
   /** Top-level fields whose value was not a literal (the definition omits them). */
   dynamic: Set<string>;
+  /** The `exposedTo` value in the options argument, when one was written. */
+  exposedToNode?: Node;
 }
 
 const TS_WRAPPERS = new Set(["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"]);
@@ -89,12 +91,14 @@ export function staticValue(input: Node, resolve: Resolver = identity): Static {
       return out;
     }
     case "ObjectExpression": {
-      const out: Record<string, unknown> = {};
+      // Null-prototype so a literal `__proto__` key is data, not a prototype swap.
+      const out: Record<string, unknown> = Object.create(null);
       for (const prop of node.properties) {
         if (prop.type !== "Property") return DYNAMIC;
         const key = propertyKey(prop);
         if (key === undefined) return DYNAMIC;
-        if (prop.method || prop.kind !== "init") continue;
+        // A method or accessor is code, not data; the object cannot be judged.
+        if (prop.method || prop.kind !== "init") return DYNAMIC;
         const v = staticValue(prop.value as Node, resolve);
         if (v === DYNAMIC) return DYNAMIC;
         if (v !== undefined) out[key] = v;
@@ -106,9 +110,12 @@ export function staticValue(input: Node, resolve: Resolver = identity): Static {
   }
 }
 
-/** Find the property node for a key on an object literal. */
+/** Find the property node for a key on an object literal. The last one wins, as it does at runtime. */
 export function findProperty(obj: ESTree.ObjectExpression, key: string): ESTree.Property | undefined {
-  for (const prop of obj.properties) if (prop.type === "Property" && propertyKey(prop) === key) return prop;
+  for (let i = obj.properties.length - 1; i >= 0; i--) {
+    const prop = obj.properties[i];
+    if (prop.type === "Property" && propertyKey(prop) === key) return prop;
+  }
   return undefined;
 }
 
@@ -132,9 +139,16 @@ export function nodeAtPath(obj: ESTree.ObjectExpression, path: string, resolve: 
 
 const TOOL_FIELDS = ["name", "title", "description", "inputSchema", "annotations"] as const;
 
-function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: Static, resolve: Resolver): ExtractedTool | undefined {
-  const definition: ToolDefinitionLike = { name: "" };
+interface ExposedTo {
+  value: Static;
+  node?: Node;
+}
+
+function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: ExposedTo, resolve: Resolver): ExtractedTool | undefined {
+  const definition: ToolDefinitionLike = Object.assign(Object.create(null), { name: "" });
+  const record = definition as Record<string, unknown>;
   const dynamic = new Set<string>();
+  // Later properties override earlier ones, as they do at runtime.
   for (const prop of obj.properties) {
     if (prop.type !== "Property") {
       dynamic.add("*");
@@ -146,18 +160,20 @@ function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: Static, resolve
       continue;
     }
     if (!(TOOL_FIELDS as readonly string[]).includes(key)) continue;
-    if (prop.method || prop.kind !== "init") {
+    const v = prop.method || prop.kind !== "init" ? DYNAMIC : staticValue(prop.value as Node, resolve);
+    if (v === DYNAMIC) {
       dynamic.add(key);
-      continue;
+      delete record[key];
+    } else {
+      dynamic.delete(key);
+      if (v === undefined) delete record[key];
+      else record[key] = v;
     }
-    const v = staticValue(prop.value as Node, resolve);
-    if (v === DYNAMIC) dynamic.add(key);
-    else if (v !== undefined) (definition as Record<string, unknown>)[key] = v;
   }
   if (dynamic.has("name") || typeof definition.name !== "string") return undefined;
-  if (exposedTo === DYNAMIC) dynamic.add("exposedTo");
-  else if (Array.isArray(exposedTo)) definition.exposedTo = exposedTo.map(String);
-  return { node: obj, definition, dynamic };
+  if (exposedTo.value === DYNAMIC) dynamic.add("exposedTo");
+  else if (Array.isArray(exposedTo.value)) definition.exposedTo = exposedTo.value.map(String);
+  return { node: obj, definition, dynamic, exposedToNode: exposedTo.node };
 }
 
 function calleeName(callee: Node): string | undefined {
@@ -182,15 +198,18 @@ export function toolsFromCall(call: ESTree.CallExpression, sites: DefinitionSite
     if (site.call !== method) continue;
     const arg = argumentAt(call, site.argument ?? 0);
     if (!arg) continue;
-    let exposedTo: Static = undefined;
+    const exposedTo: ExposedTo = { value: undefined };
     if (site.options !== undefined) {
       const options = argumentAt(call, site.options);
       if (options) {
         const opts = unwrap(resolve(options));
         if (opts.type === "ObjectExpression") {
           const prop = findProperty(opts, "exposedTo");
-          exposedTo = prop ? staticValue(prop.value as Node, resolve) : undefined;
-        } else exposedTo = DYNAMIC;
+          if (prop) {
+            exposedTo.node = prop.value as Node;
+            exposedTo.value = staticValue(exposedTo.node, resolve);
+          }
+        } else exposedTo.value = DYNAMIC;
       }
     }
     if (site.tools) {
@@ -204,7 +223,7 @@ export function toolsFromCall(call: ESTree.CallExpression, sites: DefinitionSite
         if (!el || el.type === "SpreadElement") continue;
         const item = unwrap(resolve(el));
         if (item.type !== "ObjectExpression") continue;
-        const extracted = toolFromObject(item, undefined, resolve);
+        const extracted = toolFromObject(item, exposedTo, resolve);
         if (extracted) out.push(extracted);
       }
     } else {

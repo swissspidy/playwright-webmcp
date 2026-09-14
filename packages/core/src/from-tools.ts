@@ -72,7 +72,8 @@ export function snapshotFromTools(tools: ToolDefinitionLike[] | EvalToolsSchema,
       const tool: ToolSnapshot = {
         name: String(t?.name ?? ""),
         description: typeof t?.description === "string" ? t.description : "",
-        inputSchema: t?.inputSchema && typeof t.inputSchema === "object" ? t.inputSchema : null,
+        // A schema that is not an object (a string, a number) is kept, so schema-shape can report it rather than treat it as absent.
+        inputSchema: t?.inputSchema === undefined || t?.inputSchema === null ? null : (t.inputSchema as JsonSchema),
         origin,
         frame: 0,
         source: t?.source === "declarative" ? "declarative" : "imperative",

@@ -13,6 +13,22 @@ test("audit crawls the demo site and reports drift", async ({ browser, baseURL }
   expect(report.pages.every((p) => p.status === "ok")).toBe(true);
   expect(report.tools).toContain("search_products");
   expect(report.tools).toContain("partner_quote");
+  // The header went to the audited origin and not to the partner frame on 127.0.0.1.
+  type Requests = Record<string, Record<string, Record<string, string>>>;
+  const requests = (await (await fetch(`${baseURL}/__requests`)).json()) as Requests;
+  const host = new URL(baseURL!).host;
+  expect(requests[host]["/"]["x-webmcp-audit"]).toBe("1");
+  expect(requests[host]["/frame.html"]["x-webmcp-audit"]).toBe("1");
+  expect(requests["127.0.0.1:4173"]["/partner.html"]).toBeDefined();
+  expect(requests["127.0.0.1:4173"]["/partner.html"]["x-webmcp-audit"]).toBeUndefined();
+  // A same-origin redirect keeps the header; a cross-origin one does not carry it along.
+  await audit({ url: `${baseURL}/__redirect-home`, crawl: false, browser, settleMs: 200, headers: { "x-webmcp-audit": "same-origin" } });
+  await audit({ url: `${baseURL}/__redirect-partner`, crawl: false, browser, settleMs: 200, headers: { "x-webmcp-audit": "cross-origin" } });
+  const afterRedirects = (await (await fetch(`${baseURL}/__requests`)).json()) as Requests;
+  expect(afterRedirects[host]["/__redirect-home"]["x-webmcp-audit"]).toBe("same-origin");
+  expect(afterRedirects[host]["/"]["x-webmcp-audit"]).toBe("same-origin");
+  expect(afterRedirects[host]["/__redirect-partner"]["x-webmcp-audit"]).toBe("cross-origin");
+  expect(afterRedirects["127.0.0.1:4173"]["/partner.html"]["x-webmcp-audit"]).toBeUndefined();
   const drift = report.drift.find((d) => d.tool === "search_products");
   expect(drift?.pages.map((u) => new URL(u).pathname).sort()).toEqual(["/", "/late.html"]);
   expect(drift?.changes.some((c) => c.includes('"category" added'))).toBe(true);

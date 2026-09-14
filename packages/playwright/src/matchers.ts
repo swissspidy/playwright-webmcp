@@ -79,7 +79,11 @@ async function checkTool(webmcp: WebMCP, name: string, expected: ToolExpectation
     problems.push(`no tool named "${name}"; found: ${tools.map((t) => t.name).join(", ") || "(none)"}`);
   } else {
     if (expected.description !== undefined) {
-      const ok = expected.description instanceof RegExp ? expected.description.test(tool.description) : tool.description === expected.description;
+      // A fresh copy so a global or sticky pattern's lastIndex cannot flip the answer between polls.
+      const ok =
+        expected.description instanceof RegExp
+          ? new RegExp(expected.description.source, expected.description.flags).test(tool.description)
+          : tool.description === expected.description;
       if (!ok) problems.push(`description ${JSON.stringify(tool.description)} does not match ${String(expected.description)}`);
     }
     if (expected.inputSchema !== undefined && !matchesArgument(expected.inputSchema, tool.inputSchema)) {
