@@ -255,7 +255,7 @@ The repository's own suites pass on Chrome Beta 154 this way, and CI runs them t
 
 When both the page hooks and the CDP domain observe the same execution, the fixture keeps one record: the page side knows a page script started it (`via: "api"`), the domain knows the fixture did (`"fixture"`), an agent driver did (`"agent"`), or nobody it can see did (`"agent"`).
 
-Two Chrome 154 behaviours the fixture works around rather than mirrors: under load, `getTools()` in a page occasionally never resolves, so the collector bounds it and fills the frame from the registry the CDP domain reported; and the `invokeTool` response can be delivered after the invocation's own events, so the collector queues its request before sending. Set `WEBMCP_DEBUG=1` to log every CDP event and invocation to stderr when something looks off.
+Three Chrome 154 behaviours the fixture works around rather than mirrors: under load, `getTools()` in a page occasionally never resolves, so the collector bounds it and fills the frame from the registry the CDP domain reported; the `invokeTool` response can be delivered after the invocation's own events, so the collector queues its request before sending; and the top frame's aggregated `getTools()` lists a same-origin iframe's tools late or, sometimes, not at all, so the fixture collects every frame itself and `call()` reaches the frame directly, while an agent running inside the page (the `promptApi` fixture) sees only what the page sees. Set `WEBMCP_DEBUG=1` to log every CDP event and invocation to stderr when something looks off.
 
 ### Running against a real model
 

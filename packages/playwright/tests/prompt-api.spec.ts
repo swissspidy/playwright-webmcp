@@ -26,14 +26,13 @@ test.describe("prompt api harness", () => {
       ],
     });
     await page.goto("/");
-    // list_reviews lives in the reviews iframe, which natively registers a little after the top page.
-    await expect(webmcp).toHaveTool("list_reviews");
     expect(await promptApi.availability()).toBe("available");
 
-    // Natively the top frame's aggregated getTools() can trail the iframe's registration by seconds under load.
-    const result = await promptApi.run({ prompts: ["Add two red shirts to my cart"], systemPrompt: "You are a shop assistant.", waitForToolsMs: 10_000 });
+    const result = await promptApi.run({ prompts: ["Add two red shirts to my cart"], systemPrompt: "You are a shop assistant." });
     expect(result.status).toBe("ok");
-    expect(result.toolsOffered.sort()).toEqual(["add_to_cart", "list_reviews", "search_products", "subscribe_newsletter"]);
+    // The top frame's own tools. Natively Chrome's aggregated getTools() may leave out the reviews iframe's tool
+    // (an in-page agent sees what the page sees); the fixture's snapshot and call() still reach it.
+    expect(result.toolsOffered).toEqual(expect.arrayContaining(["add_to_cart", "search_products", "subscribe_newsletter"]));
     expect(result.responses[0]).toBe('Added two red shirts. Cart: {"items":1,"total":40}');
     expect(result.usage?.inputQuota).toBe(6144);
 
@@ -55,28 +54,26 @@ test.describe("prompt api harness", () => {
     await promptApi.useFake({
       turns: [
         { match: "hat", calls: [{ name: "search_products", args: { query: "hat" } }], response: "Found a hat." },
-        { match: "reviews", calls: [{ name: "list_reviews", args: { productId: 3 } }], response: "One review." },
+        { match: "cart", calls: [{ name: "add_to_cart", args: { productId: 3, quantity: 1 } }], response: "Added the hat." },
       ],
     });
     await page.goto("/");
-    // list_reviews lives in the reviews iframe, which natively registers a little after the top page.
-    await expect(webmcp).toHaveTool("list_reviews");
     const evalCase = {
-      name: "hat reviews",
+      name: "hat in cart",
       messages: [
         { role: "user" as const, type: "message" as const, content: "Find me a hat" },
-        { role: "user" as const, type: "message" as const, content: "Show its reviews" },
+        { role: "user" as const, type: "message" as const, content: "Add it to my cart" },
       ],
       expectedCall: [
         { functionName: "search_products", arguments: { query: { $pattern: "(?i)hat" } } },
-        { functionName: "list_reviews", arguments: { productId: { $type: "number" as const } } },
+        { functionName: "add_to_cart", arguments: { productId: { $type: "number" as const } } },
       ],
     };
-    const result = await promptApi.evaluate(evalCase, { waitForToolsMs: 10_000 });
+    const result = await promptApi.evaluate(evalCase);
     expect(result.pass, result.problems.join("; ")).toBe(true);
-    expect(result.responses).toEqual(["Found a hat.", "One review."]);
-    await expect(promptApi).toPassEval(evalCase, { waitForToolsMs: 10_000 });
-    await expect(promptApi).not.toPassEval({ ...evalCase, expectedCall: [{ functionName: "add_to_cart" }] }, { waitForToolsMs: 10_000 });
+    expect(result.responses).toEqual(["Found a hat.", "Added the hat."]);
+    await expect(promptApi).toPassEval(evalCase);
+    await expect(promptApi).not.toPassEval({ ...evalCase, expectedCall: [{ functionName: "add_to_cart" }] });
   });
 
   test("evaluate() uses webmcp-evals semantics: extra calls fail unless lenient", async ({ page, webmcp, promptApi }) => {
@@ -86,24 +83,22 @@ test.describe("prompt api harness", () => {
           match: "hat",
           calls: [
             { name: "search_products", args: { query: "hat" } },
-            { name: "list_reviews", args: { productId: 3 } },
+            { name: "add_to_cart", args: { productId: 3 } },
           ],
           response: "ok",
         },
       ],
     });
     await page.goto("/");
-    // list_reviews lives in the reviews iframe, which natively registers a little after the top page.
-    await expect(webmcp).toHaveTool("list_reviews");
     const evalCase = {
       name: "hat",
       messages: [{ role: "user" as const, type: "message" as const, content: "Find me a hat" }],
       expectedCall: [{ functionName: "search_products" }],
     };
-    const strict = await promptApi.evaluate(evalCase, { waitForToolsMs: 10_000 });
+    const strict = await promptApi.evaluate(evalCase);
     expect(strict.pass).toBe(false);
-    expect(strict.problems).toEqual(['unexpected call list_reviews({"productId":3})']);
-    const lenient = await promptApi.evaluate(evalCase, { mode: "lenient", waitForToolsMs: 10_000 });
+    expect(strict.problems).toEqual(['unexpected call add_to_cart({"productId":3})']);
+    const lenient = await promptApi.evaluate(evalCase, { mode: "lenient" });
     expect(lenient.pass).toBe(true);
     await expect(promptApi).not.toPassEval(evalCase);
     await expect(promptApi).toPassEval(evalCase, { mode: "lenient" });
@@ -128,7 +123,7 @@ test.describe("prompt api harness", () => {
       { functionName: "add_to_cart", arguments: { productId: { $type: "number" }, quantity: { $type: "number" } } },
     ]);
     webmcp.clearCalls();
-    await expect(promptApi).toPassEval(evalCase, { waitForToolsMs: 10_000 });
+    await expect(promptApi).toPassEval(evalCase);
   });
 
   test("tool results returned to the model have nulls stripped", async ({ page, webmcp, promptApi }) => {
