@@ -16,7 +16,8 @@ import { builtinRules, type Rule as LintRule } from "webmcp-lint";
 import { createRule } from "./rule.js";
 
 export { createRule } from "./rule.js";
-export { toolsFromCall, staticValue, DYNAMIC, type ExtractedTool } from "./extract.js";
+export { toolsFromCall, staticValue, DYNAMIC, type ExtractedTool, type Resolver } from "./extract.js";
+export { DEFAULT_DEFINITION_SITES, definitionSites, type DefinitionSite, type DefinitionSiteSetting, type WebMCPSettings } from "./settings.js";
 
 function packageMeta(): { name: string; version: string } {
   const require = createRequire(import.meta.url);

@@ -1,13 +1,16 @@
 /**
- * Turns one tool-scoped webmcp-lint rule into an ESLint rule. Every rule
- * shares the extraction of tool definitions from the file; each runs only its
- * own webmcp-lint rule against each extracted tool and maps the findings back
- * to source locations.
+ * Turns one tool-scoped webmcp-lint rule into an ESLint rule. Each rule
+ * extracts the tool definitions passed to the calls named in the settings,
+ * runs only its own webmcp-lint rule against each, and maps the findings back
+ * to source locations. Nothing beyond the ESLint rule contract is used
+ * (CallExpression visitor, `context.sourceCode.getScope`, `context.settings`,
+ * `context.report`), so the rules also load in oxlint's JS plugin runner.
  */
-import type { Rule as ESLintRule } from "eslint";
+import type { Rule as ESLintRule, Scope } from "eslint";
 import type * as ESTree from "estree";
 import { builtinRules, lintTools, type Finding, type Rule as LintRule } from "webmcp-lint";
-import { findProperty, nodeAtPath, toolsFromCall, type ExtractedTool } from "./extract.js";
+import { findProperty, nodeAtPath, toolsFromCall, unwrap, type ExtractedTool, type Resolver } from "./extract.js";
+import { definitionSites } from "./settings.js";
 
 /** webmcp-lint rules that read a field the extractor may have found to be dynamic. */
 const NEEDS: Record<string, string[]> = {
@@ -38,19 +41,19 @@ function optionSchema(rule: LintRule): ESLintRule.RuleMetaData["schema"] {
   return [{ type: "object", properties, additionalProperties: false }];
 }
 
-function locate(tool: ExtractedTool, finding: Finding): ESTree.Node {
+function locate(tool: ExtractedTool, finding: Finding, resolve: Resolver): ESTree.Node {
   if (finding.path) {
     const schema = findProperty(tool.node, "inputSchema");
     if (schema && schema.value.type !== "AssignmentPattern") {
-      const inner = schema.value as ESTree.Node;
+      const inner = unwrap(resolve(schema.value as ESTree.Node));
       if (inner.type === "ObjectExpression") {
-        const at = nodeAtPath(inner, finding.path);
+        const at = nodeAtPath(inner, finding.path, resolve);
         if (at) return at;
         // A missing property description points at the property itself.
-        const parent = nodeAtPath(inner, finding.path.replace(/\/[^/]+$/, ""));
+        const parent = nodeAtPath(inner, finding.path.replace(/\/[^/]+$/, ""), resolve);
         if (parent) return parent;
       }
-      return inner;
+      return schema.value as ESTree.Node;
     }
   }
   if (finding.ruleId.startsWith("description-")) {
@@ -61,26 +64,41 @@ function locate(tool: ExtractedTool, finding: Finding): ESTree.Node {
   return (name?.value as ESTree.Node | undefined) ?? tool.node;
 }
 
-const cache = new WeakMap<object, ExtractedTool[]>();
-
-/** Tool definitions in a file, computed once per Program node and shared by every rule. */
-function extractAll(program: ESTree.Program, sourceCode: ESLintRule.RuleContext["sourceCode"]): ExtractedTool[] {
-  const hit = cache.get(program);
-  if (hit) return hit;
-  const out: ExtractedTool[] = [];
-  const visit = (node: ESTree.Node | null | undefined): void => {
-    if (!node || typeof node !== "object") return;
-    if (node.type === "CallExpression") out.push(...toolsFromCall(node));
-    const keys = sourceCode.visitorKeys[node.type] ?? [];
-    for (const key of keys) {
-      const child = (node as unknown as Record<string, unknown>)[key];
-      if (Array.isArray(child)) for (const c of child) visit(c as ESTree.Node);
-      else if (child && typeof child === "object" && "type" in (child as object)) visit(child as ESTree.Node);
+/**
+ * Follows an identifier to the literal it was initialised with, when it is a
+ * `const` or `let` declared once in this file. Anything else is returned as is.
+ */
+function makeResolver(sourceCode: ESLintRule.RuleContext["sourceCode"]): Resolver {
+  const seen = new Set<ESTree.Node>();
+  const resolve: Resolver = (node) => {
+    const n = unwrap(node);
+    if (n.type !== "Identifier" || seen.has(n)) return node;
+    let scope: Scope.Scope | null;
+    try {
+      scope = sourceCode.getScope(n);
+    } catch {
+      return node;
     }
+    for (; scope; scope = scope.upper) {
+      const variable = scope.set.get(n.name);
+      if (!variable) continue;
+      if (variable.defs.length !== 1) return node;
+      const def = variable.defs[0];
+      if (def.type !== "Variable" || def.node.type !== "VariableDeclarator" || !def.node.init) return node;
+      const declarator = def.node as ESTree.VariableDeclarator & { parent?: ESTree.Node };
+      const declaration = ((def as { parent?: ESTree.Node | null }).parent ?? declarator.parent) as ESTree.VariableDeclaration | undefined;
+      if (declaration?.type === "VariableDeclaration" && declaration.kind === "var") return node;
+      if (def.node.id.type !== "Identifier") return node;
+      // Only a binding that is never written after its initialiser can be trusted.
+      if (variable.references.some((ref) => ref.isWrite() && !ref.init)) return node;
+      seen.add(n);
+      const target = resolve(def.node.init as ESTree.Node);
+      seen.delete(n);
+      return target;
+    }
+    return node;
   };
-  visit(program);
-  cache.set(program, out);
-  return out;
+  return resolve;
 }
 
 export function createRule(rule: LintRule): ESLintRule.RuleModule {
@@ -96,19 +114,18 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
     },
     create(context) {
       const options = (context.options[0] ?? {}) as Record<string, unknown>;
+      const sites = definitionSites(context.settings);
+      const resolve = makeResolver(context.sourceCode);
+      const rules = Object.fromEntries(builtinRules.map((r) => [r.id, r.id === rule.id ? options : false]));
       return {
-        Program(program) {
-          for (const tool of extractAll(program as ESTree.Program, context.sourceCode)) {
+        CallExpression(node) {
+          for (const tool of toolsFromCall(node as ESTree.CallExpression, sites, resolve)) {
             if ([...tool.dynamic].some((field) => field === "*" || NEEDS[field]?.includes(rule.id))) continue;
-            const result = lintTools([tool.definition], {
-              scope: "tool",
-              rules: Object.fromEntries(builtinRules.map((r) => [r.id, r.id === rule.id ? options : false])),
-              url: context.filename,
-            });
+            const result = lintTools([tool.definition], { scope: "tool", rules, url: context.filename });
             for (const finding of result.findings) {
               if (finding.ruleId !== rule.id) continue;
               context.report({
-                node: locate(tool, finding) as ESLintRule.Node,
+                node: locate(tool, finding, resolve) as ESLintRule.Node,
                 messageId: "finding",
                 data: { message: finding.help ? `${finding.message} ${finding.help}` : finding.message },
               });

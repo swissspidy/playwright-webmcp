@@ -134,7 +134,7 @@ On browsers without the domain the collector stays off and everything falls back
 | Matcher                                                      | Receiver                     | Notes                                                               |
 | ------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------- |
 | `toHaveTool(name, { description?, inputSchema?, source? })`  | `webmcp` or `page`           | `inputSchema` uses subset matching, so partial schemas work.        |
-| `toPassLint({ failOn?, rules?, extraRules? })`               | `webmcp` or `page`           | `failOn` defaults to `"error"`.                                     |
+| `toPassLint({ failOn?, rules?, extraRules?, scope? })`       | `webmcp` or `page`           | `failOn` defaults to `"error"`; `scope: "page"` skips tool rules.   |
 | `toPassSmoke({ tools?, all?, kinds?, failOn?, ...budgets })` | `webmcp` or `page`           | Runtime findings from generated inputs.                             |
 | `toMatchToolContract(name?)`                                 | `webmcp` or `page`           | Compares against the stored contract; honours `--update-snapshots`. |
 | `toReachTool(name, { from? })`                               | `webmcp` or `page`           | Reachability through the API from a frame.                          |
@@ -316,6 +316,8 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 
 The declarative rules are tool-scoped but read `<form>` markup, so they run from a page snapshot rather than from the ESLint plugin.
 
+A project that runs the ESLint plugin can keep its Playwright assertion to the page-level rules, so a finding is reported once, where it is fixed: `await expect(webmcp).toPassLint({ scope: "page" })`. Without `scope` the assertion runs everything, which is the right default when there is no static lint.
+
 Configure per rule: `false` disables, a severity string re-levels, an object overrides options.
 
 ```ts
@@ -331,7 +333,7 @@ Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRu
 
 The same engine runs wherever tool definitions are available.
 
-**In ESLint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()` and `provideContext({ tools })`. Literal fields are read; computed ones are skipped rather than guessed. It uses the flat-config plugin API only, so linters that load ESLint plugins should accept it, though only ESLint is tested.
+**In ESLint or oxlint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()`, `provideContext({ tools })` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed. The same package loads as an oxlint JS plugin (`"jsPlugins": ["eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js

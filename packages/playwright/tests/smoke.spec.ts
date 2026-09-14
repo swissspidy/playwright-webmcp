@@ -4,8 +4,9 @@ test.describe("smoke", () => {
   test("only read-only tools run by default", async ({ page, webmcp }) => {
     await page.goto("/");
     const report = await webmcp.smoke();
-    expect(report.runs).toHaveLength(0);
-    expect(report.skipped.sort()).toEqual(["add_to_cart", "list_reviews", "search_products", "subscribe_newsletter"]);
+    expect([...new Set(report.runs.map((r) => r.tool))].sort()).toEqual(["list_reviews", "search_products"]);
+    expect(report.skipped.sort()).toEqual(["add_to_cart", "subscribe_newsletter"]);
+    expect(report.findings.filter((f) => f.severity === "error")).toEqual([]);
   });
 
   test("schema-driven runs judge results", async ({ page, webmcp }) => {

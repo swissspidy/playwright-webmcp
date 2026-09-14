@@ -130,6 +130,50 @@ test("description-injection catches instructions aimed at the agent", () => {
   });
 });
 
+test("definitions behind identifiers and wrappers are found", () => {
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [
+      // var is hoisted and reassignable; not followed.
+      `var tool = { name: "bad name" }; mc.registerTool(tool);`,
+      // Reassigned bindings are not followed.
+      `let tool = { name: "bad name" }; tool = other; mc.registerTool(tool);`,
+      // Unknown wrapper.
+      `defineAgentTool({ name: "bad name" });`,
+    ],
+    invalid: [
+      { code: `const tool = { name: "bad name" }; mc.registerTool(tool);`, errors: [{ messageId: "finding", line: 1, column: 22 }] },
+      { code: `const tools = [{ name: "bad name" }]; mc.provideContext({ tools });`, errors: [{ messageId: "finding", column: 24 }] },
+      { code: `const t = { name: "bad name" }; mc.provideContext({ tools: [t] });`, errors: [{ messageId: "finding", column: 19 }] },
+      // use-webmcp-tool's hook, bare call.
+      { code: `import { useWebMCP } from "use-webmcp-tool"; useWebMCP({ name: "bad name", execute() {} });`, errors: [{ messageId: "finding" }] },
+      // A project-specific wrapper declared in settings.
+      {
+        code: `defineAgentTool({ name: "bad name" }); registry.add({ tools: [{ name: "also bad" }] });`,
+        settings: { webmcp: { definitions: ["defineAgentTool", { call: "add", tools: "tools" }] } },
+        errors: [
+          { messageId: "finding", column: 25 },
+          { messageId: "finding", column: 71 },
+        ],
+      },
+      {
+        code: `register("search", { name: "bad name" });`,
+        settings: { webmcp: { definitions: [{ call: "register", argument: 1 }] } },
+        errors: [{ messageId: "finding" }],
+      },
+    ],
+  });
+  tester.run("schema-no-null-literals", plugin.rules["schema-no-null-literals"], {
+    valid: [`const schema = buildSchema(); mc.registerTool({ name: "ok", inputSchema: schema });`],
+    invalid: [
+      {
+        code: `const schema = { type: "object", properties: { q: { type: "string", default: null } } };
+mc.registerTool({ name: "ok", inputSchema: schema });`,
+        errors: [{ messageId: "finding", line: 1, column: 78 }],
+      },
+    ],
+  });
+});
+
 test("the recommended config lints a file through the ESLint API", async () => {
   const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: [plugin.configs.recommended] });
   const [result] = await eslint.lintText(

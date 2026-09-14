@@ -54,10 +54,68 @@ navigator.modelContext.registerTool({
 
 Rule options are the same objects `webmcp-lint` accepts. `webmcp.configs.all` turns every rule into an error.
 
+## Where definitions are found
+
+Out of the box the plugin looks at the argument of `registerTool()`, the `tools` array of `provideContext()`, and the argument of `useWebMCP()` from [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool), whose object has the same shape. Bare calls and member calls both match, so `useWebMCP({...})` and `document.modelContext.registerTool({...})` are found the same way.
+
+Wrappers of your own are declared once in ESLint's shared `settings`, and every rule picks them up:
+
+```js
+// eslint.config.js
+export default [
+  webmcp.configs.recommended,
+  {
+    settings: {
+      webmcp: {
+        definitions: [
+          "defineAgentTool", // defineAgentTool({ name, description, inputSchema, ... })
+          { call: "register", argument: 1 }, // register("scope", { name, ... })
+          { call: "addTools", tools: "items" }, // addTools({ items: [{ name, ... }, ...] })
+        ],
+      },
+    },
+  },
+];
+```
+
+An entry is a call name, or `{ call, argument = 0, tools?, options? }`: `argument` is the index of the definition, `tools` names the property holding an array of definitions, and `options` is the index of an argument that may carry `exposedTo`. Entries add to the defaults.
+
+The definition does not have to be inline. An identifier is followed to its initialiser when it is a `const` or `let` declared once in the same file and never reassigned, so this is linted too, with findings pointing into the literal:
+
+```js
+const searchTool = { name: "search", description: "...", inputSchema: {...}, execute };
+useWebMCP(searchTool);
+```
+
 ## What it can and cannot see
 
-The plugin reads literals: strings, numbers, booleans, arrays and nested objects, including values wrapped in `as const` or `satisfies` when a TypeScript parser is used. A field whose value is computed (a variable, a function call, a template with expressions, a spread) is treated as unknown, and the rules that depend on that field are skipped for that tool rather than guessed at. A tool whose `name` is not a literal is not linted at all.
+The plugin reads literals: strings, numbers, booleans, arrays and nested objects, including values wrapped in `as const` or `satisfies` when a TypeScript parser is used. A field whose value is computed (an import, a function call, a template with expressions, a spread) is treated as unknown, and the rules that depend on that field are skipped for that tool rather than guessed at. A tool whose `name` is not a literal is not linted at all. Definitions built by a helper in another module are out of reach; lint those with `lintTools()` from `webmcp-lint` in a unit test, or at runtime with `playwright-webmcp`.
 
 Rules that need the whole page are not here on purpose: duplicate names, near-identical descriptions, tool count, cross-origin frames, and the declarative `<form toolname>` rules depend on what the page actually registers at runtime. Run those with [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp) in a test, or with [`webmcp-audit`](https://www.npmjs.com/package/webmcp-audit) against a URL. The rule list and severities are documented in the [repository README](https://github.com/swissspidy/playwright-webmcp#readme).
 
-The plugin uses ESLint's flat-config plugin API and has no ESLint-specific dependencies beyond the AST, so it should load in other linters that run ESLint plugins; only ESLint itself is tested.
+## oxlint
+
+The rules use only the ESLint rule contract (a `CallExpression` visitor, `context.sourceCode.getScope`, `context.settings`, `context.report`), so [oxlint](https://oxc.rs/docs/guide/usage/linter/js-plugins.html) loads the package as a JS plugin. The test suite runs the real oxlint binary against it, including `settings` and rule options.
+
+```jsonc
+// .oxlintrc.json
+{
+  "jsPlugins": ["eslint-plugin-webmcp"],
+  "settings": { "webmcp": { "definitions": ["defineAgentTool"] } },
+  "rules": {
+    "webmcp/tool-name-valid": "error",
+    "webmcp/description-missing": "error",
+    "webmcp/description-injection": "error",
+    "webmcp/schema-shape": "error",
+    "webmcp/schema-no-null-literals": "error",
+    "webmcp/exposed-to-secure-origins": "error",
+    "webmcp/description-length": "warn",
+    "webmcp/param-description-missing": "warn",
+    "webmcp/schema-depth": "warn",
+    "webmcp/schema-unsupported-keywords": "warn",
+    "webmcp/sensitive-params": "warn",
+  },
+}
+```
+
+oxlint has no equivalent of `configs.recommended`, so rules are listed individually. Its JS plugin support is marked alpha upstream.

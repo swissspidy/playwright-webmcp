@@ -39,6 +39,9 @@
         ],
         "type": "object"
       },
+      "annotations": {
+        "readOnlyHint": true
+      },
       "source": "imperative",
       "origin": "http://localhost:4173"
     },
@@ -57,6 +60,9 @@
           "query"
         ],
         "type": "object"
+      },
+      "annotations": {
+        "readOnlyHint": true
       },
       "source": "imperative",
       "origin": "http://localhost:4173"

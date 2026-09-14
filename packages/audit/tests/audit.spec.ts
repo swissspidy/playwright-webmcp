@@ -2,7 +2,7 @@ import { test, expect } from "@playwright/test";
 import { audit, renderMarkdown } from "../src/index.js";
 
 test("audit crawls the demo site and reports drift", async ({ browser, baseURL }) => {
-  const report = await audit({ url: baseURL!, maxPages: 6, smoke: true, smokeOptions: { tools: ["search_products"] }, browser, settleMs: 1400 });
+  const report = await audit({ url: baseURL!, maxPages: 6, smoke: true, browser, settleMs: 1400 });
   const urls = report.pages.map((p) => new URL(p.url).pathname).sort();
   expect(urls).toEqual(["/", "/bad.html", "/embed.html", "/late.html"]);
   expect(report.pages.every((p) => p.status === "ok")).toBe(true);
@@ -20,8 +20,14 @@ test("audit crawls the demo site and reports drift", async ({ browser, baseURL }
   expect(md).toContain("Agent readiness:");
   // The smoke section lists every generated input that ran, so "which inputs?" is answered by the report itself.
   const home = report.pages.find((p) => new URL(p.url).pathname === "/")!;
-  expect(home.smoke?.runs.map((r) => r.label)).toEqual(["required parameters only", "query empty string", "missing required query", "query has wrong type"]);
-  expect(home.smoke?.skipped).toContain("add_to_cart");
+  expect(home.smoke?.runs.filter((r) => r.tool === "search_products").map((r) => r.label)).toEqual([
+    "required parameters only",
+    "query empty string",
+    "missing required query",
+    "query has wrong type",
+  ]);
+  expect(home.smoke?.skipped.sort()).toEqual(["add_to_cart", "subscribe_newsletter"]);
+  expect([...new Set(home.smoke?.runs.map((r) => r.tool))].sort()).toEqual(["list_reviews", "search_products"]);
   expect(md).toContain("| Tool | Input | Arguments | Outcome | ms |");
   expect(md).toContain('| `search_products` | valid-minimal: required parameters only | `{"query":"example"}` | ok |');
   expect(md).toContain("not called: `add_to_cart`");

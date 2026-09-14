@@ -1,22 +1,31 @@
 /**
  * Finds WebMCP tool definitions in a file and turns the static parts into
- * plain data the webmcp-lint rules can judge. Recognised call shapes:
+ * plain data the webmcp-lint rules can judge. Which calls count as
+ * definition sites comes from ./settings.ts; by default:
  *
  *   x.registerTool({ name, description, inputSchema, annotations, execute }, { exposedTo })
  *   x.provideContext({ tools: [ { ... }, { ... } ] })
+ *   useWebMCP({ name, description, inputSchema, execute })
  *
- * Only literal values are read. A field whose value is computed (a variable,
- * a call, a spread) is reported as dynamic so the rules that depend on it can
- * be skipped for that tool rather than produce false findings.
+ * Only literal values are read. An identifier that refers to a `const` or
+ * `let` initialised with a literal in the same file is followed (`const tool =
+ * {...}; mc.registerTool(tool)`). A field whose value is computed (a call, a
+ * spread, a template with expressions) is reported as dynamic so the rules
+ * that depend on it can be skipped for that tool rather than produce false
+ * findings.
  */
 import type * as ESTree from "estree";
 import type { ToolDefinitionLike } from "webmcp-lint";
+import type { DefinitionSite } from "./settings.js";
 
 type Node = ESTree.Node;
 
 /** Marker for values that cannot be evaluated statically. */
 export const DYNAMIC: unique symbol = Symbol("dynamic");
 export type Static = unknown | typeof DYNAMIC;
+
+/** Follows an expression to the node that holds its value, e.g. an identifier to its initialiser. Returns the input when it cannot. */
+export type Resolver = (node: Node) => Node;
 
 export interface ExtractedTool {
   /** The object literal that defines the tool. */
@@ -26,14 +35,16 @@ export interface ExtractedTool {
   dynamic: Set<string>;
 }
 
-/** Unwrap TypeScript-only wrappers (`x as T`, `x satisfies T`, `x!`) and parentheses. */
 const TS_WRAPPERS = new Set(["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"]);
 
-function unwrap(node: Node): Node {
+/** Unwrap TypeScript-only wrappers (`x as T`, `x satisfies T`, `x!`). */
+export function unwrap(node: Node): Node {
   let n = node as { type: string; expression?: Node };
   while (TS_WRAPPERS.has(n.type) && n.expression) n = n.expression as typeof n;
   return n as Node;
 }
+
+const identity: Resolver = (node) => node;
 
 function propertyKey(prop: ESTree.Property): string | undefined {
   if (prop.computed) {
@@ -48,8 +59,8 @@ function propertyKey(prop: ESTree.Property): string | undefined {
 }
 
 /** Evaluate a literal expression tree to JSON-like data, or DYNAMIC. Functions become DYNAMIC. */
-export function staticValue(input: Node): Static {
-  const node = unwrap(input);
+export function staticValue(input: Node, resolve: Resolver = identity): Static {
+  const node = unwrap(resolve(input));
   switch (node.type) {
     case "Literal":
       if ("regex" in node && node.regex) return DYNAMIC;
@@ -60,7 +71,7 @@ export function staticValue(input: Node): Static {
     case "Identifier":
       return node.name === "undefined" ? undefined : DYNAMIC;
     case "UnaryExpression": {
-      const v = staticValue(node.argument);
+      const v = staticValue(node.argument, resolve);
       if (v === DYNAMIC) return DYNAMIC;
       if (node.operator === "-" && typeof v === "number") return -v;
       if (node.operator === "+" && typeof v === "number") return v;
@@ -71,7 +82,7 @@ export function staticValue(input: Node): Static {
       const out: unknown[] = [];
       for (const el of node.elements) {
         if (!el || el.type === "SpreadElement") return DYNAMIC;
-        const v = staticValue(el);
+        const v = staticValue(el, resolve);
         if (v === DYNAMIC) return DYNAMIC;
         out.push(v);
       }
@@ -84,7 +95,7 @@ export function staticValue(input: Node): Static {
         const key = propertyKey(prop);
         if (key === undefined) return DYNAMIC;
         if (prop.method || prop.kind !== "init") continue;
-        const v = staticValue(prop.value as Node);
+        const v = staticValue(prop.value as Node, resolve);
         if (v === DYNAMIC) return DYNAMIC;
         if (v !== undefined) out[key] = v;
       }
@@ -101,11 +112,11 @@ export function findProperty(obj: ESTree.ObjectExpression, key: string): ESTree.
   return undefined;
 }
 
-/** Follow a JSON-pointer-ish path ("/properties/query/description") through nested object literals. */
-export function nodeAtPath(obj: ESTree.ObjectExpression, path: string): Node | undefined {
+/** Follow a JSON-pointer-ish path ("/properties/query/description") through nested literals. */
+export function nodeAtPath(obj: ESTree.ObjectExpression, path: string, resolve: Resolver = identity): Node | undefined {
   let current: Node = obj;
   for (const segment of path.split("/").filter(Boolean)) {
-    const n = unwrap(current);
+    const n = unwrap(resolve(current));
     if (n.type === "ObjectExpression") {
       const prop = findProperty(n, segment);
       if (!prop) return undefined;
@@ -121,7 +132,7 @@ export function nodeAtPath(obj: ESTree.ObjectExpression, path: string): Node | u
 
 const TOOL_FIELDS = ["name", "title", "description", "inputSchema", "annotations"] as const;
 
-function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: Static): ExtractedTool | undefined {
+function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: Static, resolve: Resolver): ExtractedTool | undefined {
   const definition: ToolDefinitionLike = { name: "" };
   const dynamic = new Set<string>();
   for (const prop of obj.properties) {
@@ -139,7 +150,7 @@ function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: Static): Extrac
       dynamic.add(key);
       continue;
     }
-    const v = staticValue(prop.value as Node);
+    const v = staticValue(prop.value as Node, resolve);
     if (v === DYNAMIC) dynamic.add(key);
     else if (v !== undefined) (definition as Record<string, unknown>)[key] = v;
   }
@@ -151,48 +162,57 @@ function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: Static): Extrac
 
 function calleeName(callee: Node): string | undefined {
   const c = unwrap(callee);
+  if (c.type === "Identifier") return c.name;
   if (c.type !== "MemberExpression") return undefined;
   if (c.computed) return c.property.type === "Literal" && typeof c.property.value === "string" ? c.property.value : undefined;
   return c.property.type === "Identifier" ? c.property.name : undefined;
 }
 
-/** Tools defined by one call expression, if it is a WebMCP registration. */
-export function toolsFromCall(call: ESTree.CallExpression): ExtractedTool[] {
+function argumentAt(call: ESTree.CallExpression, index: number): Node | undefined {
+  const arg = call.arguments[index];
+  return arg && arg.type !== "SpreadElement" ? arg : undefined;
+}
+
+/** Tool definitions passed to one call expression, if it matches a definition site. */
+export function toolsFromCall(call: ESTree.CallExpression, sites: DefinitionSite[], resolve: Resolver = identity): ExtractedTool[] {
   const method = calleeName(call.callee as Node);
-  if (method === "registerTool") {
-    const [tool, options] = call.arguments;
-    if (!tool || tool.type === "SpreadElement") return [];
-    const obj = unwrap(tool);
-    if (obj.type !== "ObjectExpression") return [];
+  if (!method) return [];
+  const out: ExtractedTool[] = [];
+  for (const site of sites) {
+    if (site.call !== method) continue;
+    const arg = argumentAt(call, site.argument ?? 0);
+    if (!arg) continue;
     let exposedTo: Static = undefined;
-    if (options && options.type !== "SpreadElement") {
-      const opts = unwrap(options);
-      if (opts.type === "ObjectExpression") {
-        const prop = findProperty(opts, "exposedTo");
-        exposedTo = prop ? staticValue(prop.value as Node) : undefined;
-      } else exposedTo = DYNAMIC;
+    if (site.options !== undefined) {
+      const options = argumentAt(call, site.options);
+      if (options) {
+        const opts = unwrap(resolve(options));
+        if (opts.type === "ObjectExpression") {
+          const prop = findProperty(opts, "exposedTo");
+          exposedTo = prop ? staticValue(prop.value as Node, resolve) : undefined;
+        } else exposedTo = DYNAMIC;
+      }
     }
-    const extracted = toolFromObject(obj, exposedTo);
-    return extracted ? [extracted] : [];
-  }
-  if (method === "provideContext") {
-    const [ctx] = call.arguments;
-    if (!ctx || ctx.type === "SpreadElement") return [];
-    const obj = unwrap(ctx);
-    if (obj.type !== "ObjectExpression") return [];
-    const tools = findProperty(obj, "tools");
-    if (!tools) return [];
-    const arr = unwrap(tools.value as Node);
-    if (arr.type !== "ArrayExpression") return [];
-    const out: ExtractedTool[] = [];
-    for (const el of arr.elements) {
-      if (!el || el.type === "SpreadElement") continue;
-      const item = unwrap(el);
-      if (item.type !== "ObjectExpression") continue;
-      const extracted = toolFromObject(item, undefined);
+    if (site.tools) {
+      const ctx = unwrap(resolve(arg));
+      if (ctx.type !== "ObjectExpression") continue;
+      const tools = findProperty(ctx, site.tools);
+      if (!tools) continue;
+      const arr = unwrap(resolve(tools.value as Node));
+      if (arr.type !== "ArrayExpression") continue;
+      for (const el of arr.elements) {
+        if (!el || el.type === "SpreadElement") continue;
+        const item = unwrap(resolve(el));
+        if (item.type !== "ObjectExpression") continue;
+        const extracted = toolFromObject(item, undefined, resolve);
+        if (extracted) out.push(extracted);
+      }
+    } else {
+      const obj = unwrap(resolve(arg));
+      if (obj.type !== "ObjectExpression") continue;
+      const extracted = toolFromObject(obj, exposedTo, resolve);
       if (extracted) out.push(extracted);
     }
-    return out;
   }
-  return [];
+  return out;
 }
