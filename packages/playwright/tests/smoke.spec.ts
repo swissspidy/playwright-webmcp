@@ -3,6 +3,7 @@ import { test, expect } from "../src/index.js";
 test.describe("smoke", () => {
   test("only read-only tools run by default", async ({ page, webmcp }) => {
     await page.goto("/");
+    await expect(webmcp).toHaveTool("list_reviews");
     const report = await webmcp.smoke();
     expect([...new Set(report.runs.map((r) => r.tool))].sort()).toEqual(["list_reviews", "search_products"]);
     expect(report.skipped.sort()).toEqual(["add_to_cart", "subscribe_newsletter"]);

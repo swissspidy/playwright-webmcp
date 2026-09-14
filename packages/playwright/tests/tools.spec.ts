@@ -3,7 +3,8 @@ import { test, expect } from "../src/index.js";
 test.describe("tool discovery", () => {
   test("finds imperative, declarative and iframe tools", async ({ page, webmcp }) => {
     await page.goto("/");
-    await webmcp.settle();
+    // Registration is asynchronous (natively in particular); wait for the iframe's tool before a one-shot snapshot.
+    await expect(webmcp).toHaveTool("list_reviews");
     const snapshot = await webmcp.snapshot();
     expect(snapshot.frames).toHaveLength(2);
     expect(["shim", "native"]).toContain(snapshot.frames[0].api);

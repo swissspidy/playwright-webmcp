@@ -84,7 +84,8 @@ test("codegen renders a runnable test", () => {
   const src = toPlaywrightTest({ name: "search", url: "/shop", calls, prompt: "Find hats" });
   assert.match(src, /import \{ test, expect \} from "playwright-webmcp";/);
   assert.match(src, /await page.goto\("\/shop"\);/);
-  assert.match(src, /const run = await webmcp.promptApi.run\("Find hats"\);/);
+  assert.match(src, /async \(\{ page, webmcp, promptApi \}\)/);
+  assert.match(src, /const run = await promptApi.run\("Find hats"\);/);
   assert.match(src, /await webmcp.call\("search_products", \{\s+query: "red"\s+\}\);/);
   assert.match(src, /expect\(webmcp\).toMatchCalls\(/);
 });

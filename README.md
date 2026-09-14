@@ -69,13 +69,13 @@ Eval cases are files you write, in the format `webmcp-evals` reads. Playwright r
 import cases from "./evals.json" with { type: "json" };
 
 for (const evalCase of cases) {
-  test(evalCase.name, async ({ page, webmcp }) => {
+  test(evalCase.name, async ({ page, promptApi }) => {
     await page.goto("/");
     test.skip(
-      (await webmcp.promptApi.availability()) === "unavailable",
+      (await promptApi.availability()) === "unavailable",
       "needs Chrome with the Prompt API",
     );
-    await expect(webmcp).toPassEval(evalCase);
+    await expect(promptApi).toPassEval(evalCase); // or any agent you define, see below
   });
 }
 ```
@@ -97,7 +97,7 @@ export default defineConfig({
 
 ## The fixture
 
-`webmcp` is available in every test. Before navigation it installs two init scripts:
+`webmcp` is available in every test, and `promptApi` next to it for tests that want the on-device model (see [Agents](#agents)). Before navigation `webmcp` installs two init scripts:
 
 - a **shim** implementing `document.modelContext` (also mirrored on `navigator.modelContext`) with `registerTool` including `signal` and `exposedTo`, `getTools` including `fromOrigins`, `executeTool`, `toolchange`, and declarative `<form toolname>` tools with `SubmitEvent.respondWith` and `toolautosubmit`. The pre-spec `unregisterTool`, `provideContext` and `clearContext` are kept for pages written against older explainers. It only activates when the browser has no native WebMCP, so the same tests run on plain Chromium in CI and on Chrome with WebMCP enabled (`chrome://flags/#enable-webmcp-testing`, or the Chrome 149 origin trial).
 - a **recorder** that wraps registration and execution so calls made by page scripts or in-page agents are captured.
@@ -145,6 +145,7 @@ On browsers without the domain the collector stays off and everything falls back
 | `toRegisterToolsWithin(ms)`                                  | `webmcp` or `page`           | Time to first tool registration.                                    |
 | `toHaveCalledTool(name, args?)`                              | `webmcp` or `RecordedCall[]` | `args` accepts the evals constraint operators.                      |
 | `toMatchCalls(expectedCall, { strict? })`                    | `webmcp` or `RecordedCall[]` | Full trajectory check with `ordered`, `unordered`, `optional`.      |
+| `toPassEval(evalCase, { mode?, strict? })`                   | `promptApi` or any agent     | Runs the case through the agent and reconciles its calls.           |
 
 `toHaveTool` and `toReachTool` re-check the page until they pass, or until their negation holds under `.not`, for the expect timeout (5 s by default, `{ timeout }` to change it), because tools register after load and native `getTools()` can lag behind a registration. `call()` waits the same way for a tool that is not there yet and throws `ToolNotFoundError` after its timeout. Snapshot-based methods such as `snapshot()`, `lint()` and `contract()` look once; call `settle()` or wait for the tool first when a page registers late.
 
@@ -155,26 +156,27 @@ Same operators and semantics as `webmcp-evals`: `$pattern` (with `(?i)` style in
 Trajectory matching comes in two modes, because a Playwright assertion and an eval case want different things:
 
 - **Lenient** (default for `toMatchCalls()`): the expectation is a subsequence of what happened. The top level list is ordered, `{ unordered: [...] }` groups may match in any order, `optional: true` calls may be absent, and extra actual calls are tolerated unless `strict` is set. Good for "the agent did at least this".
-- **`mode: "evals"`** (default for `promptApi.evaluate()` and `toPassEval()`): a port of the CLI's own algorithm. Calls are matched positionally, an unordered group draws from a pool of exactly its size, and every actual call the expectation does not explain fails the case. A case that passes here passes in `webmcp-evals`, and vice versa. `evaluateTrajectory()` returns the same per-call rows the CLI reports.
+- **`mode: "evals"`** (default for `evaluateAgent()` and `toPassEval()`): a port of the CLI's own algorithm. Calls are matched positionally, an unordered group draws from a pool of exactly its size, and every actual call the expectation does not explain fails the case. A case that passes here passes in `webmcp-evals`, and vice versa. `evaluateTrajectory()` returns the same per-call rows the CLI reports.
 
-## On-device model runs
+## Agents
 
-`webmcp.promptApi` drives Chrome's Prompt API (`LanguageModel`) inside the page, offering the page's WebMCP tools to the model the way an in-page agent would. Tool results go back to the model as JSON strings with nulls stripped, which is what Chrome accepts.
+Everything above tests the tool surface directly. To test what an agent does with it, the package has one small contract: an agent takes prompts, may call the page's tools, and reports its calls. Two implementations ship, and `toPassEval` accepts either.
+
+### The `promptApi` fixture
+
+`promptApi` drives Chrome's Prompt API (`LanguageModel`, Gemini Nano) inside the page, offering the page's WebMCP tools to the model the way an in-page agent would. It is a separate, lazy fixture: tests that do not ask for it pay nothing. It is the cheapest way to run eval cases locally, and Gemini Nano is not a strong model, so treat its verdicts as a smoke test of your descriptions rather than a benchmark.
 
 ```ts
-test("model can add to cart", async ({ page, webmcp }) => {
+test("model can add to cart", async ({ page, webmcp, promptApi }) => {
   await page.goto("/");
-  test.skip(
-    (await webmcp.promptApi.availability()) === "unavailable",
-    "needs Chrome with the Prompt API",
-  );
+  test.skip((await promptApi.availability()) === "unavailable", "needs Chrome with the Prompt API");
 
-  const result = await webmcp.promptApi.run("Add two red shirts to my cart");
+  const result = await promptApi.run("Add two red shirts to my cart");
   expect(result.status).toBe("ok");
   expect(webmcp).toHaveCalledTool("add_to_cart", { quantity: { $gte: 2 } });
 
-  // Or run a recorded evals case straight against the on-device model:
-  await expect(webmcp).toPassEval(evalCase);
+  // Or run an evals case straight against the on-device model:
+  await expect(promptApi).toPassEval(evalCase);
 });
 ```
 
@@ -183,8 +185,52 @@ test("model can add to cart", async ({ page, webmcp }) => {
 | `exists()`                                                          | Whether `LanguageModel` is defined.                                                         |
 | `availability()`                                                    | `LanguageModel.availability()` for a tool-using session.                                    |
 | `run(prompt \| { prompts, systemPrompt?, toolNames?, timeoutMs? })` | One session, prompts sent in order. Calls the model makes are recorded with `via: "agent"`. |
-| `evaluate(evalCase, { strict? })`                                   | Send the case's user messages and reconcile the calls against `expectedCall`.               |
-| `useFake(plan)`                                                     | Install a scripted `LanguageModel` before navigation for deterministic CI runs.             |
+| `evaluate(evalCase, { mode?, strict? })`                            | Send the case's user messages and reconcile the calls against `expectedCall`.               |
+| `useFake(plan)`                                                     | Install a scripted `LanguageModel` before navigation; a test double for your own harness.   |
+
+Tool results go back to the model as JSON strings with nulls stripped, which is what Chrome accepts.
+
+### Bring your own agent
+
+`defineAgent(webmcp, drive)` turns a function into an agent. The function gets the page's tools as callables (`name`, `description`, `inputSchema`, `readOnly`, `execute()`), the prompts, the system prompt and an abort signal; every `execute()` runs the tool in the page and is recorded with `via: "agent"`. Whatever model or framework you use in Node works, and the stronger the model, the more the eval verdicts mean. With the Vercel AI SDK:
+
+```ts
+import { generateText, jsonSchema, stepCountIs, tool } from "ai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { defineAgent, test, expect } from "playwright-webmcp";
+
+test("a capable model completes the purchase", async ({ page, webmcp }) => {
+  await page.goto("/");
+  const agent = defineAgent(webmcp, async ({ tools, prompts, systemPrompt, signal }) => {
+    const { text } = await generateText({
+      model: anthropic("claude-sonnet-5"),
+      system: systemPrompt,
+      prompt: prompts.join("\n"),
+      tools: Object.fromEntries(
+        tools.map((t) => [
+          t.name,
+          tool({
+            description: t.description,
+            inputSchema: jsonSchema(t.inputSchema),
+            execute: t.execute,
+          }),
+        ]),
+      ),
+      stopWhen: stepCountIs(5),
+      abortSignal: signal,
+    });
+    return text;
+  });
+
+  await expect(agent).toPassEval(evalCase);
+  expect(webmcp).toMatchCalls([
+    { functionName: "search_products" },
+    { functionName: "add_to_cart" },
+  ]);
+});
+```
+
+`agent.run()` returns `{ status, responses, calls, toolsOffered }`; a thrown error becomes `status: "error"` and the timeout `status: "timeout"`. `evaluateAgent(agent, evalCase, options)` is what `toPassEval` calls; `toolsForAgent(webmcp, { toolNames })` gives you the callables without the wrapper, for an agent loop you drive yourself.
 
 ### Running on native WebMCP
 
@@ -205,7 +251,9 @@ The repository's own suites pass on Chrome Beta 154 this way, and CI runs them t
 - Declarative `<select>` fields get a schema with one `const` per option plus `enum`; `schema-unsupported-keywords` skips browser-derived schemas for that reason.
 - A declarative tool without `toolautosubmit` fills the form and keeps the call open until a person submits it; that submit event carries `agentInvoked` and `respondWith`, and the call resolves with what `respondWith()` received. `webmcp.call()` therefore stays pending until the test (or a human) submits; `examples/react-shop` shows the pattern.
 
-When both the page hooks and the CDP domain observe the same execution, the fixture keeps one record: the page side knows a page script started it (`via: "api"`), the domain knows the fixture did (`"fixture"`) or nobody it can see did (`"agent"`).
+When both the page hooks and the CDP domain observe the same execution, the fixture keeps one record: the page side knows a page script started it (`via: "api"`), the domain knows the fixture did (`"fixture"`), an agent driver did (`"agent"`), or nobody it can see did (`"agent"`).
+
+Two Chrome 154 behaviours the fixture works around rather than mirrors: under load, `getTools()` in a page occasionally never resolves, so the collector bounds it and fills the frame from the registry the CDP domain reported; and the `invokeTool` response can be delivered after the invocation's own events, so the collector queues its request before sending. Set `WEBMCP_DEBUG=1` to log every CDP event and invocation to stderr when something looks off.
 
 ### Running against a real model
 
@@ -220,7 +268,7 @@ With `WEBMCP_CDP` set the fixture connects over CDP instead of launching a brows
 ### Deterministic agent tests
 
 ```ts
-await webmcp.promptApi.useFake({
+await promptApi.useFake({
   turns: [
     {
       match: "shirt",
@@ -232,7 +280,7 @@ await webmcp.promptApi.useFake({
 await page.goto("/");
 ```
 
-The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your harness and tool wiring, not the model.
+The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your own Prompt API wiring; a scripted model proves nothing about an eval case, so keep it out of eval suites. For deterministic agent-shaped tests without a model, `defineAgent()` with a scripted driver does the same job in Node.
 
 ## Cross-origin exposure
 
@@ -263,7 +311,7 @@ The recorder timestamps every registration and removal relative to navigation. `
 
 - **Coverage** counts tools and parameters the recorded calls exercised. The reporter aggregates it across the suite into `coverage.json`.
 - **Score** is a 0..100 number with a breakdown: declarations (weight 40) from non-safety lint findings, runtime (30) from smoke findings when a smoke run is supplied, safety (15) from the injection, sensitive-parameter, autosubmit, and exposure rules, and coverage (15). Errors cost 15 points of a category, warnings 5. Categories without input are left out and the rest renormalised.
-- **Codegen** renders a Playwright test from the recording, with `promptApi.run(prompt)` for agent-made calls when a prompt is given, and a `toMatchCalls` assertion.
+- **Codegen** renders a Playwright test from the recording, with the `promptApi` fixture's `run(prompt)` for agent-made calls when a prompt is given, and a `toMatchCalls` assertion.
 - **Docs** renders a Markdown reference of the tools with parameter tables and example calls; the reporter writes it as `TOOLS.md`.
 
 ## Injection scanning
@@ -424,7 +472,7 @@ When a recording is a convenient starting point, `toEvalCase()` from `webmcp-lin
 import { writeFileSync } from "node:fs";
 import { toEvalCase } from "webmcp-lint";
 
-await webmcp.promptApi.run("Add two red shirts to my cart");
+await promptApi.run("Add two red shirts to my cart"); // or agent.run(...)
 const draft = toEvalCase(webmcp.calls(), {
   name: "add two shirts",
   prompt: "Add two red shirts to my cart",
@@ -442,7 +490,7 @@ Chrome reports declarative form problems as DevTools issues (missing tool name o
 - Pre-1.0. APIs will move, and the WebMCP specification itself is still changing (Chrome 149 runs an origin trial).
 - The CDP collector and the fixture are exercised against Google Chrome Beta 154 with `--enable-features=WebMCP` (see [Running on native WebMCP](#running-on-native-webmcp)); the beta channel moves weekly, so the native CI job is informational until the API ships to stable.
 - The shim exists for tests only; it is not a production polyfill. Its cross-origin bridge approximates `exposedTo` and `allow="tools"` over `postMessage`; it does not implement `requestUserInteraction` or `toolcanceled`.
-- Page-side recording covers executions that go through `modelContext` in the page, including the ones `webmcp.promptApi` triggers. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
+- Page-side recording covers executions that go through `modelContext` in the page, including the ones the `promptApi` fixture and `defineAgent()` drivers trigger. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.
 - The similarity rule is lexical. Embedding-based similarity was considered and left out for now.
 - On-device runs need Chrome Canary with the flags above; the fake model covers CI.

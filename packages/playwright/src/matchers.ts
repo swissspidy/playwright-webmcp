@@ -14,7 +14,8 @@ import {
   type ToolSource,
 } from "webmcp-lint";
 import { formatScore, type TimelineBudgets } from "webmcp-lint";
-import { WebMCP, type EvalRunOptions } from "./fixture.js";
+import { WebMCP } from "./fixture.js";
+import { evaluateAgent, isAgent, type EvalRunOptions } from "./agent.js";
 import type { SmokeOptions } from "./smoke.js";
 
 export interface ToolExpectation {
@@ -155,15 +156,23 @@ export const expect = baseExpect.extend({
 
   async toMatchToolContract(received: unknown, name?: string) {
     const webmcp = resolve(received);
-    const result = await webmcp.matchToolContract(name);
-    return {
-      pass: result.pass,
-      name: "toMatchToolContract",
-      message: () =>
-        result.pass
-          ? `Expected the tool contract to differ from ${result.path}, but it matched.`
-          : `Tool contract differs from ${result.path}:\n${formatChanges(result.changes)}\nRun with --update-snapshots to accept the change.`,
+    const check = async () => {
+      const result = await webmcp.matchToolContract(name);
+      return {
+        pass: result.pass,
+        name: "toMatchToolContract",
+        message: () =>
+          result.pass
+            ? `Expected the tool contract to differ from ${result.path}, but it matched.`
+            : `Tool contract differs from ${result.path}:\n${formatChanges(result.changes)}\nRun with --update-snapshots to accept the change.`,
+      };
     };
+    // Writing a contract must not capture a page that is still registering; comparing can simply wait.
+    if (webmcp.updatesSnapshots(name)) {
+      await webmcp.settle();
+      return check();
+    }
+    return until(this as MatcherContext, check);
   },
 
   async toReachTool(received: unknown, name: string, options: { from?: number } = {}) {
@@ -221,8 +230,8 @@ export const expect = baseExpect.extend({
   },
 
   async toPassEval(received: unknown, evalCase: EvalCase, options: EvalRunOptions = {}) {
-    const webmcp = resolve(received);
-    const result = await webmcp.promptApi.evaluate(evalCase, options);
+    if (!isAgent(received)) throw new TypeError("toPassEval expects an agent: the promptApi fixture, or defineAgent(webmcp, drive)");
+    const result = await evaluateAgent(received, evalCase, options);
     const label = evalCase.name ?? evalCase.messages.map((m) => ("content" in m ? m.content : m.type)).join(" / ");
     return {
       pass: result.pass,

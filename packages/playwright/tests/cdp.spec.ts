@@ -83,3 +83,28 @@ test("records external invocations as agent calls and own invocations as fixture
   expect(calls[1].error).toBe("boom");
   expect(session.sent.find((s) => s.method === "WebMCP.invokeTool")?.params).toEqual({ frameId: "F1", toolName: "search", input: { query: "shirt" } });
 });
+
+test("invoke() resolves when the tool events are dispatched before the command response settles", async () => {
+  const calls: RecordedCall[] = [];
+  const session = new FakeSession();
+  // Deliver toolInvoked and toolResponded synchronously inside send(), before the
+  // response promise resolves, as happens when Chrome writes them in one chunk.
+  session.send = async function (method: string, params?: Record<string, unknown>) {
+    this.sent.push({ method, params });
+    if (method === "Page.getFrameTree") return { frameTree: { frame: { id: "F1", url: "http://top/" }, childFrames: [] } };
+    if (method === "WebMCP.invokeTool") {
+      const invocationId = `inv-${this.nextInvocation++}`;
+      this.emit("WebMCP.toolInvoked", { toolName: params!.toolName, frameId: "F1", invocationId, input: JSON.stringify(params!.input) });
+      this.emit("WebMCP.toolResponded", { invocationId, status: "Completed", output: { fast: true } });
+      return { invocationId };
+    }
+    return {};
+  };
+  const collector = new CdpCollector(session, { onCall: (c) => calls.push(c) });
+  await collector.enable();
+  session.emit("WebMCP.toolsAdded", { tools: [{ name: "search", description: "", frameId: "F1" }] });
+
+  const outcome = await collector.invoke("search", { query: "shirt" }, undefined, 500, "agent");
+  expect(outcome).toEqual({ ok: true, result: { fast: true }, error: undefined });
+  expect(calls.map((c) => [c.name, c.via, c.source])).toEqual([["search", "agent", "cdp"]]);
+});

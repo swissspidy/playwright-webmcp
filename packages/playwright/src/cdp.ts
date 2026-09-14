@@ -8,6 +8,8 @@
  */
 import type { RecordedCall } from "webmcp-lint";
 
+const debug = process.env.WEBMCP_DEBUG ? (...args: unknown[]) => console.error(`[webmcp cdp ${new Date().toISOString().slice(11, 23)}]`, ...args) : () => {};
+
 export interface CdpLikeSession {
   send(method: string, params?: Record<string, unknown>): Promise<any>;
   on(event: string, handler: (params: any) => void): unknown;
@@ -31,18 +33,34 @@ export interface CdpTool {
   location?: { url: string; line: number; column: number };
 }
 
+type Outcome = { ok: boolean; result?: unknown; error?: string };
+
 interface Pending {
   name: string;
   frameId: string;
   input: Record<string, unknown>;
   startedAt: number;
-  ours: boolean;
-  resolve?: (value: { ok: boolean; result?: unknown; error?: string }) => void;
+  /** The invoke() call that started this invocation, when it was ours. */
+  ticket?: Ticket;
+}
+
+/**
+ * One invoke() call. Created before WebMCP.invokeTool is sent because the
+ * browser can deliver toolInvoked and toolResponded in the same chunk as the
+ * command's response, in which case the events are dispatched before the
+ * response's promise continuation runs.
+ */
+interface Ticket {
+  name: string;
+  via: "fixture" | "agent";
+  invocationId?: string;
+  outcome?: Outcome;
+  resolve?: (outcome: Outcome) => void;
 }
 
 export interface CdpCollectorOptions {
-  /** Called for every completed invocation. */
-  onCall?: (call: RecordedCall) => void;
+  /** Called for every completed invocation; `ours` is true for invocations made through invoke(). */
+  onCall?: (call: RecordedCall, meta: { ours: boolean }) => void;
 }
 
 function parseInput(input: unknown): Record<string, unknown> {
@@ -63,7 +81,10 @@ function keyOf(frameId: string, name: string): string {
 export class CdpCollector {
   private readonly tools = new Map<string, CdpTool>();
   private readonly pending = new Map<string, Pending>();
-  private readonly ownInvocations = new Set<string>();
+  /** invoke() calls whose invocation id is not known yet, per tool name, oldest first. */
+  private readonly waiting = new Map<string, Ticket[]>();
+  /** invoke() calls by invocation id. */
+  private readonly tickets = new Map<string, Ticket>();
   private frameUrls = new Map<string, string>();
   enabled = false;
 
@@ -75,10 +96,28 @@ export class CdpCollector {
   /** Returns false when the browser does not implement the WebMCP domain. */
   async enable(): Promise<boolean> {
     if (this.enabled) return true;
-    this.session.on("WebMCP.toolsAdded", (p) => this.onToolsAdded(p));
-    this.session.on("WebMCP.toolsRemoved", (p) => this.onToolsRemoved(p));
-    this.session.on("WebMCP.toolInvoked", (p) => this.onToolInvoked(p));
-    this.session.on("WebMCP.toolResponded", (p) => this.onToolResponded(p));
+    this.session.on("WebMCP.toolsAdded", (p) => {
+      debug(
+        "toolsAdded",
+        p.tools?.map((t: any) => `${t.name}@${t.frameId}`),
+      );
+      this.onToolsAdded(p);
+    });
+    this.session.on("WebMCP.toolsRemoved", (p) => {
+      debug(
+        "toolsRemoved",
+        p.tools?.map((t: any) => `${t.name}@${t.frameId}`),
+      );
+      this.onToolsRemoved(p);
+    });
+    this.session.on("WebMCP.toolInvoked", (p) => {
+      debug("toolInvoked", p.toolName, p.invocationId, p.input);
+      this.onToolInvoked(p);
+    });
+    this.session.on("WebMCP.toolResponded", (p) => {
+      debug("toolResponded", p.invocationId, p.status, p.errorText ?? "", JSON.stringify(p.output)?.slice(0, 80));
+      this.onToolResponded(p);
+    });
     try {
       await this.session.send("WebMCP.enable");
     } catch {
@@ -131,28 +170,54 @@ export class CdpCollector {
 
   /**
    * Invoke a tool through the browser and wait for its response event.
-   * The protocol sends the invokeTool response before toolInvoked/toolResponded,
-   * so the invocation id is known before either event arrives.
+   * A ticket is queued under the tool's name before the command is sent, so
+   * the toolInvoked event can claim it whether it arrives before or after the
+   * command's response.
    */
-  async invoke(name: string, input: Record<string, unknown>, frameId?: string, timeoutMs = 30_000): Promise<{ ok: boolean; result?: unknown; error?: string }> {
+  async invoke(name: string, input: Record<string, unknown>, frameId?: string, timeoutMs = 30_000, via: "fixture" | "agent" = "fixture"): Promise<Outcome> {
     const tool = this.find(name, frameId);
     if (!tool) throw new Error(`CDP collector knows no tool named "${name}"`);
-    const { invocationId } = await this.session.send("WebMCP.invokeTool", { frameId: tool.frameId, toolName: name, input });
-    this.ownInvocations.add(invocationId);
+    const ticket: Ticket = { name, via };
+    const queue = this.waiting.get(name) ?? [];
+    queue.push(ticket);
+    this.waiting.set(name, queue);
+    let invocationId: string;
+    debug("invoke ->", name, tool.frameId, JSON.stringify(input));
+    try {
+      ({ invocationId } = await this.session.send("WebMCP.invokeTool", { frameId: tool.frameId, toolName: name, input }));
+      debug("invoke <-", name, invocationId, ticket.outcome ? "already responded" : ticket.invocationId ? "claimed" : "awaiting events");
+    } catch (err) {
+      debug("invoke failed", name, String((err as Error)?.message));
+      this.unqueue(ticket);
+      throw err;
+    }
+    if (ticket.outcome) return ticket.outcome;
+    if (ticket.invocationId === undefined) {
+      // The events have not arrived yet; bind the ticket to the id so they find it.
+      this.unqueue(ticket);
+      ticket.invocationId = invocationId;
+      this.tickets.set(invocationId, ticket);
+    }
     return new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
+        this.tickets.delete(invocationId);
         this.pending.delete(invocationId);
         reject(new Error(`Tool "${name}" did not respond within ${timeoutMs} ms`));
       }, timeoutMs);
-      const existing = this.pending.get(invocationId);
-      const entry: Pending = existing ?? { name, frameId: tool.frameId, input, startedAt: Date.now(), ours: true };
-      entry.ours = true;
-      entry.resolve = (value) => {
+      ticket.resolve = (outcome) => {
         clearTimeout(timer);
-        resolve(value);
+        resolve(outcome);
       };
-      this.pending.set(invocationId, entry);
+      if (ticket.outcome) ticket.resolve(ticket.outcome);
     });
+  }
+
+  private unqueue(ticket: Ticket): void {
+    const queue = this.waiting.get(ticket.name);
+    if (!queue) return;
+    const at = queue.indexOf(ticket);
+    if (at >= 0) queue.splice(at, 1);
+    if (!queue.length) this.waiting.delete(ticket.name);
   }
 
   private onToolsAdded(params: { tools: any[] }) {
@@ -175,18 +240,24 @@ export class CdpCollector {
   }
 
   private onToolInvoked(params: { toolName: string; frameId: string; invocationId: string; input: unknown }) {
-    const existing = this.pending.get(params.invocationId);
-    const entry: Pending = existing ?? {
+    let ticket = this.tickets.get(params.invocationId);
+    if (!ticket) {
+      // Events beat the command response: the oldest invoke() waiting on this tool is the one.
+      const claimed = this.waiting.get(params.toolName)?.shift();
+      if (claimed) {
+        if (!this.waiting.get(params.toolName)?.length) this.waiting.delete(params.toolName);
+        claimed.invocationId = params.invocationId;
+        this.tickets.set(params.invocationId, claimed);
+        ticket = claimed;
+      }
+    }
+    this.pending.set(params.invocationId, {
       name: params.toolName,
       frameId: params.frameId,
       input: parseInput(params.input),
       startedAt: Date.now(),
-      ours: this.ownInvocations.has(params.invocationId),
-    };
-    entry.name = params.toolName;
-    entry.frameId = params.frameId;
-    entry.input = parseInput(params.input);
-    this.pending.set(params.invocationId, entry);
+      ticket,
+    });
   }
 
   private onToolResponded(params: {
@@ -199,19 +270,23 @@ export class CdpCollector {
     const entry = this.pending.get(params.invocationId);
     if (!entry) return;
     this.pending.delete(params.invocationId);
-    this.ownInvocations.delete(params.invocationId);
+    this.tickets.delete(params.invocationId);
     const ok = params.status === "Completed";
     const error = ok ? undefined : params.errorText || params.exception?.description || params.status;
+    const ticket = entry.ticket;
     const call: RecordedCall = {
       name: entry.name,
       args: entry.input,
       startedAt: entry.startedAt,
       durationMs: Date.now() - entry.startedAt,
-      via: entry.ours ? "fixture" : "agent",
+      via: ticket ? ticket.via : "agent",
       source: "cdp" as const,
       ...(ok ? { result: params.output } : { error }),
     };
-    this.options.onCall?.(call);
-    entry.resolve?.({ ok, result: params.output, error });
+    this.options.onCall?.(call, { ours: Boolean(ticket) });
+    if (ticket) {
+      ticket.outcome = { ok, result: params.output, error };
+      ticket.resolve?.(ticket.outcome);
+    }
   }
 }
