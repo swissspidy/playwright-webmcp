@@ -106,12 +106,12 @@ export default defineConfig({
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `snapshot()`                                            | Tools and frame facts from every frame, including cross-origin ones (Playwright can evaluate there). |
 | `tools()`, `tool(name)`                                 | Convenience accessors.                                                                               |
-| `call(name, args)`                                      | Execute a tool wherever it lives and record the call.                                                |
+| `call(name, args, { timeoutMs? })`                      | Execute a tool wherever it lives and record the call; waits up to 5 s for the tool to be registered. |
 | `calls()`, `clearCalls()`                               | Recorded calls in execution order, with `via: "fixture" \| "api"`.                                   |
 | `lint(options)`                                         | Run the rules; the result is attached to the test.                                                   |
 | `smoke(options)`                                        | Generate inputs from each tool's schema, execute them, and judge the results.                        |
 | `contract()`, `matchToolContract(name?)`                | The page's tool contract, and a comparison against the stored one.                                   |
-| `settle()`                                              | Wait until calls reported by page scripts have reached the recorder.                                 |
+| `settle({ quietMs?, timeoutMs? })`                      | Wait until page-reported calls have arrived and the registered tool list has stopped changing.       |
 | `reachableTools({ from? })`                             | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`.     |
 | `mock(name, impl)`, `unmock(name)`, `replay(recording)` | Replace tool implementations from the test; replay recorded results.                                 |
 | `timeline(budgets)`                                     | Registration events since navigation, time to first tool, late and churn findings.                   |
@@ -135,16 +135,18 @@ On browsers without the domain the collector stays off and everything falls back
 
 | Matcher                                                      | Receiver                     | Notes                                                               |
 | ------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------- |
-| `toHaveTool(name, { description?, inputSchema?, source? })`  | `webmcp` or `page`           | `inputSchema` uses subset matching, so partial schemas work.        |
+| `toHaveTool(name, { description?, inputSchema?, source? })`  | `webmcp` or `page`           | `inputSchema` uses subset matching. Waits like a locator assertion. |
 | `toPassLint({ failOn?, rules?, extraRules?, scope? })`       | `webmcp` or `page`           | `failOn` defaults to `"error"`; `scope: "page"` skips tool rules.   |
 | `toPassSmoke({ tools?, all?, kinds?, failOn?, ...budgets })` | `webmcp` or `page`           | Runtime findings from generated inputs.                             |
 | `toMatchToolContract(name?)`                                 | `webmcp` or `page`           | Compares against the stored contract; honours `--update-snapshots`. |
-| `toReachTool(name, { from? })`                               | `webmcp` or `page`           | Reachability through the API from a frame.                          |
+| `toReachTool(name, { from? })`                               | `webmcp` or `page`           | Reachability through the API from a frame. Waits like `toHaveTool`. |
 | `toHaveToolCoverage(min)`                                    | `webmcp` or `page`           | Fraction (0..1) or percent of tools called.                         |
 | `toHaveAgentReadinessScore(min, { smoke? })`                 | `webmcp` or `page`           | Score at least `min`.                                               |
 | `toRegisterToolsWithin(ms)`                                  | `webmcp` or `page`           | Time to first tool registration.                                    |
 | `toHaveCalledTool(name, args?)`                              | `webmcp` or `RecordedCall[]` | `args` accepts the evals constraint operators.                      |
 | `toMatchCalls(expectedCall, { strict? })`                    | `webmcp` or `RecordedCall[]` | Full trajectory check with `ordered`, `unordered`, `optional`.      |
+
+`toHaveTool` and `toReachTool` re-check the page until they pass, or until their negation holds under `.not`, for the expect timeout (5 s by default, `{ timeout }` to change it), because tools register after load and native `getTools()` can lag behind a registration. `call()` waits the same way for a tool that is not there yet and throws `ToolNotFoundError` after its timeout. Snapshot-based methods such as `snapshot()`, `lint()` and `contract()` look once; call `settle()` or wait for the tool first when a page registers late.
 
 ### Argument matching
 

@@ -1,6 +1,7 @@
 export {
   test,
   WebMCP,
+  ToolNotFoundError,
   PromptApiHarness,
   DEFAULT_OPTIONS,
   ATTACHMENTS,

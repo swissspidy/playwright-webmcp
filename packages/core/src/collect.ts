@@ -10,12 +10,13 @@ export interface FrameCollectResult {
   tools: Omit<ToolSnapshot, "frame">[];
 }
 
-export async function collectFrame(): Promise<FrameCollectResult> {
+export async function collectFrame(options: { getToolsTimeoutMs?: number } = {}): Promise<FrameCollectResult> {
+  const getToolsTimeoutMs = options.getToolsTimeoutMs ?? 3000;
   const w = window as unknown as Record<string, any>;
   const d = document as unknown as Record<string, any>;
   const api = d.modelContext ?? w.navigator?.modelContext ?? null;
   const shim = Boolean(api && api.__webmcpShim);
-  const frame = {
+  const frame: FrameCollectResult["frame"] = {
     url: location.href,
     origin: location.origin,
     isTop: window === window.top,
@@ -32,9 +33,18 @@ export async function collectFrame(): Promise<FrameCollectResult> {
   let listed: any[] = [];
   if (api && typeof api.getTools === "function") {
     try {
-      listed = (await api.getTools()) ?? [];
-    } catch {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const timeout = new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error(`getTools() did not settle within ${getToolsTimeoutMs} ms`)), getToolsTimeoutMs);
+      });
+      try {
+        listed = (await Promise.race([api.getTools(), timeout])) ?? [];
+      } finally {
+        clearTimeout(timer);
+      }
+    } catch (err) {
       listed = [];
+      frame.error = `getTools() failed: ${String((err as Error)?.message ?? err)}`;
     }
   }
   const seen = new Set<string>();

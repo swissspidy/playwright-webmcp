@@ -154,6 +154,9 @@ export class PromptApiHarness {
 
 const instances = new WeakMap<Page, WebMCP>();
 
+/** Thrown by call() when no frame currently lists the tool; call() retries on it until its timeout. */
+export class ToolNotFoundError extends Error {}
+
 export class WebMCP {
   private recorded: RecordedCall[] = [];
   private installed = false;
@@ -471,8 +474,24 @@ export class WebMCP {
     return result;
   }
 
-  /** Execute a tool through the page's modelContext and record the call. */
-  async call<T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+  /**
+   * Execute a tool through the page's modelContext and record the call.
+   * Waits up to `timeoutMs` (default 5000) for the tool to be registered, since
+   * pages register tools after load and native getTools() can lag behind.
+   */
+  async call<T = unknown>(name: string, args: Record<string, unknown> = {}, options: { timeoutMs?: number } = {}): Promise<T> {
+    const deadline = Date.now() + (options.timeoutMs ?? 5000);
+    for (;;) {
+      try {
+        return await this.callOnce<T>(name, args);
+      } catch (err) {
+        if (!(err instanceof ToolNotFoundError) || Date.now() >= deadline) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+  }
+
+  private async callOnce<T>(name: string, args: Record<string, unknown>): Promise<T> {
     if (this.cdp?.enabled && this.cdp.find(name)) {
       const outcome = await this.cdp.invoke(name, args);
       if (!outcome.ok) throw new Error(`Tool "${name}" failed: ${outcome.error}`);
@@ -482,7 +501,24 @@ export class WebMCP {
     const frames = this.page.frames();
     const results = await Promise.all(frames.map((f) => collectInFrame(f)));
     const owner = frames.find((_f, i) => results[i]?.tools.some((t) => t.name === name));
-    if (!owner) throw new Error(`No WebMCP tool named "${name}" found on ${this.page.url()}`);
+    if (!owner) {
+      const problems = results
+        .map((r, i) => (r === null ? `${frames[i].url()}: evaluate failed` : r.frame.error ? `${r.frame.url}: ${r.frame.error}` : null))
+        .filter(Boolean);
+      const known = results.flatMap((r) => r?.tools.map((t) => t.name) ?? []);
+      throw new ToolNotFoundError(
+        `No WebMCP tool named "${name}" found on ${this.page.url()} (known: ${known.join(", ") || "none"}${
+          this.cdp?.enabled
+            ? `; cdp knows: ${
+                this.cdp
+                  .list()
+                  .map((t) => t.name)
+                  .join(", ") || "none"
+              }`
+            : ""
+        }${problems.length ? `; ${problems.join("; ")}` : ""})`,
+      );
+    }
     const startedAt = Date.now();
     const outcome = await owner.evaluate(
       async ([toolName, toolArgs]) => {
@@ -542,12 +578,28 @@ export class WebMCP {
   }
 
   /**
-   * Wait for calls reported by page scripts to reach the recorder. Binding
-   * calls are delivered in order with other protocol traffic, so one round
-   * trip to the page is enough to flush what the page has already reported.
+   * Wait for calls reported by page scripts to reach the recorder, then for
+   * the set of registered tools to stop changing. Binding calls are delivered
+   * in order with other protocol traffic, so one round trip flushes what the
+   * page has reported; registration is asynchronous (natively in particular),
+   * so the tool list is polled until it is unchanged for `quietMs`.
    */
-  async settle(): Promise<void> {
+  async settle(options: { quietMs?: number; timeoutMs?: number } = {}): Promise<void> {
     await this.page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0))).catch(() => {});
+    const quietMs = options.quietMs ?? 150;
+    const deadline = Date.now() + (options.timeoutMs ?? 2000);
+    const key = async () => {
+      const frames = this.page.frames();
+      const results = await Promise.all(frames.map((f) => collectInFrame(f)));
+      return JSON.stringify(results.map((r) => r?.tools.map((t) => t.name).sort() ?? null));
+    };
+    let previous = await key();
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, quietMs));
+      const next = await key();
+      if (next === previous) return;
+      previous = next;
+    }
   }
 
   /** Attach the current snapshot and calls to the test result (done automatically at teardown). */
@@ -606,7 +658,7 @@ export class WebMCP {
 
 async function collectInFrame(frame: Frame): Promise<FrameCollectResult | null> {
   try {
-    return await frame.evaluate(collectFrame);
+    return await frame.evaluate(collectFrame, {});
   } catch {
     return null;
   }

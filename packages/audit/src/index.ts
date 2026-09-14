@@ -107,6 +107,7 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
   try {
     await page.goto(url, { waitUntil: "load" });
     await page.waitForTimeout(options.settleMs ?? 500);
+    await webmcp.settle();
     const snapshot = await webmcp.snapshot();
     const lintResult = lint(snapshot, options.lint ?? {});
     let smoke: PageAudit["smoke"];

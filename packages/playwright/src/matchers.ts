@@ -50,33 +50,56 @@ function callsOf(received: unknown): RecordedCall[] {
 
 const RANK: Record<Severity, number> = { error: 3, warning: 2, info: 1 };
 
+interface MatcherContext {
+  isNot?: boolean;
+  timeout?: number;
+}
+
+/**
+ * Re-evaluate a snapshot-based check until it holds (or, under `.not`, until
+ * it stops holding) or the expect timeout elapses, the way Playwright's own
+ * locator assertions wait. Tools register after load and native getTools()
+ * can lag, so a single look is the wrong default.
+ */
+async function until<T extends { pass: boolean }>(ctx: MatcherContext, check: () => Promise<T>): Promise<T> {
+  const deadline = Date.now() + (ctx.timeout ?? 5000);
+  for (;;) {
+    const result = await check();
+    if ((ctx.isNot ? !result.pass : result.pass) || Date.now() >= deadline) return result;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+}
+
+async function checkTool(webmcp: WebMCP, name: string, expected: ToolExpectation) {
+  const tools = await webmcp.tools();
+  const tool = tools.find((t) => t.name === name);
+  const problems: string[] = [];
+  if (!tool) {
+    problems.push(`no tool named "${name}"; found: ${tools.map((t) => t.name).join(", ") || "(none)"}`);
+  } else {
+    if (expected.description !== undefined) {
+      const ok = expected.description instanceof RegExp ? expected.description.test(tool.description) : tool.description === expected.description;
+      if (!ok) problems.push(`description ${JSON.stringify(tool.description)} does not match ${String(expected.description)}`);
+    }
+    if (expected.inputSchema !== undefined && !matchesArgument(expected.inputSchema, tool.inputSchema)) {
+      problems.push(...explainMismatch(expected.inputSchema, tool.inputSchema, "inputSchema"));
+    }
+    if (expected.source !== undefined && tool.source !== expected.source) problems.push(`source is ${tool.source}, expected ${expected.source}`);
+  }
+  const pass = problems.length === 0;
+  return {
+    pass,
+    name: "toHaveTool",
+    message: () => (pass ? `Expected page not to expose tool "${name}", but it does.` : `Expected page to expose tool "${name}":\n  ${problems.join("\n  ")}`),
+    actual: tool,
+    expected: { name, ...expected },
+  };
+}
+
 export const expect = baseExpect.extend({
   async toHaveTool(received: unknown, name: string, expected: ToolExpectation = {}) {
     const webmcp = resolve(received);
-    const tools = await webmcp.tools();
-    const tool = tools.find((t) => t.name === name);
-    const problems: string[] = [];
-    if (!tool) {
-      problems.push(`no tool named "${name}"; found: ${tools.map((t) => t.name).join(", ") || "(none)"}`);
-    } else {
-      if (expected.description !== undefined) {
-        const ok = expected.description instanceof RegExp ? expected.description.test(tool.description) : tool.description === expected.description;
-        if (!ok) problems.push(`description ${JSON.stringify(tool.description)} does not match ${String(expected.description)}`);
-      }
-      if (expected.inputSchema !== undefined && !matchesArgument(expected.inputSchema, tool.inputSchema)) {
-        problems.push(...explainMismatch(expected.inputSchema, tool.inputSchema, "inputSchema"));
-      }
-      if (expected.source !== undefined && tool.source !== expected.source) problems.push(`source is ${tool.source}, expected ${expected.source}`);
-    }
-    const pass = problems.length === 0;
-    return {
-      pass,
-      name: "toHaveTool",
-      message: () =>
-        pass ? `Expected page not to expose tool "${name}", but it does.` : `Expected page to expose tool "${name}":\n  ${problems.join("\n  ")}`,
-      actual: tool,
-      expected: { name, ...expected },
-    };
+    return until(this as MatcherContext, () => checkTool(webmcp, name, expected));
   },
 
   async toPassLint(received: unknown, options: LintExpectation = {}) {
@@ -145,16 +168,18 @@ export const expect = baseExpect.extend({
 
   async toReachTool(received: unknown, name: string, options: { from?: number } = {}) {
     const webmcp = resolve(received);
-    const reachable = await webmcp.reachableTools(options);
-    const pass = reachable.some((t) => t.name === name);
-    return {
-      pass,
-      name: "toReachTool",
-      message: () =>
-        pass
-          ? `Expected tool "${name}" not to be reachable from frame ${options.from ?? 0}, but it is.`
-          : `Tool "${name}" is not reachable from frame ${options.from ?? 0}. Reachable: ${reachable.map((t) => `${t.name}${t.remote ? ` (${t.origin})` : ""}`).join(", ") || "(none)"}`,
-    };
+    return until(this as MatcherContext, async () => {
+      const reachable = await webmcp.reachableTools(options);
+      const pass = reachable.some((t) => t.name === name);
+      return {
+        pass,
+        name: "toReachTool",
+        message: () =>
+          pass
+            ? `Expected tool "${name}" not to be reachable from frame ${options.from ?? 0}, but it is.`
+            : `Tool "${name}" is not reachable from frame ${options.from ?? 0}. Reachable: ${reachable.map((t) => `${t.name}${t.remote ? ` (${t.origin})` : ""}`).join(", ") || "(none)"}`,
+      };
+    });
   },
 
   async toHaveToolCoverage(received: unknown, minimum: number) {

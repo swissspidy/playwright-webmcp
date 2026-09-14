@@ -63,6 +63,8 @@ export interface FrameSnapshot {
   api: "native" | "shim" | "none";
   /** For child frames: the raw `allow` attribute of the owning <iframe>, if any. */
   allow?: string | null;
+  /** Set when getTools() threw in this frame; its tools are then unknown rather than absent. */
+  error?: string;
   crossOriginFromTop?: boolean;
 }
 
