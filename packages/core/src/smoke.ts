@@ -146,3 +146,16 @@ export function judgeRuns(runs: SmokeRun[], budgets: SmokeBudgets = {}): SmokeRe
   for (const f of findings) counts[f.severity]++;
   return { runs, findings, counts };
 }
+
+/** Markdown table of the generated inputs a smoke run executed and what came back. */
+export function formatSmokeRuns(runs: SmokeRun[]): string {
+  if (!runs.length) return "";
+  const cell = (v: string) => v.replace(/\|/g, "\\|").replace(/\n/g, " ");
+  const clip = (v: string, n = 80) => (v.length > n ? `${v.slice(0, n - 1)}…` : v);
+  const lines = ["| Tool | Input | Arguments | Outcome | ms |", "| --- | --- | --- | --- | ---: |"];
+  for (const r of runs) {
+    const outcome = r.ok ? "ok" : `error: ${clip(r.error ?? "unknown", 60)}`;
+    lines.push(`| \`${cell(r.tool)}\` | ${cell(r.kind)}: ${cell(r.label)} | \`${cell(clip(JSON.stringify(r.args)))}\` | ${cell(outcome)} | ${r.durationMs} |`);
+  }
+  return lines.join("\n");
+}

@@ -3,6 +3,7 @@ import { defineRule, finding, forEachTool, schemaProperties } from "./helpers.js
 
 export const descriptionInjection = defineRule({
   id: "description-injection",
+  scope: "tool",
   description: "Tool or parameter descriptions must not contain instructions aimed at the agent, role markers, or hidden characters.",
   severity: "error",
   check: (ctx) =>

@@ -1,14 +1,26 @@
 # playwright-webmcp
 
-Testing tools for [WebMCP](https://github.com/webmachinelearning/webmcp) tool surfaces: a lint engine that understands the whole page, a Playwright fixture with matchers and call recording, and a runner for Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) cases that applies the CLI's own semantics inside Playwright.
+Testing tools for [WebMCP](https://github.com/webmachinelearning/webmcp) tool surfaces: a lint engine that understands the whole page, a Playwright fixture with matchers and call recording, an ESLint plugin, a site audit CLI, and a runner for Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) cases that applies the CLI's own semantics inside Playwright.
 
-The shape is deliberately the same as axe-core: one engine that inspects the live page, thin adapters around it.
+The shape is deliberately the same as axe-core: one engine that judges tool definitions, thin adapters around it for wherever those definitions live (source files, a live page in a test, a URL).
 
-| Package                                    | What it is                                                                                                                                                                                                                                                                                          |
-| ------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`webmcp-lint`](packages/core)             | Snapshot model, rules, `lint()`, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. Runs in Node against a snapshot.                                                                                                                 |
-| [`playwright-webmcp`](packages/playwright) | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, mock, drive the on-device model, and run evals cases. Ships a test-time shim so it runs on any Chromium, and a reporter that writes suite-wide `tools.json`, `coverage.json` and `TOOLS.md`. |
-| [`webmcp-audit`](packages/audit)           | CLI and library that crawls a site, lints and smokes every page, detects cross-page drift, and scores agent readiness.                                                                                                                                                                              |
+| Package                                          | What it is                                                                                                                                                                                                                                                                                          |
+| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`webmcp-lint`](packages/core)                   | The engine: snapshot model, rules, `lint()` and `lintTools()`, a `webmcp-lint` CLI for `tools.json` files, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. No dependencies, no browser.                                           |
+| [`eslint-plugin-webmcp`](packages/eslint-plugin) | The tool-scoped rules as ESLint rules, run statically against `registerTool()` literals in your source. `webmcp.configs.recommended` and done.                                                                                                                                                      |
+| [`playwright-webmcp`](packages/playwright)       | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, mock, drive the on-device model, and run evals cases. Ships a test-time shim so it runs on any Chromium, and a reporter that writes suite-wide `tools.json`, `coverage.json` and `TOOLS.md`. |
+| [`webmcp-audit`](packages/audit)                 | CLI and library that crawls a site, lints every page, calls read-only tools with schema-derived inputs, detects cross-page drift, and scores agent readiness. Point it at a URL.                                                                                                                    |
+
+## Which one do I need?
+
+| You want to                                                                   | Use                                                                                                                                    |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| See problems in the editor and fail `eslint` on CI                            | `eslint-plugin-webmcp`. Catches per-tool problems (names, descriptions, schemas, injection) in source, before a browser runs anything. |
+| Test tools end to end: shapes, behaviour, agent trajectories, contracts       | `playwright-webmcp`. The whole page, every frame, real executions, the on-device model, `webmcp-evals` cases.                          |
+| Check a site you do not have the source or tests for                          | `webmcp-audit https://...`. Crawls, lints, optionally calls read-only tools, reports drift and a score.                                |
+| Lint a `tools.json`, a snapshot, or definitions from your own driver or tests | `webmcp-lint`: `lintTools()`, the `webmcp-lint` CLI, or `collectFrame` + `snapshotFromFrames()` with Puppeteer, WebDriver or jsdom.    |
+
+The rule engine is the same in all four; only what feeds it differs. Page-level rules (duplicate names, similar descriptions, tool count, cross-origin frames, declarative forms) need a live page and are therefore not in the ESLint plugin.
 
 ## Quick start
 
@@ -239,7 +251,7 @@ Descriptions are read by every agent that visits a page, and tool results go str
 npx webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
 ```
 
-Crawls same-origin links, lints every page, optionally runs smoke on read-only tools (`--all-tools` widens it), detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. Exit code 1 when any page failed to load or any error-level finding exists, 2 on usage errors. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses the Markdown on stdout, and `--help` lists everything. The same is available as `audit()` from the `webmcp-audit` package.
+Crawls same-origin links, lints every page, detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. With `--smoke` it also calls tools with inputs derived from their schemas, as described under [Smoke](#smoke-runtime-checks-from-schemas): only tools annotated read-only by default, every tool with `--all-tools`. The report lists each input that ran with its arguments and outcome, and says so when a page had no read-only tool to call. Exit code 1 when any page failed to load or a finding at or above `--fail-on` (default `error`) exists, 2 on usage errors. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses the Markdown on stdout, and `--help` lists everything. The same is available as `audit()` from the `webmcp-audit` package.
 
 ## Smoke: runtime checks from schemas
 
@@ -257,7 +269,7 @@ Crawls same-origin links, lints every page, optionally runs smoke on read-only t
 | `result-string-json`           | info     | Returned JSON as a string rather than an object.                             |
 | `result-suspicious-content`    | warning  | Result text looks like an instruction to the agent or has hidden characters. |
 
-Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it.
+Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it. Every run is recorded as a `SmokeRun` (tool, input kind and label, arguments, result or error, duration); `formatSmokeRuns()` renders them as a Markdown table, which is what `webmcp-audit` puts in its report.
 
 ```ts
 await expect(webmcp).toPassSmoke({ tools: ["search_products", "list_reviews"], failOn: "warning" });
@@ -277,30 +289,32 @@ Accept intended changes with `npx playwright test --update-snapshots`. The store
 
 ## Rules
 
-Rules see the whole page: every frame, declarative forms, and all tools together. That is why this is not an ESLint plugin.
+Rules see the whole page: every frame, declarative forms, and all tools together. Each rule declares a scope. **tool** rules judge one definition on its own and also run statically in `eslint-plugin-webmcp` and with `lint({ scope: "tool" })`; **page** rules need everything the page registers and only run against a live page or a snapshot of one.
 
-| Rule                               | Severity | Checks                                                                                           |
-| ---------------------------------- | -------- | ------------------------------------------------------------------------------------------------ |
-| `tool-name-valid`                  | error    | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                         |
-| `description-missing`              | error    | Imperative tools have a description.                                                             |
-| `description-length`               | warning  | Between `min` (20) and `max` (600) characters.                                                   |
-| `param-description-missing`        | warning  | Every input property has a description.                                                          |
-| `schema-shape`                     | error    | Object schema; `required` entries exist in `properties`.                                         |
-| `schema-no-null-literals`          | error    | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                               |
-| `schema-depth`                     | warning  | Property nesting at most `max` (3) levels.                                                       |
-| `schema-unsupported-keywords`      | warning  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.         |
-| `sensitive-params`                 | warning  | Parameter names that look like credentials or payment data.                                      |
-| `duplicate-tool-name`              | error    | Same name registered more than once across frames.                                               |
-| `similar-descriptions`             | warning  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied. |
-| `too-many-tools`                   | warning  | More than `max` (20) tools on a page.                                                            |
-| `no-tools`                         | info     | Page exposes nothing.                                                                            |
-| `iframe-allow-tools`               | info     | Cross-origin frame registers tools but its `<iframe>` lacks `allow="tools"`.                     |
-| `declarative-description`          | error    | `<form toolname>` also has `tooldescription`.                                                    |
-| `declarative-field-description`    | warning  | Each named field has a label or `toolparamdescription`.                                          |
-| `declarative-autosubmit-sensitive` | error    | `toolautosubmit` on forms with password or payment fields.                                       |
-| `description-injection`            | error    | Instructions to the agent, role markers, or hidden characters in descriptions.                   |
-| `naming-consistency`               | warning  | Mixed naming styles across tool or parameter names.                                              |
-| `exposed-to-secure-origins`        | error    | `exposedTo` lists an insecure origin.                                                            |
+| Rule                               | Severity | Scope | Checks                                                                                           |
+| ---------------------------------- | -------- | ----- | ------------------------------------------------------------------------------------------------ |
+| `tool-name-valid`                  | error    | tool  | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                         |
+| `description-missing`              | error    | tool  | Imperative tools have a description.                                                             |
+| `description-length`               | warning  | tool  | Between `min` (20) and `max` (600) characters.                                                   |
+| `param-description-missing`        | warning  | tool  | Every input property has a description.                                                          |
+| `schema-shape`                     | error    | tool  | Object schema; `required` entries exist in `properties`.                                         |
+| `schema-no-null-literals`          | error    | tool  | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                               |
+| `schema-depth`                     | warning  | tool  | Property nesting at most `max` (3) levels.                                                       |
+| `schema-unsupported-keywords`      | warning  | tool  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.         |
+| `sensitive-params`                 | warning  | tool  | Parameter names that look like credentials or payment data.                                      |
+| `duplicate-tool-name`              | error    | page  | Same name registered more than once across frames.                                               |
+| `similar-descriptions`             | warning  | page  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied. |
+| `too-many-tools`                   | warning  | page  | More than `max` (20) tools on a page.                                                            |
+| `no-tools`                         | info     | page  | Page exposes nothing.                                                                            |
+| `iframe-allow-tools`               | info     | page  | Cross-origin frame registers tools but its `<iframe>` lacks `allow="tools"`.                     |
+| `declarative-description`          | error    | tool  | `<form toolname>` also has `tooldescription`.                                                    |
+| `declarative-field-description`    | warning  | tool  | Each named field has a label or `toolparamdescription`.                                          |
+| `declarative-autosubmit-sensitive` | error    | tool  | `toolautosubmit` on forms with password or payment fields.                                       |
+| `description-injection`            | error    | tool  | Instructions to the agent, role markers, or hidden characters in descriptions.                   |
+| `naming-consistency`               | warning  | page  | Mixed naming styles across tool or parameter names.                                              |
+| `exposed-to-secure-origins`        | error    | tool  | `exposedTo` lists an insecure origin.                                                            |
+
+The declarative rules are tool-scoped but read `<form>` markup, so they run from a page snapshot rather than from the ESLint plugin.
 
 Configure per rule: `false` disables, a severity string re-levels, an object overrides options.
 
@@ -311,7 +325,44 @@ await expect(webmcp).toPassLint({
 });
 ```
 
-Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRules`.
+Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRules`; give them `scope: "tool"` when they only read one tool.
+
+## The rules outside Playwright
+
+The same engine runs wherever tool definitions are available.
+
+**In ESLint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()` and `provideContext({ tools })`. Literal fields are read; computed ones are skipped rather than guessed. It uses the flat-config plugin API only, so linters that load ESLint plugins should accept it, though only ESLint is tested.
+
+```js
+// eslint.config.js
+import webmcp from "eslint-plugin-webmcp";
+export default [
+  webmcp.configs.recommended,
+  { rules: { "webmcp/description-length": ["warn", { min: 30 }] } },
+];
+```
+
+**On definitions you already have**, in a unit test of the module that builds your tools, or on the `tools.json` the reporter writes:
+
+```ts
+import { lintTools } from "webmcp-lint";
+
+const result = lintTools(myTools, { rules: { "too-many-tools": { max: 40 } } });
+expect(result.counts.error).toBe(0);
+```
+
+```sh
+npx webmcp-lint .webmcp-report/tools.json --fail-on warning
+```
+
+**With another driver.** `collectFrame` is self-contained and runs in any frame; `snapshotFromFrames()` assembles what the Playwright fixture would have built:
+
+```ts
+import { collectFrame, snapshotFromFrames, lint } from "webmcp-lint";
+
+const frames = await Promise.all(page.frames().map((f) => f.evaluate(collectFrame))); // Puppeteer
+const result = lint(snapshotFromFrames(frames, { url: page.url() }));
+```
 
 ## Development
 
@@ -319,13 +370,13 @@ Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRu
 pnpm install
 pnpm run build           # typecheck resolves workspace packages through their built declarations, so build first
 pnpm run typecheck
-pnpm run test:unit
+pnpm run test:unit       # webmcp-lint and eslint-plugin-webmcp, node --test
 pnpm run test:e2e        # set PW_CHROMIUM=/path/to/chrome to use a specific binary
 pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
 ```
 
-`examples/demo-site` is the page the Playwright suite runs against. The three packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance.
+`examples/demo-site` is the page the Playwright suite runs against. The four packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance.
 
 ## Recordings and evals
 

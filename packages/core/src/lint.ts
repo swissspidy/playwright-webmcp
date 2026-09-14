@@ -13,6 +13,7 @@ export function lint(snapshot: PageSnapshot, options: LintOptions = {}): LintRes
     const cfg = options.rules?.[rule.id];
     if (cfg === false) continue;
     if (cfg === undefined && !rule.enabled) continue;
+    if (options.scope && options.scope !== "all" && (rule.scope ?? "page") !== options.scope) continue;
     let severity: Severity = rule.severity;
     let ruleOptions: Record<string, unknown> = { ...(rule.defaults ?? {}) };
     if (typeof cfg === "string") severity = cfg;

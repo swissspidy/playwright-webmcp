@@ -2,19 +2,31 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
+import type { Severity } from "webmcp-lint";
 import { audit, renderMarkdown } from "./index.js";
+
+const SEVERITY_RANK: Record<Severity, number> = { error: 3, warning: 2, info: 1 };
 
 const HELP = `Usage: webmcp-audit <url> [options]
 
 Crawls same-origin pages from <url>, lints every page's WebMCP tools, optionally
 runs schema-driven smoke calls, and writes report.json and report.md.
-Exits 1 when any page failed to load or any error-level finding exists, 2 on usage errors.
+Exits 1 when any page failed to load or a finding at or above --fail-on exists,
+2 on usage errors.
 
 Options:
   --max-pages <n>       Maximum pages to visit (default 10)
   --no-crawl            Audit only <url>; do not follow links
-  --smoke               Execute generated inputs against read-only tools
-  --all-tools           With --smoke: execute every tool, including ones with side effects
+  --smoke               Call tools with inputs derived from each tool's inputSchema
+                        (required parameters only, all parameters, boundary values,
+                        invalid values) and judge what comes back. Only tools annotated
+                        read-only (readOnlyHint) are called unless --all-tools is given;
+                        the report lists every input that ran.
+  --all-tools           With --smoke: also call tools that are not annotated read-only.
+                        These may have side effects (adding to a cart, sending mail).
+  --fail-on <severity>  Exit 1 when a finding of this severity or worse exists: error
+                        (default), warning, info, or never. Pages that fail to load
+                        always exit 1.
   --settle <ms>         Wait this long after load for tools to register (default 500)
   --out <dir>           Output directory (default .webmcp-audit)
   --executable <path>   Chrome/Chromium binary (default: Playwright's, or $PW_CHROMIUM)
@@ -49,6 +61,7 @@ function parse() {
         "no-crawl": { type: "boolean", default: false },
         smoke: { type: "boolean", default: false },
         "all-tools": { type: "boolean", default: false },
+        "fail-on": { type: "string", default: "error" },
         settle: { type: "string" },
         out: { type: "string", default: ".webmcp-audit" },
         executable: { type: "string" },
@@ -80,6 +93,8 @@ async function main(): Promise<number> {
   } catch {
     fail(`${JSON.stringify(url)} is not a valid URL`);
   }
+  const failOn = String(values["fail-on"]);
+  if (!["error", "warning", "info", "never"].includes(failOn)) fail(`--fail-on expects error, warning, info or never, got ${JSON.stringify(failOn)}`);
   const integer = (name: "max-pages" | "settle"): number | undefined => {
     const raw = values[name];
     if (raw === undefined) return undefined;
@@ -106,7 +121,8 @@ async function main(): Promise<number> {
   if (!values.quiet) console.log(renderMarkdown(report));
   const failedPages = report.pages.filter((p) => p.status === "error");
   if (failedPages.length) console.error(`webmcp-audit: ${failedPages.length} page(s) could not be audited`);
-  return failedPages.length || report.findings.some((f) => f.severity === "error") ? 1 : 0;
+  const threshold = failOn === "never" ? Infinity : SEVERITY_RANK[failOn as Severity];
+  return failedPages.length || report.findings.some((f) => SEVERITY_RANK[f.severity] >= threshold) ? 1 : 0;
 }
 
 try {

@@ -2,6 +2,7 @@ import { defineRule, finding, forEachTool, opt, schemaProperties } from "./helpe
 
 export const descriptionMissing = defineRule({
   id: "description-missing",
+  scope: "tool",
   description: "Every tool needs a non-empty description; agents select tools by it.",
   severity: "error",
   check: (ctx) =>
@@ -15,6 +16,7 @@ export const descriptionMissing = defineRule({
 
 export const descriptionLength = defineRule({
   id: "description-length",
+  scope: "tool",
   description: "Descriptions should be long enough to disambiguate and short enough to fit small model contexts.",
   severity: "warning",
   defaults: { min: 20, max: 600 },
@@ -46,6 +48,7 @@ export const descriptionLength = defineRule({
 
 export const paramDescriptionMissing = defineRule({
   id: "param-description-missing",
+  scope: "tool",
   description: "Each input property should carry a description so the model fills it correctly.",
   severity: "warning",
   check: (ctx) =>

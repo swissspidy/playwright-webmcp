@@ -8,6 +8,7 @@ import { computeCoverage } from "../src/coverage.js";
 import { renderToolDocs } from "../src/docs.js";
 import { computeScore } from "../src/score.js";
 import { judgeTimeline } from "../src/timeline.js";
+import { formatSmokeRuns } from "../src/smoke.js";
 import { toContract } from "../src/contract.js";
 import type { PageSnapshot, RecordedCall } from "../src/types.js";
 
@@ -138,4 +139,16 @@ test("timeline flags late registration and churn", () => {
   assert.deepEqual(ids, ["tool-churn", "tools-after-load"]);
   const late = judgeTimeline([{ type: "registered", name: "x", at: 5000, frameUrl: "u" }]);
   assert.equal(late.findings[0].ruleId, "tools-register-late");
+});
+
+test("formatSmokeRuns renders a Markdown table and escapes pipes", () => {
+  assert.equal(formatSmokeRuns([]), "");
+  const md = formatSmokeRuns([
+    { tool: "search", kind: "valid-minimal", label: "required parameters only", args: { q: "a|b" }, ok: true, result: {}, durationMs: 3 },
+    { tool: "search", kind: "invalid", label: "q has wrong type", args: { q: 1 }, ok: false, error: "bad\ninput", durationMs: 1 },
+  ]);
+  const rows = md.split("\n");
+  assert.equal(rows[0], "| Tool | Input | Arguments | Outcome | ms |");
+  assert.equal(rows[2], '| `search` | valid-minimal: required parameters only | `{"q":"a\\|b"}` | ok | 3 |');
+  assert.equal(rows[3], '| `search` | invalid: q has wrong type | `{"q":1}` | error: bad input | 1 |');
 });

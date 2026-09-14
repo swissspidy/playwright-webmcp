@@ -36,4 +36,4 @@ Suite-wide reports (`tools.json` for `webmcp-evals local`, `coverage.json`, `TOO
 
 Fixture options: `test.use({ webmcpOptions: { shim: "auto" | "always" | "never", record: true, lint: {...}, cdp: "auto" | "never" } })`. Set `WEBMCP_CDP=http://localhost:9222` to run against a Chrome you launched yourself.
 
-The full fixture and matcher reference, the rule list, and the on-device model harness are documented in the [repository README](https://github.com/swissspidy/playwright-webmcp#readme).
+The full fixture and matcher reference, the rule list, and the on-device model harness are documented in the [repository README](https://github.com/swissspidy/playwright-webmcp#readme). For the same rules in the editor and on `eslint` runs, see [`eslint-plugin-webmcp`](https://www.npmjs.com/package/eslint-plugin-webmcp); to audit a URL without a test suite, see [`webmcp-audit`](https://www.npmjs.com/package/webmcp-audit).

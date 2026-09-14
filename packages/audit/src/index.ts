@@ -9,6 +9,7 @@ import {
   formatChanges,
   formatFindings,
   formatScore,
+  formatSmokeRuns,
   lint,
   toContract,
   diffContracts,
@@ -211,12 +212,20 @@ export function renderMarkdown(report: AuditReport): string {
     lines.push(`API: ${p.api}${p.cdp ? " (CDP collector attached)" : ""}. Tools: ${p.contract?.tools.map((t) => `\`${t.name}\``).join(", ") || "none"}.`, "");
     if (p.score) lines.push("```", formatScore(p.score), "```", "");
     if (p.lint?.findings.length) lines.push("Lint:", "", "```", formatFindings(p.lint), "```", "");
-    if (p.smoke)
+    if (p.smoke) {
+      const exercised = new Set(p.smoke.runs.map((r) => r.tool)).size;
       lines.push(
-        `Smoke: ${p.smoke.runs.length} run(s), ${p.smoke.findings.length} finding(s)${p.smoke.skipped.length ? `, skipped ${p.smoke.skipped.join(", ")}` : ""}.`,
+        `Smoke: ${p.smoke.runs.length} generated input(s) against ${exercised} tool(s), ${p.smoke.findings.length} finding(s)${p.smoke.skipped.length ? `; not called: ${p.smoke.skipped.map((t) => `\`${t}\``).join(", ")}` : ""}.`,
         "",
       );
-    if (p.smoke?.findings.length) lines.push("```", formatFindings({ findings: p.smoke.findings, counts: p.smoke.counts, rulesRun: [] }), "```", "");
+      if (!p.smoke.runs.length && p.smoke.skipped.length)
+        lines.push(
+          "No tool on this page is annotated read-only (`readOnlyHint`), so none was called. Annotate the tools that are safe to call, or pass `--all-tools` (`smokeOptions: { all: true }`) to call every tool.",
+          "",
+        );
+      if (p.smoke.findings.length) lines.push("```", formatFindings({ findings: p.smoke.findings, counts: p.smoke.counts, rulesRun: [] }), "```", "");
+      if (p.smoke.runs.length) lines.push(formatSmokeRuns(p.smoke.runs), "");
+    }
   }
   return lines.join("\n");
 }

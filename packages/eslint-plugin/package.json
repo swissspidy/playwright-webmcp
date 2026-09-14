@@ -1,22 +1,24 @@
 {
-  "name": "webmcp-lint",
+  "name": "eslint-plugin-webmcp",
   "version": "0.1.0",
-  "description": "Lint rules, snapshot model, schema-driven smoke checks and a webmcp-evals compatible call matcher for WebMCP tool surfaces.",
+  "description": "ESLint rules that lint WebMCP registerTool() definitions statically, using the webmcp-lint rule engine.",
   "keywords": [
+    "eslint",
+    "eslintplugin",
+    "eslint-plugin",
     "webmcp",
     "lint",
     "mcp",
     "agents",
-    "model-context",
-    "testing"
+    "model-context"
   ],
   "license": "Apache-2.0",
   "author": "Pascal Birchler",
-  "homepage": "https://github.com/swissspidy/playwright-webmcp/tree/main/packages/core#readme",
+  "homepage": "https://github.com/swissspidy/playwright-webmcp/tree/main/packages/eslint-plugin#readme",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/swissspidy/playwright-webmcp.git",
-    "directory": "packages/core"
+    "directory": "packages/eslint-plugin"
   },
   "bugs": {
     "url": "https://github.com/swissspidy/playwright-webmcp/issues"
@@ -28,17 +30,10 @@
   },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
-  "bin": {
-    "webmcp-lint": "./dist/cli.js"
-  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
-    },
-    "./collect": {
-      "types": "./dist/collect.d.ts",
-      "default": "./dist/collect.js"
     },
     "./package.json": "./package.json"
   },
@@ -55,8 +50,16 @@
     "test": "tsc -p tsconfig.test.json && node --test \"dist-test/test/*.test.js\"",
     "prepack": "pnpm run build"
   },
+  "peerDependencies": {
+    "eslint": ">=9.0.0"
+  },
+  "dependencies": {
+    "webmcp-lint": "workspace:*"
+  },
   "devDependencies": {
+    "@types/estree": "^1.0.9",
     "@types/node": "^22.0.0",
+    "eslint": "^10.10.0",
     "typescript": "^5.6.0"
   }
 }

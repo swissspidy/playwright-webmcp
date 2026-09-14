@@ -93,12 +93,21 @@ export interface RuleContext {
   options: Record<string, unknown>;
 }
 
+/**
+ * What a rule needs to see. "tool" rules judge each tool from its own
+ * definition (name, description, schema, annotations, form) and can run on a
+ * single `registerTool()` literal; "page" rules need the whole page (every
+ * tool, every frame). Rules without a scope are treated as "page".
+ */
+export type RuleScope = "tool" | "page";
+
 export interface Rule {
   id: string;
   description: string;
   severity: Severity;
   /** Whether the rule is on by default. */
   enabled: boolean;
+  scope?: RuleScope;
   /** Default options, merged with user options. */
   defaults?: Record<string, unknown>;
   check(ctx: RuleContext): Finding[];
@@ -109,6 +118,11 @@ export interface LintOptions {
   rules?: Record<string, boolean | Severity | Record<string, unknown>>;
   /** Extra rules to run in addition to the built in ones. */
   extraRules?: Rule[];
+  /**
+   * "tool" runs only rules that judge a tool from its own definition, which is
+   * what static analysis of one `registerTool()` call can support. Default "all".
+   */
+  scope?: RuleScope | "all";
 }
 
 export interface LintResult {
