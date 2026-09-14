@@ -72,11 +72,11 @@ test.describe("prompt api harness", () => {
         { functionName: "list_reviews", arguments: { productId: { $type: "number" as const } } },
       ],
     };
-    const result = await promptApi.evaluate(evalCase);
+    const result = await promptApi.evaluate(evalCase, { waitForToolsMs: 10_000 });
     expect(result.pass, result.problems.join("; ")).toBe(true);
     expect(result.responses).toEqual(["Found a hat.", "One review."]);
-    await expect(promptApi).toPassEval(evalCase);
-    await expect(promptApi).not.toPassEval({ ...evalCase, expectedCall: [{ functionName: "add_to_cart" }] });
+    await expect(promptApi).toPassEval(evalCase, { waitForToolsMs: 10_000 });
+    await expect(promptApi).not.toPassEval({ ...evalCase, expectedCall: [{ functionName: "add_to_cart" }] }, { waitForToolsMs: 10_000 });
   });
 
   test("evaluate() uses webmcp-evals semantics: extra calls fail unless lenient", async ({ page, webmcp, promptApi }) => {
@@ -100,10 +100,10 @@ test.describe("prompt api harness", () => {
       messages: [{ role: "user" as const, type: "message" as const, content: "Find me a hat" }],
       expectedCall: [{ functionName: "search_products" }],
     };
-    const strict = await promptApi.evaluate(evalCase);
+    const strict = await promptApi.evaluate(evalCase, { waitForToolsMs: 10_000 });
     expect(strict.pass).toBe(false);
     expect(strict.problems).toEqual(['unexpected call list_reviews({"productId":3})']);
-    const lenient = await promptApi.evaluate(evalCase, { mode: "lenient" });
+    const lenient = await promptApi.evaluate(evalCase, { mode: "lenient", waitForToolsMs: 10_000 });
     expect(lenient.pass).toBe(true);
     await expect(promptApi).not.toPassEval(evalCase);
     await expect(promptApi).toPassEval(evalCase, { mode: "lenient" });
@@ -128,7 +128,7 @@ test.describe("prompt api harness", () => {
       { functionName: "add_to_cart", arguments: { productId: { $type: "number" }, quantity: { $type: "number" } } },
     ]);
     webmcp.clearCalls();
-    await expect(promptApi).toPassEval(evalCase);
+    await expect(promptApi).toPassEval(evalCase, { waitForToolsMs: 10_000 });
   });
 
   test("tool results returned to the model have nulls stripped", async ({ page, webmcp, promptApi }) => {

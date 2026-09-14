@@ -75,7 +75,7 @@ for (const evalCase of cases) {
       (await promptApi.availability()) === "unavailable",
       "needs Chrome with the Prompt API",
     );
-    await expect(promptApi).toPassEval(evalCase); // or any agent you define, see below
+    await expect(promptApi).toPassEval(evalCase); // or expect(webmcp).toPassEval(evalCase, { agent }), see below
   });
 }
 ```
@@ -145,7 +145,7 @@ On browsers without the domain the collector stays off and everything falls back
 | `toRegisterToolsWithin(ms)`                                  | `webmcp` or `page`           | Time to first tool registration.                                    |
 | `toHaveCalledTool(name, args?)`                              | `webmcp` or `RecordedCall[]` | `args` accepts the evals constraint operators.                      |
 | `toMatchCalls(expectedCall, { strict? })`                    | `webmcp` or `RecordedCall[]` | Full trajectory check with `ordered`, `unordered`, `optional`.      |
-| `toPassEval(evalCase, { mode?, strict? })`                   | `promptApi` or any agent     | Runs the case through the agent and reconciles its calls.           |
+| `toPassEval(evalCase, { agent?, mode?, strict? })`           | `webmcp` or `promptApi`      | Runs the case through the agent and reconciles its calls.           |
 
 `toHaveTool` and `toReachTool` re-check the page until they pass, or until their negation holds under `.not`, for the expect timeout (5 s by default, `{ timeout }` to change it), because tools register after load and native `getTools()` can lag behind a registration. `call()` waits the same way for a tool that is not there yet and throws `ToolNotFoundError` after its timeout. Snapshot-based methods such as `snapshot()`, `lint()` and `contract()` look once; call `settle()` or wait for the tool first when a page registers late.
 
@@ -160,7 +160,7 @@ Trajectory matching comes in two modes, because a Playwright assertion and an ev
 
 ## Agents
 
-Everything above tests the tool surface directly. To test what an agent does with it, the package has one small contract: an agent takes prompts, may call the page's tools, and reports its calls. Two implementations ship, and `toPassEval` accepts either.
+Everything above tests the tool surface directly. To test what an agent does with it, `toPassEval` sends an eval case's user messages to an agent and judges the calls the fixture saw. The agent is the `promptApi` fixture for a zero-setup start, or any agent you run from Node.
 
 ### The `promptApi` fixture
 
@@ -192,37 +192,33 @@ Tool results go back to the model as JSON strings with nulls stripped, which is 
 
 ### Bring your own agent
 
-`defineAgent(webmcp, drive)` turns a function into an agent. The function gets the page's tools as callables (`name`, `description`, `inputSchema`, `readOnly`, `execute()`), the prompts, the system prompt and an abort signal; every `execute()` runs the tool in the page and is recorded with `via: "agent"`. Whatever model or framework you use in Node works, and the stronger the model, the more the eval verdicts mean. With the Vercel AI SDK:
+The fixture is the discovery and execution half: `webmcp.tools()` lists what the page registered and `webmcp.call()` runs a tool, the way Puppeteer's `page.webmcp` does. `toolsForAgent(webmcp)` hands the same tools over as callables (`name`, `description`, `inputSchema`, `readOnly`, `execute()`), and every `execute()` runs in the page and is recorded with `via: "agent"`. The agent itself is yours: whatever model or framework you run from Node, and the stronger the model, the more the eval verdicts mean. With the Vercel AI SDK the mapping is one line per tool, and its `ToolLoopAgent` is accepted by `toPassEval` as it is:
 
 ```ts
-import { generateText, jsonSchema, stepCountIs, tool } from "ai";
+import { ToolLoopAgent, jsonSchema, stepCountIs, tool } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import { defineAgent, test, expect } from "playwright-webmcp";
+import { test, expect, toolsForAgent } from "playwright-webmcp";
 
 test("a capable model completes the purchase", async ({ page, webmcp }) => {
   await page.goto("/");
-  const agent = defineAgent(webmcp, async ({ tools, prompts, systemPrompt, signal }) => {
-    const { text } = await generateText({
-      model: anthropic("claude-sonnet-5"),
-      system: systemPrompt,
-      prompt: prompts.join("\n"),
-      tools: Object.fromEntries(
-        tools.map((t) => [
-          t.name,
-          tool({
-            description: t.description,
-            inputSchema: jsonSchema(t.inputSchema),
-            execute: t.execute,
-          }),
-        ]),
-      ),
-      stopWhen: stepCountIs(5),
-      abortSignal: signal,
-    });
-    return text;
+  const tools = Object.fromEntries(
+    (await toolsForAgent(webmcp)).map((t) => [
+      t.name,
+      tool({
+        description: t.description,
+        inputSchema: jsonSchema(t.inputSchema),
+        execute: t.execute,
+      }),
+    ]),
+  );
+  const agent = new ToolLoopAgent({
+    model: anthropic("claude-sonnet-5"),
+    instructions: "You are a shop assistant.",
+    tools,
+    stopWhen: stepCountIs(5),
   });
 
-  await expect(agent).toPassEval(evalCase);
+  await expect(webmcp).toPassEval(evalCase, { agent });
   expect(webmcp).toMatchCalls([
     { functionName: "search_products" },
     { functionName: "add_to_cart" },
@@ -230,7 +226,13 @@ test("a capable model completes the purchase", async ({ page, webmcp }) => {
 });
 ```
 
-`agent.run()` returns `{ status, responses, calls, toolsOffered }`; a thrown error becomes `status: "error"` and the timeout `status: "timeout"`. `evaluateAgent(agent, evalCase, options)` is what `toPassEval` calls; `toolsForAgent(webmcp, { toolNames })` gives you the callables without the wrapper, for an agent loop you drive yourself.
+Under TypeScript, `jsonSchema()` wants a `JSONSchema7`, so cast `t.inputSchema` (`webmcp-lint` types schemas loosely). `toPassEval` sends each user message of the case as a turn and reconciles the calls the fixture recorded meanwhile. The `agent` can be:
+
+- an object with `generate()`, like `ToolLoopAgent`: the first turn is sent as `{ prompt }`, later turns as `{ messages }` carrying the earlier turns and whatever `response.messages` came back, which is how the AI SDK continues a conversation;
+- an object with `run()`, like the `promptApi` fixture (`expect(promptApi).toPassEval(evalCase)` is the same thing without the option);
+- an async function `(prompt, { tools, index, prompts, systemPrompt, signal }) => text`, called once per turn, for a loop you write yourself against any client.
+
+`runAgent(webmcp, agent, { prompts, systemPrompt?, timeoutMs? })` is the driver underneath, for tests that want the run result (`{ status, responses, calls, toolsOffered }`) rather than a verdict; a thrown error becomes `status: "error"` and running past `timeoutMs` `status: "timeout"`. `evaluateAgent(webmcp, agent, evalCase, options)` is what `toPassEval` calls. The package does not depend on the AI SDK; the mapping above is copied into `tests/ai-sdk.spec.ts`, where it runs against the SDK's mock model.
 
 ### Running on native WebMCP
 
@@ -280,7 +282,7 @@ await promptApi.useFake({
 await page.goto("/");
 ```
 
-The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your own Prompt API wiring; a scripted model proves nothing about an eval case, so keep it out of eval suites. For deterministic agent-shaped tests without a model, `defineAgent()` with a scripted driver does the same job in Node.
+The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your own Prompt API wiring; a scripted model proves nothing about an eval case, so keep it out of eval suites. For deterministic agent-shaped tests without a model, a scripted function agent does the same job in Node.
 
 ## Cross-origin exposure
 
@@ -490,7 +492,7 @@ Chrome reports declarative form problems as DevTools issues (missing tool name o
 - Pre-1.0. APIs will move, and the WebMCP specification itself is still changing (Chrome 149 runs an origin trial).
 - The CDP collector and the fixture are exercised against Google Chrome Beta 154 with `--enable-features=WebMCP` (see [Running on native WebMCP](#running-on-native-webmcp)); the beta channel moves weekly, so the native CI job is informational until the API ships to stable.
 - The shim exists for tests only; it is not a production polyfill. Its cross-origin bridge approximates `exposedTo` and `allow="tools"` over `postMessage`; it does not implement `requestUserInteraction` or `toolcanceled`.
-- Page-side recording covers executions that go through `modelContext` in the page, including the ones the `promptApi` fixture and `defineAgent()` drivers trigger. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
+- Page-side recording covers executions that go through `modelContext` in the page, including the ones the `promptApi` fixture and `toolsForAgent()` callables trigger. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.
 - The similarity rule is lexical. Embedding-based similarity was considered and left out for now.
 - On-device runs need Chrome Canary with the flags above; the fake model covers CI.

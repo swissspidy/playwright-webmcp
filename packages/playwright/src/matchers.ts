@@ -15,7 +15,7 @@ import {
 } from "webmcp-lint";
 import { formatScore, type TimelineBudgets } from "webmcp-lint";
 import { WebMCP } from "./fixture.js";
-import { evaluateAgent, isAgent, type EvalRunOptions } from "./agent.js";
+import { evaluateAgent, isEvalAgent, type EvalAgent, type EvalRunOptions } from "./agent.js";
 import type { SmokeOptions } from "./smoke.js";
 
 export interface ToolExpectation {
@@ -233,9 +233,25 @@ export const expect = baseExpect.extend({
     };
   },
 
-  async toPassEval(received: unknown, evalCase: EvalCase, options: EvalRunOptions = {}) {
-    if (!isAgent(received)) throw new TypeError("toPassEval expects an agent: the promptApi fixture, or defineAgent(webmcp, drive)");
-    const result = await evaluateAgent(received, evalCase, options);
+  async toPassEval(received: unknown, evalCase: EvalCase, options: EvalRunOptions & { agent?: EvalAgent } = {}) {
+    // Two receivers: the promptApi fixture (an agent that knows its page), or the webmcp fixture with `{ agent }`.
+    const harness = received as { run?: unknown; webmcp?: WebMCP } | null;
+    let webmcp: WebMCP;
+    let agent: EvalAgent;
+    const { agent: given, ...evalOptions } = options;
+    if (harness && typeof harness.run === "function" && harness.webmcp) {
+      webmcp = harness.webmcp;
+      agent = harness as unknown as EvalAgent;
+    } else {
+      webmcp = resolve(received);
+      if (!isEvalAgent(given)) {
+        throw new TypeError(
+          "toPassEval needs an agent: expect(webmcp).toPassEval(evalCase, { agent }) with an AI SDK agent, an object with generate() or run(), or an async function; or expect(promptApi).toPassEval(evalCase)",
+        );
+      }
+      agent = given;
+    }
+    const result = await evaluateAgent(webmcp, agent, evalCase, evalOptions);
     const label = evalCase.name ?? evalCase.messages.map((m) => ("content" in m ? m.content : m.type)).join(" / ");
     return {
       pass: result.pass,

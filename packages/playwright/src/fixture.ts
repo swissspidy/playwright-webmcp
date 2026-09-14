@@ -676,11 +676,21 @@ async function collectInFrame(frame: Frame, getToolsTimeoutMs = 3000): Promise<F
 
 /** A registration the CDP domain reported, as the page-side collector would have described it. */
 function toolFromRegistry(tool: CdpTool, origin: string): Omit<ToolSnapshot, "frame"> {
+  // The CDP domain spells the hints without the "Hint" suffix; the page's getTools() spells them with it
+  // and fills all three in. Use the page's spelling so a snapshot built from the registry matches one
+  // built from the page, contract diffs included.
+  const a = tool.annotations;
+  const declarative = tool.backendNodeId !== undefined;
+  const annotations = !a
+    ? undefined
+    : declarative
+      ? { autosubmit: Boolean(a.autosubmit) }
+      : { readOnlyHint: Boolean(a.readOnly), consequentialHint: Boolean(a.consequential), untrustedContentHint: Boolean(a.untrustedContent) };
   return {
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema ?? null,
-    annotations: tool.annotations ? { ...tool.annotations } : undefined,
+    annotations,
     origin,
     source: tool.backendNodeId !== undefined ? "declarative" : "imperative",
     location: tool.location,

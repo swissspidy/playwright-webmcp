@@ -14,17 +14,19 @@ export {
 export { CdpCollector, type CdpLikeSession, type CdpTool, type CdpAnnotations } from "./cdp.js";
 export { runSmoke, selectSmokeTools, isReadOnly, type SmokeOptions, type ToolCaller } from "./smoke.js";
 export {
-  defineAgent,
-  evaluateAgent,
   toolsForAgent,
-  isAgent,
-  type WebMCPAgent,
+  runAgent,
+  evaluateAgent,
+  isEvalAgent,
+  type EvalAgent,
+  type AgentRunner,
+  type AgentGenerator,
+  type AgentFunction,
+  type AgentTurn,
   type AgentTool,
-  type AgentContext,
   type AgentRunOptions,
   type AgentRunResult,
   type AgentCall,
-  type AgentDriveResult,
   type EvalRunOptions,
   type EvalRunResult,
 } from "./agent.js";

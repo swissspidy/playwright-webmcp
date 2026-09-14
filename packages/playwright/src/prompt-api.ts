@@ -6,7 +6,7 @@
  * self contained: no imports, no closures over module scope.
  */
 import { ATTACHMENTS, type EvalCase } from "webmcp-lint";
-import { evaluateAgent, type AgentRunResult, type EvalRunOptions, type EvalRunResult, type WebMCPAgent } from "./agent.js";
+import { evaluateAgent, type AgentRunner, type AgentRunResult, type EvalRunOptions, type EvalRunResult } from "./agent.js";
 import { fakeLanguageModelSource, type FakeLanguageModelPlan } from "./fake-language-model.js";
 import type { WebMCP } from "./fixture.js";
 
@@ -215,9 +215,9 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
  * Drives Chrome's on-device model (the Prompt API, `LanguageModel`) against
  * the page's tools, the way an in-page agent would. Available as the
  * `promptApi` fixture; a cheap way to run eval cases locally. It implements
- * the same agent contract as `defineAgent()`, so `toPassEval` accepts it.
+ * the agent contract `runAgent()` drives, so `toPassEval` accepts it.
  */
-export class PromptApiHarness implements WebMCPAgent {
+export class PromptApiHarness implements AgentRunner {
   constructor(readonly webmcp: WebMCP) {}
 
   /** Whether `LanguageModel` exists in the page. Does not trigger a download. */
@@ -266,6 +266,6 @@ export class PromptApiHarness implements WebMCPAgent {
 
   /** `evaluateAgent()` with this harness; see there. */
   async evaluate(evalCase: EvalCase, options: EvalRunOptions & Partial<Omit<PromptApiRunOptions, "prompts">> = {}): Promise<EvalRunResult> {
-    return evaluateAgent(this, evalCase, options);
+    return evaluateAgent(this.webmcp, this, evalCase, options);
   }
 }

@@ -1,10 +1,11 @@
 /**
- * The agent contract: anything that takes prompts, may call the page's
- * WebMCP tools, and reports what it did. The `promptApi` fixture implements
- * it with Chrome's on-device model; `defineAgent()` wraps a function that
- * drives any model or agent framework from Node (the Vercel AI SDK, an
- * Anthropic or OpenAI client, a hand-written loop) and hands it the page's
- * tools as callables. `toPassEval` and `evaluateAgent()` accept either.
+ * Evals against any agent. The page's tools become callables through
+ * `toolsForAgent()`; whatever runs them from Node (the Vercel AI SDK's
+ * `ToolLoopAgent`, an Anthropic or OpenAI client, a hand-written loop) is
+ * driven by `runAgent()` and judged by `evaluateAgent()`, which is what
+ * `expect(webmcp).toPassEval(evalCase, { agent })` calls. The `promptApi`
+ * fixture is an agent too. Calls are read back from the fixture, so nothing
+ * has to report them.
  */
 import { reconcileCalls, toolHints, type EvalCase, type JsonSchema, type ReconcileOptions, type RecordedCall } from "webmcp-lint";
 import type { WebMCP } from "./fixture.js";
@@ -16,33 +17,6 @@ export interface AgentCall {
   error?: string;
   startedAt: number;
   durationMs: number;
-}
-
-export interface AgentRunOptions {
-  /** User turns, sent in order within one conversation. */
-  prompts: string[];
-  systemPrompt?: string;
-  /** Only offer these tools. Default: every tool the page exposes. */
-  toolNames?: string[];
-  /** Give up after this long. Default 60 s. */
-  timeoutMs?: number;
-}
-
-export interface AgentRunResult {
-  status: "ok" | "unavailable" | "error" | "timeout";
-  reason?: string;
-  /** The agent's final text per user turn, when it produced any. */
-  responses: string[];
-  /** Tool calls the agent made during this run, in order. */
-  calls: AgentCall[];
-  toolsOffered: string[];
-}
-
-/** Something that can act on a page's tools given natural-language prompts. */
-export interface WebMCPAgent {
-  run(options: AgentRunOptions | string): Promise<AgentRunResult>;
-  /** Optional readiness probe; "unavailable" lets tests skip cleanly. */
-  availability?(): Promise<string>;
 }
 
 /** A page tool as an agent framework wants it: a schema and a function that executes it in the page. */
@@ -72,77 +46,145 @@ export async function toolsForAgent(webmcp: WebMCP, options: { toolNames?: strin
     }));
 }
 
-export interface AgentContext {
-  webmcp: WebMCP;
-  /** The tools to offer, already executable. */
-  tools: AgentTool[];
+export interface AgentRunOptions {
+  /** User turns, sent in order within one conversation. */
   prompts: string[];
   systemPrompt?: string;
+  /** Only offer these tools. Default: every tool the page exposes. */
+  toolNames?: string[];
+  /** Give up after this long. Default 60 s. */
+  timeoutMs?: number;
+}
+
+export interface AgentRunResult {
+  status: "ok" | "unavailable" | "error" | "timeout";
+  reason?: string;
+  /** The agent's final text per user turn, when it produced any. */
+  responses: string[];
+  /** Tool calls the agent made during this run, in order. */
+  calls: AgentCall[];
+  /** The tools the agent was given; empty when the agent does not report them (an AI SDK agent holds its own). */
+  toolsOffered: string[];
+}
+
+/** An agent with a `run()` method, like the `promptApi` fixture. */
+export interface AgentRunner {
+  run(options: AgentRunOptions | string): Promise<AgentRunResult>;
+}
+
+/**
+ * An agent with a `generate()` method, like the AI SDK's `ToolLoopAgent`.
+ * The first turn is sent as `{ prompt }`; later turns as `{ messages }` with
+ * the earlier turns and whatever `response.messages` the result carried.
+ */
+export interface AgentGenerator {
+  generate(options: { prompt?: unknown; messages?: unknown; abortSignal?: AbortSignal }): Promise<unknown>;
+}
+
+/** Context handed to a function agent for each user turn. */
+export interface AgentTurn {
+  /** Zero-based index of this turn. */
+  index: number;
+  prompts: string[];
+  systemPrompt?: string;
+  /** The page's tools as callables; every call is recorded as an agent call. */
+  tools: AgentTool[];
   /** Aborted when the run times out. */
   signal: AbortSignal;
 }
 
-/** What a driver returns: text responses, or nothing when only the calls matter. */
-export type AgentDriveResult = void | string | string[] | { responses?: string[] };
+/** A function called once per user turn; returning text is optional. */
+export type AgentFunction = (prompt: string, turn: AgentTurn) => Promise<unknown>;
 
-/**
- * Turn a function that drives a model into an agent. The function receives
- * the page's tools as callables; every call it makes is recorded on the
- * fixture with `via: "agent"` and reported in the run result, so
- * `toPassEval`, `toHaveCalledTool` and `toMatchCalls` all work.
- *
- *   const agent = defineAgent(webmcp, async ({ tools, prompts, systemPrompt }) => {
- *     const { text } = await generateText({ model, system: systemPrompt, prompt: prompts.join("\n"), tools: toAiSdkTools(tools), maxSteps: 5 });
- *     return text;
- *   });
- *   await expect(agent).toPassEval(evalCase);
- */
-export function defineAgent(webmcp: WebMCP, drive: (context: AgentContext) => Promise<AgentDriveResult>): WebMCPAgent {
-  return {
-    async run(options) {
-      const opts = typeof options === "string" ? { prompts: [options] } : options;
-      const before = new Set(webmcp.calls());
-      const controller = new AbortController();
-      const timeoutMs = opts.timeoutMs ?? 60_000;
-      const timer = setTimeout(() => controller.abort(new Error(`Agent run exceeded ${timeoutMs} ms`)), timeoutMs);
-      const result: AgentRunResult = { status: "ok", responses: [], calls: [], toolsOffered: [] };
-      const aborted = new Promise<never>((_resolve, reject) =>
-        controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }),
-      );
-      try {
-        // Discovering the tools counts against the budget too, and a page whose getTools() fails is an error, not a crash.
-        const tools = await Promise.race([toolsForAgent(webmcp, { toolNames: opts.toolNames }), aborted]);
-        result.toolsOffered = tools.map((t) => t.name);
-        const outcome = await Promise.race([
-          drive({ webmcp, tools, prompts: opts.prompts, systemPrompt: opts.systemPrompt, signal: controller.signal }),
-          aborted,
-        ]);
-        result.responses = typeof outcome === "string" ? [outcome] : Array.isArray(outcome) ? outcome : (outcome?.responses ?? []);
-        if (controller.signal.aborted) {
-          result.status = "timeout";
-          result.reason = String((controller.signal.reason as Error)?.message ?? controller.signal.reason);
-        }
-      } catch (err) {
-        result.status = controller.signal.aborted ? "timeout" : "error";
-        result.reason = String((err as Error)?.message ?? err);
-      } finally {
-        clearTimeout(timer);
-      }
-      result.calls = webmcp
-        .calls()
-        .filter((c) => !before.has(c) && c.via === "agent")
-        .map(toAgentCall);
-      return result;
-    },
-  };
+/** Anything `runAgent()` can drive: the `promptApi` fixture, an AI SDK agent, or a function. */
+export type EvalAgent = AgentRunner | AgentGenerator | AgentFunction;
+
+export function isEvalAgent(value: unknown): value is EvalAgent {
+  if (typeof value === "function") return true;
+  const v = value as { run?: unknown; generate?: unknown } | null;
+  return Boolean(v && (typeof v.run === "function" || typeof v.generate === "function"));
+}
+
+function textOf(result: unknown): string | undefined {
+  if (typeof result === "string") return result;
+  const text = (result as { text?: unknown } | null)?.text;
+  return typeof text === "string" ? text : undefined;
+}
+
+function responseMessages(result: unknown): unknown[] {
+  const messages = (result as { response?: { messages?: unknown } } | null)?.response?.messages;
+  return Array.isArray(messages) ? messages : [];
 }
 
 function toAgentCall(c: RecordedCall): AgentCall {
   return { name: c.name, args: c.args, result: c.result, error: c.error, startedAt: c.startedAt, durationMs: c.durationMs };
 }
 
+/**
+ * Send the prompts to an agent, one user turn at a time, and report what it
+ * answered and which of the page's tools it called (read back from the
+ * fixture as calls with `via: "agent"`). A thrown error is `status: "error"`,
+ * running past `timeoutMs` is `status: "timeout"`; a runner's own status is
+ * passed through.
+ */
+export async function runAgent(webmcp: WebMCP, agent: EvalAgent, options: AgentRunOptions | string): Promise<AgentRunResult> {
+  const opts = typeof options === "string" ? { prompts: [options] } : options;
+  const before = new Set(webmcp.calls());
+  const controller = new AbortController();
+  const timeoutMs = opts.timeoutMs ?? 60_000;
+  const timer = setTimeout(() => controller.abort(new Error(`Agent run exceeded ${timeoutMs} ms`)), timeoutMs);
+  const aborted = new Promise<never>((_resolve, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }));
+  const result: AgentRunResult = { status: "ok", responses: [], calls: [], toolsOffered: [] };
+  let ownCalls: AgentCall[] | undefined;
+  const race = <T>(p: Promise<T>) => Promise.race([p, aborted]);
+  try {
+    if (typeof agent !== "function" && typeof (agent as AgentRunner).run === "function") {
+      const ran = await race((agent as AgentRunner).run({ ...opts, timeoutMs }));
+      result.status = ran.status;
+      result.reason = ran.reason;
+      result.responses = ran.responses ?? [];
+      result.toolsOffered = ran.toolsOffered ?? [];
+      // A runner reports its own calls (the Prompt API harness records what the model did in the page);
+      // natively the CDP collector sees those executions too, so reading the fixture back would count them twice.
+      if (Array.isArray(ran.calls)) ownCalls = ran.calls;
+    } else if (typeof agent === "function") {
+      const tools = await race(toolsForAgent(webmcp, { toolNames: opts.toolNames }));
+      result.toolsOffered = tools.map((t) => t.name);
+      for (const [index, prompt] of opts.prompts.entries()) {
+        const text = textOf(await race(agent(prompt, { index, prompts: opts.prompts, systemPrompt: opts.systemPrompt, tools, signal: controller.signal })));
+        if (text !== undefined) result.responses.push(text);
+      }
+    } else {
+      const history: unknown[] = [];
+      for (const [index, prompt] of opts.prompts.entries()) {
+        const turn = index === 0 ? { prompt } : { messages: [...history, { role: "user", content: prompt }] };
+        const generated = await race((agent as AgentGenerator).generate({ ...turn, abortSignal: controller.signal }));
+        history.push({ role: "user", content: prompt }, ...responseMessages(generated));
+        const text = textOf(generated);
+        if (text !== undefined) result.responses.push(text);
+      }
+    }
+    if (controller.signal.aborted) {
+      result.status = "timeout";
+      result.reason = String((controller.signal.reason as Error)?.message ?? controller.signal.reason);
+    }
+  } catch (err) {
+    result.status = controller.signal.aborted ? "timeout" : "error";
+    result.reason = String((err as Error)?.message ?? err);
+  } finally {
+    clearTimeout(timer);
+  }
+  result.calls =
+    ownCalls ??
+    webmcp
+      .calls()
+      .filter((c) => !before.has(c) && c.via === "agent")
+      .map(toAgentCall);
+  return result;
+}
+
 export interface EvalRunOptions extends ReconcileOptions, Omit<AgentRunOptions, "prompts"> {
-  /** Further options forwarded to the agent's run(), e.g. the Prompt API harness's toolResultFormat. */
+  /** Further options forwarded to a runner's run(), e.g. the Prompt API harness's toolResultFormat. */
   [key: string]: unknown;
 }
 
@@ -157,10 +199,10 @@ export interface EvalRunResult extends AgentRunResult {
  * semantics unless `mode: "lenient"` is passed. Only user messages of type
  * "message" are sent; other message kinds are ignored.
  */
-export async function evaluateAgent(agent: WebMCPAgent, evalCase: EvalCase, options: EvalRunOptions = {}): Promise<EvalRunResult> {
+export async function evaluateAgent(webmcp: WebMCP, agent: EvalAgent, evalCase: EvalCase, options: EvalRunOptions = {}): Promise<EvalRunResult> {
   const { strict, mode = "evals", ...runOptions } = options;
   const prompts = evalCase.messages.filter((m) => m.role === "user" && m.type === "message").map((m) => (m as { content: string }).content);
-  const result = await agent.run({ ...(runOptions as Omit<AgentRunOptions, "prompts">), prompts });
+  const result = await runAgent(webmcp, agent, { ...(runOptions as Omit<AgentRunOptions, "prompts">), prompts });
   if (result.status !== "ok") {
     return { ...result, pass: false, problems: [`${result.status}: ${result.reason ?? "no details"}`] };
   }
@@ -170,8 +212,4 @@ export async function evaluateAgent(agent: WebMCPAgent, evalCase: EvalCase, opti
     { strict, mode },
   );
   return { ...result, pass: reconciled.ok, problems: reconciled.problems };
-}
-
-export function isAgent(value: unknown): value is WebMCPAgent {
-  return Boolean(value && typeof (value as WebMCPAgent).run === "function");
 }

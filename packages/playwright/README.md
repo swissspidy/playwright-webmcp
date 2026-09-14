@@ -32,7 +32,7 @@ test("shop exposes usable tools", async ({ page, webmcp }) => {
 
 Matchers: `toHaveTool`, `toPassLint`, `toPassSmoke`, `toMatchToolContract`, `toReachTool`, `toHaveToolCoverage`, `toHaveAgentReadinessScore`, `toRegisterToolsWithin`, `toHaveCalledTool`, `toMatchCalls`, and `toPassEval` for agents.
 
-Agents: the lazy `promptApi` fixture drives Chrome's on-device model against the page's tools, and `defineAgent(webmcp, drive)` wraps any model or framework you run from Node (the Vercel AI SDK, for example), handing it the page's tools as callables and recording what it calls. Both work with `toPassEval` and the call matchers.
+Agents: the lazy `promptApi` fixture drives Chrome's on-device model against the page's tools, and `toolsForAgent(webmcp)` hands the same tools as callables to any model or framework you run from Node. `expect(webmcp).toPassEval(evalCase, { agent })` takes a Vercel AI SDK `ToolLoopAgent`, any object with `generate()` or `run()`, or an async function, and judges the calls the fixture recorded.
 
 Suite-wide reports (`tools.json` for `webmcp-evals local`, `coverage.json`, `TOOLS.md`) come from the bundled reporter: `reporter: [["list"], ["playwright-webmcp/reporter", { outputDir: ".webmcp-report" }]]`.
 
