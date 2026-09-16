@@ -18,13 +18,17 @@ import { definitionSites } from "./settings.js";
  * a field the extractor could not read are dropped rather than guessed at. A
  * finding with a path is about the input schema; the rest are keyed by rule.
  */
+const EXPOSED_TO_RULES = new Set(["exposed-to-secure-origins", "exposed-to-wildcard"]);
+
 const NEEDS: Record<string, string[]> = {
   description: ["description-missing", "description-length", "description-injection", "declarative-description"],
   inputSchema: ["param-description-missing", "schema-shape", "schema-no-null-literals", "schema-depth", "schema-unsupported-keywords", "sensitive-params"],
-  exposedTo: ["exposed-to-secure-origins"],
+  exposedTo: ["exposed-to-secure-origins", "exposed-to-wildcard"],
 };
 
 function fieldOf(finding: Finding): string | undefined {
+  if (finding.path?.startsWith("/title")) return "title";
+  if (finding.path?.startsWith("/annotations")) return "annotations";
   if (finding.path) return "inputSchema";
   for (const [field, ids] of Object.entries(NEEDS)) if (ids.includes(finding.ruleId)) return field;
   return undefined;
@@ -53,7 +57,13 @@ function optionSchema(rule: LintRule): ESLintRule.RuleMetaData["schema"] {
 }
 
 function locate(tool: ExtractedTool, finding: Finding, resolve: Resolver): ESTree.Node {
-  if (finding.ruleId === "exposed-to-secure-origins" && tool.exposedToNode) return tool.exposedToNode;
+  if (EXPOSED_TO_RULES.has(finding.ruleId) && tool.exposedToNode) return tool.exposedToNode;
+  // Findings on `title` and `annotations` carry the field as their path.
+  const field = finding.path?.match(/^\/(title|annotations)/)?.[1];
+  if (field) {
+    const at = nodeAtPath(tool.node, finding.path!.slice(1), resolve) ?? findProperty(tool.node, field)?.value;
+    if (at) return at as ESTree.Node;
+  }
   if (finding.path) {
     const schema = findProperty(tool.node, "inputSchema");
     if (schema && schema.value.type !== "AssignmentPattern") {

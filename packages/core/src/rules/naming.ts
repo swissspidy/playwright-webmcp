@@ -55,16 +55,3 @@ export const namingConsistency = defineRule({
     return out;
   },
 });
-
-export const exposedToInsecure = defineRule({
-  id: "exposed-to-secure-origins",
-  scope: "tool",
-  description: "exposedTo must list secure origins; http:// origins other than localhost are rejected by the API.",
-  severity: "error",
-  check: (ctx) =>
-    ctx.snapshot.tools.flatMap((t) =>
-      (t.exposedTo ?? [])
-        .filter((o) => o !== "*" && !/^https:\/\//.test(o) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o))
-        .map((o) => finding(exposedToInsecure, `Tool "${t.name}" is exposed to insecure origin ${o}.`, { tool: t.name, frame: t.frame })),
-    ),
-});

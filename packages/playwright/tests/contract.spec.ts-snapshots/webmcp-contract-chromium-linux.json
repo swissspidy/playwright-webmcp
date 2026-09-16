@@ -42,7 +42,7 @@
       "annotations": {
         "consequentialHint": false,
         "readOnlyHint": true,
-        "untrustedContentHint": false
+        "untrustedContentHint": true
       },
       "source": "imperative",
       "origin": "http://localhost:4173"
