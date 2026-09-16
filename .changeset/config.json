@@ -7,10 +7,10 @@
     }
   ],
   "commit": false,
-  "fixed": [["webmcp-lint", "playwright-webmcp", "webmcp-audit"]],
+  "fixed": [["webmcp-lint", "playwright-webmcp", "webmcp-audit", "eslint-plugin-webmcp"]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["demo-site"]
+  "ignore": ["demo-site", "react-shop"]
 }

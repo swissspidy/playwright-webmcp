@@ -33,12 +33,15 @@ import {
   type ToolContract,
   type ToolSnapshot,
 } from "webmcp-lint";
-import { CdpCollector } from "./cdp.js";
+import { CdpCollector, type CdpTool } from "./cdp.js";
+
+const debug = process.env.WEBMCP_DEBUG
+  ? (...args: unknown[]) => console.error(`[webmcp fixture ${new Date().toISOString().slice(11, 23)}]`, ...args)
+  : () => {};
 import { runSmoke, type SmokeOptions } from "./smoke.js";
 import { shimSource } from "./shim.js";
 import { RECORDER_SOURCE } from "./recorder.js";
-import { normalizeRunOptions, runPromptApiInPage, type PromptApiRunOptions, type PromptApiRunResult } from "./prompt-api.js";
-import { fakeLanguageModelSource, type FakeLanguageModelPlan } from "./fake-language-model.js";
+import { PromptApiHarness } from "./prompt-api.js";
 
 export interface WebMCPOptions {
   /**
@@ -78,81 +81,10 @@ export interface ContractMatchResult {
   contract: ToolContract;
 }
 
-export interface EvalRunOptions extends Omit<PromptApiRunOptions, "prompts">, ReconcileOptions {}
-
-export interface EvalRunResult extends PromptApiRunResult {
-  pass: boolean;
-  problems: string[];
-}
-
-/**
- * Drives Chrome's on-device model (the Prompt API) against the page's tools.
- * Available as `webmcp.promptApi`.
- */
-export class PromptApiHarness {
-  constructor(private readonly owner: WebMCP) {}
-
-  /** Whether `LanguageModel` exists in the page. Does not trigger a download. */
-  async exists(): Promise<boolean> {
-    return this.owner.page.evaluate(() => typeof (globalThis as Record<string, unknown>).LanguageModel !== "undefined");
-  }
-
-  /** LanguageModel.availability() for a tool-using session, or "unavailable" when the API is missing. */
-  async availability(): Promise<"available" | "downloadable" | "downloading" | "unavailable"> {
-    return this.owner.page.evaluate(async () => {
-      const LM = (globalThis as Record<string, any>).LanguageModel;
-      if (!LM || typeof LM.availability !== "function") return "unavailable";
-      try {
-        return await LM.availability({
-          expectedInputs: [{ type: "text" }, { type: "tool-response" }],
-          expectedOutputs: [{ type: "text" }, { type: "tool-call" }],
-        });
-      } catch {
-        return "unavailable";
-      }
-    });
-  }
-
-  /**
-   * Install a scripted `LanguageModel` before navigation so agent tests run
-   * deterministically on browsers without an on-device model.
-   */
-  async useFake(plan: FakeLanguageModelPlan): Promise<void> {
-    await this.owner.page.addInitScript(fakeLanguageModelSource(plan));
-  }
-
-  /** Send one or more user prompts to the on-device model with the page's tools offered. */
-  async run(options: PromptApiRunOptions | string): Promise<PromptApiRunResult> {
-    const opts = normalizeRunOptions(typeof options === "string" ? { prompts: [options] } : options);
-    const result = await this.owner.page.evaluate(runPromptApiInPage, opts);
-    for (const c of result.calls) this.owner.record({ ...c, via: "agent" });
-    await this.owner.attach(ATTACHMENTS.promptApi, { url: this.owner.page.url(), prompts: opts.prompts, ...result });
-    return result;
-  }
-
-  /**
-   * Run an evals case against the on-device model and reconcile the calls it
-   * made with the case's `expectedCall`, using the same positional semantics
-   * as the `webmcp-evals` CLI unless `mode: "lenient"` is passed. Only user
-   * messages of type "message" are sent; other message kinds are ignored.
-   */
-  async evaluate(evalCase: EvalCase, options: EvalRunOptions = {}): Promise<EvalRunResult> {
-    const { strict, mode = "evals", ...runOptions } = options;
-    const prompts = evalCase.messages.filter((m) => m.role === "user" && m.type === "message").map((m) => (m as { content: string }).content);
-    const result = await this.run({ ...runOptions, prompts });
-    if (result.status !== "ok") {
-      return { ...result, pass: false, problems: [`${result.status}: ${result.reason ?? "no details"}`] };
-    }
-    const reconciled = reconcileCalls(
-      evalCase.expectedCall,
-      result.calls.map((c) => ({ name: c.name, args: c.args, result: c.result })),
-      { strict, mode },
-    );
-    return { ...result, pass: reconciled.ok, problems: reconciled.problems };
-  }
-}
-
 const instances = new WeakMap<Page, WebMCP>();
+
+/** Thrown by call() when no frame currently lists the tool; call() retries on it until its timeout. */
+export class ToolNotFoundError extends Error {}
 
 export class WebMCP {
   private recorded: RecordedCall[] = [];
@@ -161,7 +93,6 @@ export class WebMCP {
   private timelineEvents: RegistrationEvent[] = [];
   private readonly mocks = new Map<string, (args: Record<string, unknown>) => unknown | Promise<unknown>>();
   private lastSnapshot: PageSnapshot | undefined;
-  readonly promptApi: PromptApiHarness = new PromptApiHarness(this);
   /** CDP collector; `enabled` is true only when the browser implements the WebMCP domain. */
   cdp: CdpCollector | undefined;
 
@@ -183,9 +114,12 @@ export class WebMCP {
     if (this.installed) return;
     this.installed = true;
     if (this.options.record) {
-      await this.page.exposeBinding("__webmcpReport", (_source, json: string) => {
+      await this.page.exposeBinding("__webmcpReport", (source, json: string) => {
         const entry = JSON.parse(json) as { kind?: string } & Record<string, unknown>;
         if (entry.kind === "registration") {
+          // A report from a document that has since been navigated away can arrive after the
+          // navigation reset the timeline; it belongs to the old page, not this one.
+          if (typeof entry.frameUrl === "string" && source.frame.url() !== entry.frameUrl) return;
           this.timelineEvents.push({
             type: entry.type as RegistrationEvent["type"],
             name: String(entry.name),
@@ -194,7 +128,7 @@ export class WebMCP {
           });
         } else {
           const { kind: _kind, ...call } = entry;
-          this.recorded.push(call as unknown as RecordedCall);
+          this.recordObserved(call as unknown as RecordedCall);
         }
       });
       await this.page.exposeBinding("__webmcpMock", async (_source, json: string) => {
@@ -227,7 +161,7 @@ export class WebMCP {
     } catch {
       return false;
     }
-    const collector = new CdpCollector(this.cdpSession, { onCall: (call) => this.recorded.push(call) });
+    const collector = new CdpCollector(this.cdpSession, { onCall: (call, meta) => this.recordObserved(call, meta.ours) });
     const ok = await collector.enable();
     if (!ok) {
       await this.cdpSession.detach().catch(() => {});
@@ -242,11 +176,69 @@ export class WebMCP {
   async snapshot(): Promise<PageSnapshot> {
     const frames = this.page.frames();
     const topOrigin = safeOrigin(this.page.url());
-    const results = await Promise.all(frames.map((f) => collectInFrame(f)));
+    // With the CDP registry at hand a page-side getTools() that hangs is not fatal, so wait less for it.
+    const getToolsTimeoutMs = this.cdp?.enabled ? 1000 : 3000;
+    const results = await Promise.all(frames.map((f) => collectInFrame(f, getToolsTimeoutMs)));
+    debug(
+      "snapshot collected",
+      results.map((r, i) => `${frames[i].url()}: ${r ? (r.frame.error ? `error(${r.frame.error})` : r.tools.map((t) => t.name).join("+")) : "none"}`),
+    );
+    // Playwright and CDP both list frames parents first, siblings in document order, so the n-th
+    // frame with a URL on one side is the n-th with that URL on the other. Matching by URL alone
+    // would give two same-URL iframes each other's tools.
+    const registryFor = (i: number): CdpTool[] => {
+      const url = frames[i].url();
+      const position = frames.slice(0, i).filter((f) => f.url() === url).length;
+      const frameId = this.cdp!.frameIdsFor(url)[position];
+      return frameId === undefined ? [] : this.cdp!.list().filter((c) => c.frameId === frameId);
+    };
+    if (this.cdp?.enabled) {
+      // The browser's registry is the source of truth. When a frame's own getTools() has not
+      // caught up with a tool the CDP domain already reported for it, look at that frame again.
+      await this.cdp.refreshFrames();
+      for (let attempt = 0; attempt < 20; attempt++) {
+        const lagging = frames
+          .map((f, i) => i)
+          .filter((i) => {
+            const r = results[i];
+            if (!r || r.frame.error) return false; // filled from the registry below
+            const listed = new Set(r.tools.map((t) => t.name));
+            return registryFor(i).some((c) => !listed.has(c.name));
+          });
+        if (!lagging.length) break;
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        for (const i of lagging) results[i] = await collectInFrame(frames[i], getToolsTimeoutMs);
+      }
+    }
     const snapshot: PageSnapshot = { url: this.page.url(), capturedAt: new Date().toISOString(), frames: [], tools: [] };
     this.lastSnapshot = snapshot;
     for (let i = 0; i < frames.length; i++) {
-      const r = results[i];
+      let r = results[i];
+      if (this.cdp?.enabled && (!r || r.frame.error)) {
+        // getTools() failed or never settled in this frame (seen on Chrome 154 under load); the
+        // registry the browser reported over CDP stands in for it.
+        const url = frames[i].url();
+        const fromRegistry = registryFor(i);
+        debug(
+          "snapshot fallback",
+          url,
+          "registry:",
+          fromRegistry.map((c) => c.name),
+          "frame ids for url:",
+          this.cdp.frameIdsFor(url),
+        );
+        if (fromRegistry.length) {
+          const frame: FrameCollectResult["frame"] = {
+            url,
+            origin: safeOrigin(url),
+            isTop: i === 0,
+            api: "native",
+            error: r?.frame.error ?? "evaluate failed",
+          };
+          r = { frame, tools: fromRegistry.map((c) => toolFromRegistry(c, frame.origin)) };
+          results[i] = r;
+        }
+      }
       if (!r) {
         snapshot.frames.push({ url: frames[i].url(), origin: safeOrigin(frames[i].url()), isTop: i === 0, api: "none" });
         continue;
@@ -267,9 +259,7 @@ export class WebMCP {
     if (this.cdp?.enabled) {
       await this.cdp.refreshFrames();
       for (const tool of snapshot.tools) {
-        const frameUrl = snapshot.frames[tool.frame]?.url;
-        const native =
-          this.cdp.list().find((c) => c.name === tool.name && (this.cdp!.frameUrl(c.frameId) ?? frameUrl) === frameUrl) ?? this.cdp.find(tool.name);
+        const native = registryFor(tool.frame).find((c) => c.name === tool.name) ?? this.cdp.find(tool.name);
         if (!native) continue;
         if (native.location) tool.location = native.location;
         if (native.annotations && !tool.annotations) tool.annotations = { ...native.annotations };
@@ -366,6 +356,9 @@ export class WebMCP {
 
   /** Registration timeline for the current navigation, with late-registration and churn findings. */
   async timeline(budgets: TimelineBudgets = {}): Promise<TimelineReport> {
+    // Registrations complete asynchronously and report afterwards; wait for the tool list to stop
+    // changing, then let this evaluate's round trip flush the reports that travel on the same channel.
+    await this.settle();
     const marks = await this.page.evaluate(() => {
       const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
       return { domContentLoaded: nav?.domContentLoadedEventEnd, load: nav?.loadEventEnd };
@@ -413,6 +406,14 @@ export class WebMCP {
   /** The page's current tool contract: names, descriptions, schemas, annotations, sorted and key-stable. */
   async contract(): Promise<ToolContract> {
     return toContract(await this.snapshot());
+  }
+
+  /** Whether matchToolContract(name) would write the stored contract rather than compare against it. */
+  updatesSnapshots(name = "webmcp-contract.json"): boolean {
+    if (!this.testInfo) return false;
+    const mode = this.testInfo.config.updateSnapshots;
+    if (mode === "all" || mode === "changed") return true;
+    return mode !== "none" && !existsSync(this.testInfo.snapshotPath(name));
   }
 
   /**
@@ -471,27 +472,85 @@ export class WebMCP {
     return result;
   }
 
-  /** Execute a tool through the page's modelContext and record the call. */
-  async call<T = unknown>(name: string, args: Record<string, unknown> = {}): Promise<T> {
+  /**
+   * Execute a tool through the page's modelContext and record the call.
+   * Waits up to `timeoutMs` (default 5000) for the tool to be registered, since
+   * pages register tools after load and native getTools() can lag behind.
+   */
+  async call<T = unknown>(name: string, args: Record<string, unknown> = {}, options: { timeoutMs?: number; via?: "fixture" | "agent" } = {}): Promise<T> {
+    const deadline = Date.now() + (options.timeoutMs ?? 5000);
+    for (;;) {
+      try {
+        return await this.callOnce<T>(name, args, options.via ?? "fixture");
+      } catch (err) {
+        if (!(err instanceof ToolNotFoundError) || Date.now() >= deadline) throw err;
+        await new Promise((resolve) => setTimeout(resolve, 100));
+      }
+    }
+  }
+
+  private async callOnce<T>(name: string, args: Record<string, unknown>, via: "fixture" | "agent"): Promise<T> {
+    if (process.env.WEBMCP_DEBUG)
+      console.error(
+        `[webmcp call ${new Date().toISOString().slice(11, 23)}] ${name} via=${via} cdp=${Boolean(this.cdp?.enabled && this.cdp.find(name))} url=${this.page.url()}`,
+      );
     if (this.cdp?.enabled && this.cdp.find(name)) {
-      const outcome = await this.cdp.invoke(name, args);
+      const outcome = await this.cdp.invoke(name, args, undefined, undefined, via);
       if (!outcome.ok) throw new Error(`Tool "${name}" failed: ${outcome.error}`);
-      return outcome.result as T;
+      // toolResponded.output carries the value the agent gets; Chrome sends the string "undefined" for no result.
+      return (outcome.result === "undefined" ? undefined : outcome.result) as T;
     }
     const frames = this.page.frames();
     const results = await Promise.all(frames.map((f) => collectInFrame(f)));
     const owner = frames.find((_f, i) => results[i]?.tools.some((t) => t.name === name));
-    if (!owner) throw new Error(`No WebMCP tool named "${name}" found on ${this.page.url()}`);
+    if (!owner) {
+      const problems = results
+        .map((r, i) => (r === null ? `${frames[i].url()}: evaluate failed` : r.frame.error ? `${r.frame.url}: ${r.frame.error}` : null))
+        .filter(Boolean);
+      const known = results.flatMap((r) => r?.tools.map((t) => t.name) ?? []);
+      throw new ToolNotFoundError(
+        `No WebMCP tool named "${name}" found on ${this.page.url()} (known: ${known.join(", ") || "none"}${
+          this.cdp?.enabled
+            ? `; cdp knows: ${
+                this.cdp
+                  .list()
+                  .map((t) => t.name)
+                  .join(", ") || "none"
+              }`
+            : ""
+        }${problems.length ? `; ${problems.join("; ")}` : ""})`,
+      );
+    }
     const startedAt = Date.now();
     const outcome = await owner.evaluate(
       async ([toolName, toolArgs]) => {
         const w = window as unknown as Record<string, any>;
         const mc = (document as unknown as Record<string, any>).modelContext ?? w.navigator?.modelContext;
         const listed: any[] = (await mc.getTools()) ?? [];
-        const tool = listed.find((t) => t.name === toolName) ?? toolName;
+        const tool = listed.find((t) => t.name === toolName);
+        if (!tool) return { ok: false as const, error: `No WebMCP tool named "${toolName}" is registered` };
         try {
-          const result = await mc.executeTool(tool, toolArgs, { __playwrightWebmcp: true });
-          return { ok: true as const, result: JSON.parse(JSON.stringify(result === undefined ? null : result)) };
+          // executeTool() takes the RegisteredTool object. The specification declares the input as `any`;
+          // Chrome 154 accepts only a JSON string, so send the string first and fall back to the object.
+          let raw: unknown;
+          try {
+            raw = await mc.executeTool(tool, JSON.stringify(toolArgs), { __playwrightWebmcp: true });
+          } catch (err) {
+            if (!/parse input/i.test(String((err as Error)?.message))) throw err;
+            raw = await mc.executeTool(tool, toolArgs, { __playwrightWebmcp: true });
+          }
+          // The result arrives as a string: JSON for objects, String(value) for primitives, "undefined" for no result.
+          let result: unknown;
+          if (typeof raw !== "string") result = JSON.parse(JSON.stringify(raw === undefined ? null : raw));
+          else if (raw === "undefined") result = undefined;
+          else {
+            try {
+              result = JSON.parse(raw);
+            } catch {
+              result = raw;
+            }
+          }
+          return { ok: true as const, result };
         } catch (err) {
           return { ok: false as const, error: String((err as Error)?.message ?? err) };
         }
@@ -503,7 +562,7 @@ export class WebMCP {
       args,
       startedAt,
       durationMs: Date.now() - startedAt,
-      via: "fixture",
+      via,
       ...(outcome.ok ? { result: outcome.result } : { error: outcome.error }),
     };
     this.recorded.push(entry);
@@ -521,12 +580,35 @@ export class WebMCP {
   }
 
   /**
-   * Wait for calls reported by page scripts to reach the recorder. Binding
-   * calls are delivered in order with other protocol traffic, so one round
-   * trip to the page is enough to flush what the page has already reported.
+   * Wait for calls reported by page scripts to reach the recorder, then for
+   * the set of registered tools to stop changing. Binding calls are delivered
+   * in order with other protocol traffic, so one round trip flushes what the
+   * page has reported; registration is asynchronous (natively in particular),
+   * so the tool list is polled until it is unchanged for `quietMs`.
    */
-  async settle(): Promise<void> {
+  async settle(options: { quietMs?: number; timeoutMs?: number } = {}): Promise<void> {
     await this.page.evaluate(() => new Promise<void>((resolve) => setTimeout(resolve, 0))).catch(() => {});
+    const quietMs = options.quietMs ?? 150;
+    const deadline = Date.now() + (options.timeoutMs ?? 2000);
+    const key = async () => {
+      const frames = this.page.frames();
+      const results = await Promise.all(frames.map((f) => collectInFrame(f, this.cdp?.enabled ? 1000 : 3000)));
+      // The browser's registry counts too: a registration it has reported that a frame's getTools() has not caught up with is still a change.
+      const registry = this.cdp?.enabled
+        ? this.cdp
+            .list()
+            .map((t) => `${t.frameId}::${t.name}`)
+            .sort()
+        : [];
+      return JSON.stringify([results.map((r) => r?.tools.map((t) => t.name).sort() ?? null), registry]);
+    };
+    let previous = await key();
+    while (Date.now() < deadline) {
+      await new Promise((resolve) => setTimeout(resolve, quietMs));
+      const next = await key();
+      if (next === previous) return;
+      previous = next;
+    }
   }
 
   /** Attach the current snapshot and calls to the test result (done automatically at teardown). */
@@ -541,7 +623,40 @@ export class WebMCP {
 
   /** @internal */
   record(call: RecordedCall): void {
-    this.recorded.push(call);
+    this.recordObserved(call);
+  }
+
+  private readonly matchedObservations = new WeakSet<RecordedCall>();
+
+  /**
+   * Page-side hooks and the CDP domain both observe an execution the browser
+   * mediates. Keep one record: the page hook knows whether page script started
+   * it ("api"), the CDP collector knows whether the fixture did ("fixture") and
+   * sees agent calls the page cannot. Matching is by tool, arguments and time.
+   */
+  private recordObserved(call: RecordedCall, ownInvocation = false): void {
+    const fromCdp = call.source === "cdp";
+    const key = JSON.stringify(call.args ?? {});
+    const twin = this.recorded.find(
+      (c) =>
+        !this.matchedObservations.has(c) &&
+        (c.source === "cdp") !== fromCdp &&
+        c.name === call.name &&
+        Math.abs(c.startedAt - call.startedAt) < 5000 &&
+        JSON.stringify(c.args ?? {}) === key,
+    );
+    if (!twin) {
+      this.recorded.push(call);
+      return;
+    }
+    this.matchedObservations.add(twin);
+    const cdp = fromCdp ? call : twin;
+    const page = fromCdp ? twin : call;
+    twin.source = "cdp";
+    // The collector knows what it invoked itself (fixture or an agent driver); otherwise the page side knows best.
+    twin.via = fromCdp && ownInvocation ? cdp.via : page.via;
+    if (twin.result === undefined && cdp.result !== undefined && cdp.result !== "undefined") twin.result = cdp.result;
+    if (!twin.error && cdp.error) twin.error = cdp.error;
   }
 
   /** @internal */
@@ -551,12 +666,35 @@ export class WebMCP {
   }
 }
 
-async function collectInFrame(frame: Frame): Promise<FrameCollectResult | null> {
+async function collectInFrame(frame: Frame, getToolsTimeoutMs = 3000): Promise<FrameCollectResult | null> {
   try {
-    return await frame.evaluate(collectFrame);
+    return await frame.evaluate(collectFrame, { getToolsTimeoutMs });
   } catch {
     return null;
   }
+}
+
+/** A registration the CDP domain reported, as the page-side collector would have described it. */
+function toolFromRegistry(tool: CdpTool, origin: string): Omit<ToolSnapshot, "frame"> {
+  // The CDP domain spells the hints without the "Hint" suffix; the page's getTools() spells them with it
+  // and fills all three in. Use the page's spelling so a snapshot built from the registry matches one
+  // built from the page, contract diffs included.
+  const a = tool.annotations;
+  const declarative = tool.backendNodeId !== undefined;
+  const annotations = !a
+    ? undefined
+    : declarative
+      ? { autosubmit: Boolean(a.autosubmit) }
+      : { readOnlyHint: Boolean(a.readOnly), consequentialHint: Boolean(a.consequential), untrustedContentHint: Boolean(a.untrustedContent) };
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: tool.inputSchema ?? null,
+    annotations,
+    origin,
+    source: tool.backendNodeId !== undefined ? "declarative" : "imperative",
+    location: tool.location,
+  };
 }
 
 function safeOrigin(url: string): string {
@@ -569,6 +707,8 @@ function safeOrigin(url: string): string {
 
 export interface WebMCPFixtures {
   webmcp: WebMCP;
+  /** Chrome's on-device model driving the page's tools; created only when a test asks for it. */
+  promptApi: PromptApiHarness;
 }
 
 export interface WebMCPFixtureOptions {
@@ -598,5 +738,8 @@ export const test = base.extend<WebMCPFixtures & WebMCPFixtureOptions>({
     await instance.install();
     await use(instance);
     await instance.flush();
+  },
+  promptApi: async ({ webmcp }, use) => {
+    await use(new PromptApiHarness(webmcp));
   },
 });

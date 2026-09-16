@@ -11,7 +11,11 @@ export default defineConfig({
   },
   use: {
     baseURL: "http://localhost:4173",
-    launchOptions: process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {},
+    // PW_CHROMIUM picks the binary (for example Chrome Beta); PW_ARGS adds flags such as --enable-features=WebMCP.
+    launchOptions: {
+      ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
+      ...(process.env.PW_ARGS ? { args: process.env.PW_ARGS.split(/\s+/).filter(Boolean) } : {}),
+    },
   },
   projects: [{ name: "chromium", use: { browserName: "chromium" } }],
 });

@@ -3,9 +3,11 @@ import { test, expect } from "../src/index.js";
 test.describe("tool discovery", () => {
   test("finds imperative, declarative and iframe tools", async ({ page, webmcp }) => {
     await page.goto("/");
+    // Registration is asynchronous (natively in particular); wait for the iframe's tool before a one-shot snapshot.
+    await expect(webmcp).toHaveTool("list_reviews");
     const snapshot = await webmcp.snapshot();
     expect(snapshot.frames).toHaveLength(2);
-    expect(snapshot.frames[0].api).toBe("shim");
+    expect(["shim", "native"]).toContain(snapshot.frames[0].api);
     const names = snapshot.tools.map((t) => t.name).sort();
     expect(names).toEqual(["add_to_cart", "list_reviews", "search_products", "subscribe_newsletter"]);
     expect(snapshot.tools.find((t) => t.name === "list_reviews")?.frame).toBe(1);

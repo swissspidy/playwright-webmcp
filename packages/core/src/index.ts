@@ -4,13 +4,37 @@ export { matchesArgument, matchesConstraint, isConstraint, explainMismatch, type
 export { reconcileCalls, type ActualCall, type ReconcileMode, type ReconcileOptions, type ReconcileResult } from "./reconcile.js";
 export { evaluateTrajectory, describeTrajectoryRow, functionCallOutcome, type TrajectoryRow } from "./trajectory.js";
 export { lint, formatFindings } from "./lint.js";
+export { toGitHubAnnotations, type GitHubAnnotationOptions } from "./github.js";
+export {
+  lintTools,
+  snapshotFromTools,
+  snapshotFromFrames,
+  toSnapshot,
+  isPageSnapshot,
+  isToolsSchema,
+  type ToolDefinitionLike,
+  type LintInput,
+  type SnapshotFromToolsOptions,
+  type SnapshotFromFramesOptions,
+} from "./from-tools.js";
 export { builtinRules, rulesById } from "./rules/index.js";
 export { defineRule } from "./rules/helpers.js";
 export { lexicalSimilarity, type SimilarityFn } from "./similarity.js";
 export { toEvalCase, toExpectedCalls, toToolsSchema, type ToEvalOptions, type ArgumentsMode } from "./evals.js";
 export { collectFrame, type FrameCollectResult } from "./collect.js";
 export { generateArguments, sampleValue, type GeneratedArguments, type GenerateOptions, type ArgumentKind } from "./generate.js";
-export { judgeRun, judgeRuns, SMOKE_RULES, type SmokeRun, type SmokeReport, type SmokeBudgets, type SmokeRuleId } from "./smoke.js";
+export {
+  judgeRun,
+  judgeRuns,
+  formatSmokeRuns,
+  isContentResult,
+  SMOKE_RULES,
+  type ContentResult,
+  type SmokeRun,
+  type SmokeReport,
+  type SmokeBudgets,
+  type SmokeRuleId,
+} from "./smoke.js";
 export { toContract, serializeContract, diffContracts, formatChanges, type ToolContract, type ContractTool, type ContractChange } from "./contract.js";
 export { detectInjection, scanValue, type InjectionHit, type DetectOptions } from "./injection.js";
 export { namingStyle, type NamingStyle } from "./rules/naming.js";

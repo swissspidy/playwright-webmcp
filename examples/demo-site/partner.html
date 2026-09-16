@@ -20,6 +20,7 @@
             },
             required: ["country"],
           },
+          annotations: { readOnlyHint: true },
           async execute({ country, weightKg = 1 }) {
             return { country, weightKg, price: Math.round(weightKg * 7.5 * 100) / 100, currency: "CHF" };
           },

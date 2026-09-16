@@ -12,6 +12,7 @@
         name: "early_tool",
         description: "Registered during initial script execution; returns a static greeting object.",
         inputSchema: { type: "object", properties: {} },
+        annotations: { readOnlyHint: true },
         async execute() {
           return { hello: "world" };
         },
@@ -25,6 +26,7 @@
           properties: { query: { type: "string", description: "Keyword" }, category: { type: "string", description: "Category" } },
           required: ["query"],
         },
+        annotations: { readOnlyHint: true },
         async execute({ query }) {
           return { products: [], query };
         },
@@ -34,23 +36,29 @@
           name: "late_tool",
           description: "Registered more than a second after navigation, after the load event has fired.",
           inputSchema: { type: "object", properties: {} },
+          annotations: { readOnlyHint: true },
           async execute() {
             return { late: true };
           },
         });
       }, 1200);
       let flips = 0;
+      let flappy = null;
       const flap = setInterval(() => {
-        if (flips % 2 === 0)
-          mc.registerTool({
-            name: "flappy",
-            description: "A tool that is registered and unregistered repeatedly.",
-            inputSchema: { type: "object", properties: {} },
-            async execute() {
-              return {};
+        if (flips % 2 === 0) {
+          flappy = new AbortController();
+          mc.registerTool(
+            {
+              name: "flappy",
+              description: "A tool that is registered and unregistered repeatedly.",
+              inputSchema: { type: "object", properties: {} },
+              async execute() {
+                return {};
+              },
             },
-          });
-        else mc.unregisterTool("flappy");
+            { signal: flappy.signal },
+          );
+        } else flappy.abort();
         if (++flips >= 6) clearInterval(flap);
       }, 100);
     </script>
