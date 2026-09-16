@@ -38,6 +38,7 @@ export {
 export { toContract, serializeContract, diffContracts, formatChanges, type ToolContract, type ContractTool, type ContractChange } from "./contract.js";
 export { detectInjection, scanValue, type InjectionHit, type DetectOptions } from "./injection.js";
 export { namingStyle, type NamingStyle } from "./rules/naming.js";
+export { confusableForm, withinOneEdit, registrationOrigin } from "./rules/shadowing.js";
 export { toPlaywrightTest, type CodegenOptions } from "./codegen.js";
 export { computeCoverage, formatCoverage, type CoverageReport, type ToolCoverage } from "./coverage.js";
 export { renderToolDocs, type DocsOptions } from "./docs.js";

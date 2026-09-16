@@ -5,6 +5,14 @@ import plugin, { staticRules } from "../src/index.js";
 
 const tester = new RuleTester({ languageOptions: { ecmaVersion: 2024, sourceType: "module", parserOptions: { ecmaFeatures: { jsx: true } } } });
 
+/** The sentence no-interpolated-text builds, for exact-message assertions. */
+const interpolated = (subject: string, how: string, what: string) =>
+  `${subject} is built with ${how}. ${what}, so whatever is interpolated here reaches the agent as if the page had written it. ` +
+  "Make sure you can name where each value comes from.";
+
+const READS_DESCRIPTION = "A description is read by every agent that visits the page";
+const READS_PARAM = "A parameter description is read by every agent that visits the page";
+
 const good = `
 navigator.modelContext.registerTool({
   name: "search_products",
@@ -24,12 +32,16 @@ test("exposes every tool-scoped imperative rule and a recommended config", () =>
   assert.ok(ids.includes("description-injection"));
   assert.ok(!ids.includes("duplicate-tool-name"), "page rules are not exposed");
   assert.ok(ids.includes("declarative-description"), "form rules are exposed for JSX");
-  assert.equal(ids.length, staticRules.length);
+  assert.ok(ids.includes("no-interpolated-text"), "source-only rules are exposed too");
+  assert.equal(ids.length, staticRules.length + 1);
   assert.equal(plugin.meta.name, "eslint-plugin-webmcp");
   assert.match(plugin.meta.version, /^\d+\.\d+\.\d+/);
   assert.equal(plugin.configs.recommended.rules?.["webmcp/tool-name-valid"], "error");
   assert.equal(plugin.configs.recommended.rules?.["webmcp/description-length"], "warn");
   assert.equal(plugin.configs.all.rules?.["webmcp/description-length"], "error");
+  // Interpolation is a question about provenance, not a defect: a warning by default, an error in `all`.
+  assert.equal(plugin.configs.recommended.rules?.["webmcp/no-interpolated-text"], "warn");
+  assert.equal(plugin.configs.all.rules?.["webmcp/no-interpolated-text"], "error");
 });
 
 test("tool-name-valid", () => {
@@ -378,4 +390,73 @@ test("the recommended config lints a file through the ESLint API", async () => {
   assert.equal(result.warningCount, 3);
   const [clean] = await eslint.lintText(good, { filePath: "shop.js" });
   assert.deepEqual(clean.messages, []);
+});
+
+test("no-interpolated-text asks where runtime-built tool text comes from", () => {
+  tester.run("no-interpolated-text", plugin.rules["no-interpolated-text"], {
+    valid: [
+      good,
+      // A reference to text is not an interpolation: translations and constants are left alone.
+      `mc.registerTool({ name: "ok", description: t("search.description") })`,
+      `mc.registerTool({ name: "ok", description: STRINGS.search })`,
+      `mc.registerTool({ name: "ok", description: \`a template with no holes\` })`,
+      // Arithmetic in some other field is not tool text.
+      `mc.registerTool({ name: "ok", description: "Search the catalogue.", timeout: 1 + 2 })`,
+      // Not a definition site.
+      `notATool({ name: "ok", description: \`Search \${site}\` })`,
+    ],
+    invalid: [
+      {
+        code: `mc.registerTool({ name: "ok", description: \`Search \${siteName} for products.\` });`,
+        errors: [{ messageId: "finding", data: { message: interpolated('The description of "ok"', "a template literal", READS_DESCRIPTION) } }],
+      },
+      {
+        code: `mc.registerTool({ name: \`tool_\${id}\`, description: "Search the catalogue by keyword and return matches." });`,
+        errors: [{ messageId: "finding" }],
+      },
+      {
+        code: `mc.registerTool({ name: "ok", title: "Search " + label, description: "Search the catalogue by keyword and return matches." });`,
+        errors: [{ messageId: "finding" }],
+      },
+      // A const holding the template is followed, like everywhere else in the plugin.
+      {
+        code: `const desc = \`Search \${siteName}.\`; mc.registerTool({ name: "ok", description: desc });`,
+        errors: [{ messageId: "finding", column: 14 }],
+      },
+      // Parameter descriptions are tool text too.
+      {
+        code: `mc.registerTool({ name: "ok", description: "Search the catalogue by keyword.", inputSchema: { type: "object", properties: { q: { type: "string", description: \`Keyword, from \${source}\` } } } });`,
+        errors: [{ messageId: "finding" }],
+      },
+      // Only the fields asked for.
+      {
+        code: `mc.registerTool({ name: \`tool_\${id}\`, description: \`Search \${siteName}.\` });`,
+        options: [{ fields: ["name"] }],
+        errors: [{ messageId: "finding" }],
+      },
+    ],
+  });
+});
+
+test("no-interpolated-text reads JSX form attributes", () => {
+  tester.run("no-interpolated-text", plugin.rules["no-interpolated-text"], {
+    valid: [
+      `const F = () => <form toolname="subscribe" tooldescription="Subscribe to the weekly newsletter." />;`,
+      `const F = () => <div tooldescription={\`not a form \${x}\`} />;`,
+    ],
+    invalid: [
+      {
+        code: `const F = () => <form toolname="subscribe" tooldescription={\`Subscribe to \${listName}.\`} />;`,
+        errors: [{ messageId: "finding", data: { message: interpolated("This form's tooldescription", "a template literal", READS_DESCRIPTION) } }],
+      },
+      {
+        code: `const F = () => <form toolname={\`subscribe_\${id}\`} tooldescription="Subscribe to the weekly newsletter." />;`,
+        errors: [{ messageId: "finding" }],
+      },
+      {
+        code: `const F = () => <form toolname="subscribe" tooldescription="Subscribe to the newsletter."><input name="email" toolparamdescription={"Address for " + listName} /></form>;`,
+        errors: [{ messageId: "finding", data: { message: interpolated('The description of field "email"', "string concatenation", READS_PARAM) } }],
+      },
+    ],
+  });
 });

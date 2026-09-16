@@ -52,6 +52,7 @@ navigator.modelContext.registerTool({
 | `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in any tool text.          |
 | `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists an insecure origin.                            |
 | `webmcp/exposed-to-wildcard`              | error       | `registerTool(tool, { exposedTo })` contains `"*"`, reachable by any embedder.           |
+| `webmcp/no-interpolated-text`             | warning     | Tool text assembled at runtime from values the author cannot name the source of.         |
 | `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                        |
 | `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.    |
 | `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field.                                        |
@@ -118,6 +119,7 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-no-null-literals": "error",
     "webmcp/exposed-to-secure-origins": "error",
     "webmcp/exposed-to-wildcard": "error",
+    "webmcp/no-interpolated-text": "warn",
     "webmcp/description-length": "warn",
     "webmcp/param-description-missing": "warn",
     "webmcp/schema-depth": "warn",

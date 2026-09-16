@@ -389,6 +389,8 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | `schema-unsupported-keywords`      | warning  | tool  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.         |
 | `sensitive-params`                 | warning  | tool  | Parameter names that look like credentials or payment data.                                      |
 | `duplicate-tool-name`              | error    | page  | Same name registered more than once across frames.                                               |
+| `tool-shadowing`                   | error    | page  | Names that read alike, registered from different frames, origins or scripts.                     |
+| `third-party-registration`         | warning  | page  | A tool registered by a script from another origin than the frame's.                              |
 | `similar-descriptions`             | warning  | page  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied. |
 | `too-many-tools`                   | warning  | page  | More than `max` (20) tools on a page.                                                            |
 | `no-tools`                         | info     | page  | Page exposes nothing.                                                                            |
@@ -403,6 +405,8 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | `capability-trifecta`              | warning  | page  | An undeclared source of third-party content sits on a page whose other tools act.                |
 
 The declarative rules read `<form>` markup: from the page at runtime, or statically from JSX (`<form toolname="...">` in a React component) through the ESLint plugin.
+
+`tool-shadowing` is the near-miss half of `duplicate-tool-name`: an agent picks a tool by reading its name, so `search_products` in your page and `searchProducts` in an embedded widget are one choice presented as two, and a one-character difference between longer names is a typosquat. Identical names stay `duplicate-tool-name`'s finding, and near names inside a single frame are a naming problem rather than a trust one, so the rule only fires across a frame, an origin, or a registering script. `third-party-registration` asks the other question — not which tool gets picked, but whose code defined it — and needs the [CDP collector](#seeing-what-chromes-agent-does), which is what records a registration site; add your own bundle host to its `allow` list.
 
 A project that runs the ESLint plugin can keep its Playwright assertion to the page-level rules, so a finding is reported once, where it is fixed: `await expect(webmcp).toPassLint({ scope: "page" })`. Without `scope` the assertion runs everything, which is the right default when there is no static lint.
 
@@ -421,7 +425,9 @@ Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRu
 
 The same engine runs wherever tool definitions are available.
 
-**In ESLint or oxlint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()`, `provideContext({ tools })` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed. The same package loads as an oxlint JS plugin (`"jsPlugins": ["eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
+**In ESLint or oxlint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()`, `provideContext({ tools })` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed.
+
+It also carries one rule with no `webmcp-lint` counterpart, because only the source shows it. `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js

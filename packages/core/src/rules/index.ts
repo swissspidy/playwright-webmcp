@@ -8,6 +8,7 @@ import { descriptionInjection } from "./injection.js";
 import { namingConsistency } from "./naming.js";
 import { exposedToInsecure, exposedToWildcard } from "./exposure.js";
 import { capabilityTrifecta } from "./capability.js";
+import { thirdPartyRegistration, toolShadowing } from "./shadowing.js";
 
 export const builtinRules: Rule[] = [
   toolNameValid,
@@ -32,6 +33,8 @@ export const builtinRules: Rule[] = [
   exposedToInsecure,
   exposedToWildcard,
   capabilityTrifecta,
+  toolShadowing,
+  thirdPartyRegistration,
 ];
 
 export const rulesById: Record<string, Rule> = Object.fromEntries(builtinRules.map((r) => [r.id, r]));

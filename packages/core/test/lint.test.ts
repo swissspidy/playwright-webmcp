@@ -187,3 +187,82 @@ test("capability-trifecta does not infer a source from a tool that only accepts 
     [],
   );
 });
+
+test("tool-shadowing catches the near-copies duplicate-tool-name does not", () => {
+  const frames: PageSnapshot["frames"] = [
+    { url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "shim" },
+    { url: "https://widget.test/", origin: "https://widget.test", isTop: false, api: "shim", crossOriginFromTop: true },
+  ];
+  const r = lint(
+    snap(
+      [
+        { name: "search_products", frame: 0, origin: "https://shop.test" },
+        // Same name to a reader, from a frame the page does not control.
+        { name: "searchProducts", frame: 1, origin: "https://widget.test" },
+        // One character off.
+        { name: "search_product", frame: 1, origin: "https://widget.test" },
+      ],
+      frames,
+    ),
+  );
+  const shadowing = r.findings.filter((f) => f.ruleId === "tool-shadowing");
+  assert.equal(shadowing.length, 2);
+  assert.match(shadowing[0].message, /both read as "searchproducts"/);
+  assert.match(shadowing[0].message, /frame 1 \(https:\/\/widget\.test\)/);
+  assert.match(shadowing[1].message, /differ by a single character/);
+
+  // Identical names stay duplicate-tool-name's finding, reported once.
+  const exact = lint(
+    snap(
+      [
+        { name: "search_products", frame: 0 },
+        { name: "search_products", frame: 1, origin: "https://widget.test" },
+      ],
+      frames,
+    ),
+  ).findings.map((f) => f.ruleId);
+  assert.ok(exact.includes("duplicate-tool-name"));
+  assert.ok(!exact.includes("tool-shadowing"));
+
+  // Near names inside one frame are a naming problem, not a trust one.
+  assert.deepEqual(
+    lint(snap([{ name: "search_products" }, { name: "searchProducts" }])).findings.filter((f) => f.ruleId === "tool-shadowing"),
+    [],
+  );
+  // And short names are just short names.
+  assert.deepEqual(
+    lint(
+      snap(
+        [
+          { name: "get", frame: 0 },
+          { name: "set", frame: 1, origin: "https://widget.test" },
+        ],
+        frames,
+      ),
+    ).findings.filter((f) => f.ruleId === "tool-shadowing"),
+    [],
+  );
+});
+
+test("third-party-registration names the script origin that is not the page's", () => {
+  const tools = [
+    { name: "search_products", location: { url: "https://example.test/app.js", line: 1, column: 1 } },
+    { name: "track_visit", location: { url: "https://analytics.example/sdk.js", line: 9, column: 3 } },
+    // No location: the plain collector does not report one, and silence is not a finding.
+    { name: "add_to_cart" },
+  ];
+  const found = lint(snap(tools)).findings.filter((f) => f.ruleId === "third-party-registration");
+  assert.deepEqual(
+    found.map((f) => f.tool),
+    ["track_visit"],
+  );
+  assert.match(found[0].message, /registered by a script from https:\/\/analytics\.example, not from https:\/\/example\.test/);
+
+  // Your own bundle host is not a third party.
+  assert.deepEqual(
+    lint(snap(tools), { rules: { "third-party-registration": { allow: ["https://analytics.example"] } } }).findings.filter(
+      (f) => f.ruleId === "third-party-registration",
+    ),
+    [],
+  );
+});

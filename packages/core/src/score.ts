@@ -38,6 +38,8 @@ export const SAFETY_RULES = new Set([
   "exposed-to-wildcard",
   "iframe-allow-tools",
   "capability-trifecta",
+  "tool-shadowing",
+  "third-party-registration",
 ]);
 
 function penalty(findings: Finding[]): { value: number; notes: string[] } {

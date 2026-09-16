@@ -133,7 +133,7 @@ function mutates(identifier: ESTree.Node): boolean {
  * Follows an identifier to the literal it was initialised with, when it is a
  * `const` or `let` declared once in this file. Anything else is returned as is.
  */
-function makeResolver(sourceCode: ESLintRule.RuleContext["sourceCode"]): Resolver {
+export function makeResolver(sourceCode: ESLintRule.RuleContext["sourceCode"]): Resolver {
   const seen = new Set<ESTree.Node>();
   const resolve: Resolver = (node) => {
     const n = unwrap(node);
