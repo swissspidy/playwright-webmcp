@@ -1,4 +1,4 @@
-import { ToolLoopAgent, jsonSchema, stepCountIs, tool } from "ai";
+import { ToolLoopAgent, jsonSchema, stepCountIs, tool, type JSONSchema7 } from "ai";
 import { MockLanguageModelV4 } from "ai/test";
 import { test, expect, toolsForAgent } from "../src/index.js";
 
@@ -40,7 +40,7 @@ test("an AI SDK ToolLoopAgent drives the page's tools and passes an eval", async
   const tools = Object.fromEntries(
     (await toolsForAgent(webmcp)).map((t) => [
       t.name,
-      tool({ description: t.description, inputSchema: jsonSchema<Record<string, unknown>>(t.inputSchema as never), execute: (input) => t.execute(input) }),
+      tool({ description: t.description, inputSchema: jsonSchema<Record<string, unknown>>(t.inputSchema as JSONSchema7), execute: t.execute }),
     ]),
   );
   const agent = new ToolLoopAgent({ model, instructions: "You are a shop assistant.", tools, stopWhen: stepCountIs(5) });

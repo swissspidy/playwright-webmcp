@@ -87,7 +87,7 @@ export interface AgentTurn {
   index: number;
   prompts: string[];
   systemPrompt?: string;
-  /** The page's tools as callables; every call is recorded as an agent call. */
+  /** The page's tools as callables; every call is recorded as an agent call, and rejects once the run has timed out. */
   tools: AgentTool[];
   /** Aborted when the run times out. */
   signal: AbortSignal;
@@ -148,7 +148,16 @@ export async function runAgent(webmcp: WebMCP, agent: EvalAgent, options: AgentR
       // natively the CDP collector sees those executions too, so reading the fixture back would count them twice.
       if (Array.isArray(ran.calls)) ownCalls = ran.calls;
     } else if (typeof agent === "function") {
-      const tools = await race(toolsForAgent(webmcp, { toolNames: opts.toolNames }));
+      const discovered = await race(toolsForAgent(webmcp, { toolNames: opts.toolNames }));
+      // A driver that ignores the signal must not still be able to act on the page after the run
+      // returned: a late call would mutate it and be counted against whichever run comes next.
+      const tools = discovered.map((t) => ({
+        ...t,
+        execute: (args: Record<string, unknown>) => {
+          if (controller.signal.aborted) return Promise.reject(controller.signal.reason ?? new Error("Agent run timed out"));
+          return t.execute(args);
+        },
+      }));
       result.toolsOffered = tools.map((t) => t.name);
       for (const [index, prompt] of opts.prompts.entries()) {
         const text = textOf(await race(agent(prompt, { index, prompts: opts.prompts, systemPrompt: opts.systemPrompt, tools, signal: controller.signal })));

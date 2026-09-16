@@ -92,6 +92,18 @@ test.describe("bring your own agent", () => {
     const slow = (_prompt: string, { signal }: { signal: AbortSignal }) => new Promise<void>((resolve) => signal.addEventListener("abort", () => resolve()));
     expect((await runAgent(webmcp, slow, { prompts: ["x"], timeoutMs: 100 })).status).toBe("timeout");
 
+    // A driver that ignores the signal cannot act on the page after the run returned: the tools it was
+    // handed reject, so a late call neither mutates the page nor lands in the next run's calls.
+    let late: AgentTool | undefined;
+    const runaway = async (_prompt: string, { tools }: { tools: AgentTool[] }) => {
+      late = tools.find((t) => t.name === "add_to_cart");
+      await new Promise((resolve) => setTimeout(resolve, 300));
+    };
+    expect((await runAgent(webmcp, runaway, { prompts: ["x"], timeoutMs: 100 })).status).toBe("timeout");
+    const callsBefore = webmcp.calls().length;
+    await expect(late!.execute({ productId: 1 })).rejects.toThrow(/exceeded 100 ms/);
+    expect(webmcp.calls().length).toBe(callsBefore);
+
     // Tool discovery failing is an error status, not a rejected run.
     const broken = { tools: async () => Promise.reject(new Error("getTools exploded")), calls: () => [] } as unknown as typeof webmcp;
     expect(await runAgent(broken, async () => {}, "x")).toMatchObject({ status: "error", reason: "getTools exploded" });

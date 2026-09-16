@@ -195,7 +195,7 @@ Tool results go back to the model as JSON strings with nulls stripped, which is 
 The fixture is the discovery and execution half: `webmcp.tools()` lists what the page registered and `webmcp.call()` runs a tool, the way Puppeteer's `page.webmcp` does. `toolsForAgent(webmcp)` hands the same tools over as callables (`name`, `description`, `inputSchema`, `readOnly`, `execute()`), and every `execute()` runs in the page and is recorded with `via: "agent"`. The agent itself is yours: whatever model or framework you run from Node, and the stronger the model, the more the eval verdicts mean. With the Vercel AI SDK the mapping is one line per tool, and its `ToolLoopAgent` is accepted by `toPassEval` as it is:
 
 ```ts
-import { ToolLoopAgent, jsonSchema, stepCountIs, tool } from "ai";
+import { ToolLoopAgent, jsonSchema, stepCountIs, tool, type JSONSchema7 } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
 import { test, expect, toolsForAgent } from "playwright-webmcp";
 
@@ -206,7 +206,7 @@ test("a capable model completes the purchase", async ({ page, webmcp }) => {
       t.name,
       tool({
         description: t.description,
-        inputSchema: jsonSchema(t.inputSchema),
+        inputSchema: jsonSchema<Record<string, unknown>>(t.inputSchema as JSONSchema7),
         execute: t.execute,
       }),
     ]),
@@ -226,7 +226,7 @@ test("a capable model completes the purchase", async ({ page, webmcp }) => {
 });
 ```
 
-Under TypeScript, `jsonSchema()` wants a `JSONSchema7`, so cast `t.inputSchema` (`webmcp-lint` types schemas loosely). `toPassEval` sends each user message of the case as a turn and reconciles the calls the fixture recorded meanwhile. The `agent` can be:
+The cast and the type argument are what make that line compile: `webmcp-lint` types schemas loosely, and `jsonSchema()` infers `unknown` for the input unless told otherwise, which `tool()` cannot reconcile with `execute`. `toPassEval` sends each user message of the case as a turn and reconciles the calls the fixture recorded meanwhile. The `agent` can be:
 
 - an object with `generate()`, like `ToolLoopAgent`: the first turn is sent as `{ prompt }`, later turns as `{ messages }` carrying the earlier turns and whatever `response.messages` came back, which is how the AI SDK continues a conversation;
 - an object with `run()`, like the `promptApi` fixture (`expect(promptApi).toPassEval(evalCase)` is the same thing without the option);

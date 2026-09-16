@@ -43,7 +43,9 @@ test.describe("mock and replay", () => {
         return true;
       }
     });
-    if (rejected) await expect(webmcp.mock("subscribe_newsletter", { result: {} })).rejects.toThrow(/cannot be mocked/);
+    // Both the shim and Chrome reject a name that is already registered; without that, the rest proves nothing.
+    expect(rejected).toBe(true);
+    await expect(webmcp.mock("subscribe_newsletter", { result: {} })).rejects.toThrow(/cannot be mocked/);
   });
 
   test("replay serves recorded results to an agent run", async ({ page, webmcp }) => {
