@@ -295,6 +295,8 @@ await expect(webmcp).not.toReachTool("partner_private");
 
 The `exposed-to-secure-origins` rule flags `exposedTo` entries that the API would reject, and `iframe-allow-tools` points at cross-origin frames that register tools nobody can reach.
 
+Both halves of the handshake have to hold for a tool to be reachable, but only one of them is yours: an attacker writes their own embedder, so `allow="tools"` is always granted on a page that wants in. `exposedTo` is the half you control, and `exposed-to-wildcard` (error) flags `["*"]` — with it, any page that iframes yours drives the tool under the user's live session. Read-only or not, list the origins instead; re-level the rule to `warning` if the data really is public.
+
 ## Mocks and replay
 
 `mock(name, impl)` swaps a tool's implementation for one that runs in Node, so agent tests can exercise `add_to_cart` without side effects, and a `{ error }` mock reproduces backend failures. `replay(recording)` mocks every tool in a recording so calls with the same arguments return the recorded result, which turns any recording, including one made against the on-device model, into a deterministic fixture. Restoring the original works when the page's API exposes `execute` (the shim does; native builds may not).
@@ -312,13 +314,17 @@ The recorder timestamps every registration and removal relative to navigation. `
 ## Coverage, score, codegen, docs
 
 - **Coverage** counts tools and parameters the recorded calls exercised. The reporter aggregates it across the suite into `coverage.json`.
-- **Score** is a 0..100 number with a breakdown: declarations (weight 40) from non-safety lint findings, runtime (30) from smoke findings when a smoke run is supplied, safety (15) from the injection, sensitive-parameter, autosubmit, and exposure rules, and coverage (15). Errors cost 15 points of a category, warnings 5. Categories without input are left out and the rest renormalised.
+- **Score** is a 0..100 number with a breakdown: declarations (weight 40) from non-safety lint findings, runtime (30) from smoke findings when a smoke run is supplied, safety (15) from the injection, untrusted-content, capability-composition, sensitive-parameter, autosubmit, and exposure rules, and coverage (15). Errors cost 15 points of a category, warnings 5. Categories without input are left out and the rest renormalised.
 - **Codegen** renders a Playwright test from the recording, with the `promptApi` fixture's `run(prompt)` for agent-made calls when a prompt is given, and a `toMatchCalls` assertion.
 - **Docs** renders a Markdown reference of the tools with parameter tables and example calls; the reporter writes it as `TOOLS.md`.
 
 ## Injection scanning
 
-Descriptions are read by every agent that visits a page, and tool results go straight into a model's context. `description-injection` (error) flags instruction overrides, role markers, exfiltration phrasing, and zero-width or bidirectional characters in tool and parameter descriptions. The smoke rule `result-suspicious-content` (warning) applies the same detector to string values in results. The CDP domain marks tool output as untrusted for the same reason.
+Every string a page declares is read by every agent that visits it, and every string a tool returns goes straight into a model's context. `description-injection` (error) flags instruction overrides, role markers, exfiltration phrasing, and zero-width or bidirectional characters — in the description, the title, each parameter description, and the annotation values, since clients surface those too. The finding's path says which one.
+
+Results are judged against what the tool declared. `untrustedContentHint` is the one part of this an author can fix in a declaration: it lets every client tell somebody else's words from the page's own. A tool that returns instruction-shaped text without it is passing the first off as the second, which is `untrusted-content-unmarked` (error); one that declared it gets `result-suspicious-content` (warning), because the boundary is marked and containing it is the client's job. The CDP domain marks tool output as untrusted for the same reason.
+
+The composition is a page-level question, and `capability-trifecta` (warning) asks it: a tool that hands the agent content the author did not write, on a page that also exposes tools which act on the user's behalf, means text inside that content can ask the agent to call them. The usual third leg — access to private data — is not something a page opts into; every tool already runs inside the user's session. A tool counts as a source when it declares `untrustedContent`, or when its name or description reads like third-party content (`comments`, `reviews`, `inbox`, `feed`) and nothing contradicts that: a `<form>` that subscribes an email address submits rather than returns, so it is not inferred to be one. Declaring the hint resolves the finding; `requireDeclaration: false` reports declared chains too, for a review that wants every composition listed rather than only the fixable ones.
 
 ## Site audit
 
@@ -334,17 +340,18 @@ Crawls same-origin links, lints every page, detects tools whose description or s
 
 `smoke()` derives inputs from each tool's `inputSchema` and runs them: the required parameters only, all parameters, boundary values (minimum, maximum, maxLength, empty strings and arrays, each enum value), and invalid inputs (missing required, wrong type, out of range, outside enum). Every result is judged:
 
-| Rule                           | Severity | Checks                                                                       |
-| ------------------------------ | -------- | ---------------------------------------------------------------------------- |
-| `result-error-on-valid-input`  | error    | A schema-valid call threw or reported an error.                              |
-| `result-contains-null`         | error    | Result contains `null` anywhere; Chrome's Prompt API rejects it.             |
-| `result-not-serializable`      | error    | Result cannot be JSON serialized.                                            |
-| `result-undefined`             | warning  | Tool returned nothing.                                                       |
-| `result-too-large`             | warning  | Serialized result above `maxResultBytes` (16 KB).                            |
-| `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                      |
-| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error.                                 |
-| `result-string-json`           | info     | Returned JSON as a string rather than an object.                             |
-| `result-suspicious-content`    | warning  | Result text looks like an instruction to the agent or has hidden characters. |
+| Rule                           | Severity | Checks                                                                               |
+| ------------------------------ | -------- | ------------------------------------------------------------------------------------ |
+| `result-error-on-valid-input`  | error    | A schema-valid call threw or reported an error.                                      |
+| `result-contains-null`         | error    | Result contains `null` anywhere; Chrome's Prompt API rejects it.                     |
+| `result-not-serializable`      | error    | Result cannot be JSON serialized.                                                    |
+| `result-undefined`             | warning  | Tool returned nothing.                                                               |
+| `result-too-large`             | warning  | Serialized result above `maxResultBytes` (16 KB).                                    |
+| `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                              |
+| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error.                                         |
+| `result-string-json`           | info     | Returned JSON as a string rather than an object.                                     |
+| `untrusted-content-unmarked`   | error    | Result text reads as an instruction and the tool declares no `untrustedContentHint`. |
+| `result-suspicious-content`    | warning  | The same, on a tool that did declare it: the boundary is marked.                     |
 
 Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it. Every run is recorded as a `SmokeRun` (tool, input kind and label, arguments, result or error, duration); `formatSmokeRuns()` renders them as a Markdown table, which is what `webmcp-audit` puts in its report.
 
@@ -382,6 +389,8 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | `schema-unsupported-keywords`      | warning  | tool  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.         |
 | `sensitive-params`                 | warning  | tool  | Parameter names that look like credentials or payment data.                                      |
 | `duplicate-tool-name`              | error    | page  | Same name registered more than once across frames.                                               |
+| `tool-shadowing`                   | error    | page  | Names that read alike, registered from different frames, origins or scripts.                     |
+| `third-party-registration`         | warning  | page  | A tool registered by a script from another origin than the frame's.                              |
 | `similar-descriptions`             | warning  | page  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied. |
 | `too-many-tools`                   | warning  | page  | More than `max` (20) tools on a page.                                                            |
 | `no-tools`                         | info     | page  | Page exposes nothing.                                                                            |
@@ -389,11 +398,15 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | `declarative-description`          | error    | tool  | `<form toolname>` also has `tooldescription`.                                                    |
 | `declarative-field-description`    | warning  | tool  | Each named field has a label or `toolparamdescription`.                                          |
 | `declarative-autosubmit-sensitive` | error    | tool  | `toolautosubmit` on forms with password or payment fields.                                       |
-| `description-injection`            | error    | tool  | Instructions to the agent, role markers, or hidden characters in descriptions.                   |
+| `description-injection`            | error    | tool  | Instructions to the agent, role markers, or hidden characters in any tool text.                  |
 | `naming-consistency`               | warning  | page  | Mixed naming styles across tool or parameter names.                                              |
 | `exposed-to-secure-origins`        | error    | tool  | `exposedTo` lists an insecure origin.                                                            |
+| `exposed-to-wildcard`              | error    | tool  | `exposedTo` contains `"*"`, so any embedder reaches the tool with the user's session.            |
+| `capability-trifecta`              | warning  | page  | An undeclared source of third-party content sits on a page whose other tools act.                |
 
 The declarative rules read `<form>` markup: from the page at runtime, or statically from JSX (`<form toolname="...">` in a React component) through the ESLint plugin.
+
+`tool-shadowing` is the near-miss half of `duplicate-tool-name`: an agent picks a tool by reading its name, so `search_products` in your page and `searchProducts` in an embedded widget are one choice presented as two, and a one-character difference between longer names is a typosquat. Identical names stay `duplicate-tool-name`'s finding, and near names inside a single frame are a naming problem rather than a trust one, so the rule only fires across a frame, an origin, or a registering script. `third-party-registration` asks the other question — not which tool gets picked, but whose code defined it — and needs the [CDP collector](#seeing-what-chromes-agent-does), which is what records a registration site; add your own bundle host to its `allow` list.
 
 A project that runs the ESLint plugin can keep its Playwright assertion to the page-level rules, so a finding is reported once, where it is fixed: `await expect(webmcp).toPassLint({ scope: "page" })`. Without `scope` the assertion runs everything, which is the right default when there is no static lint.
 
@@ -412,7 +425,9 @@ Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRu
 
 The same engine runs wherever tool definitions are available.
 
-**In ESLint or oxlint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()`, `provideContext({ tools })` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed. The same package loads as an oxlint JS plugin (`"jsPlugins": ["eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
+**In ESLint or oxlint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()`, `provideContext({ tools })` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed.
+
+It also carries one rule with no `webmcp-lint` counterpart, because only the source shows it. `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js

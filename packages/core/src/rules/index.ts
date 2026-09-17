@@ -5,7 +5,10 @@ import { schemaDepth, schemaKeywords, schemaNulls, schemaShape, sensitiveParams 
 import { duplicateToolName, iframeAllowTools, noTools, similarDescriptions, tooManyTools } from "./page.js";
 import { declarativeAutosubmit, declarativeDescription, declarativeFieldLabels } from "./declarative.js";
 import { descriptionInjection } from "./injection.js";
-import { exposedToInsecure, namingConsistency } from "./naming.js";
+import { namingConsistency } from "./naming.js";
+import { exposedToInsecure, exposedToWildcard } from "./exposure.js";
+import { capabilityTrifecta } from "./capability.js";
+import { thirdPartyRegistration, toolShadowing } from "./shadowing.js";
 
 export const builtinRules: Rule[] = [
   toolNameValid,
@@ -28,6 +31,10 @@ export const builtinRules: Rule[] = [
   descriptionInjection,
   namingConsistency,
   exposedToInsecure,
+  exposedToWildcard,
+  capabilityTrifecta,
+  toolShadowing,
+  thirdPartyRegistration,
 ];
 
 export const rulesById: Record<string, Rule> = Object.fromEntries(builtinRules.map((r) => [r.id, r]));

@@ -16,7 +16,9 @@
           properties: { productId: { type: "number", description: "Product id to list reviews for" } },
           required: ["productId"],
         },
-        annotations: { readOnlyHint: true },
+        // Reviews are written by customers, not by this page: say so, so an
+        // agent client can tell their text from ours.
+        annotations: { readOnlyHint: true, untrustedContentHint: true },
         async execute({ productId }) {
           return { reviews: [{ productId, rating: 5, text: "Great" }] };
         },

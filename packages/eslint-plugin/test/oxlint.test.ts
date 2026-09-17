@@ -130,3 +130,25 @@ test("oxlint lints JSX form tools with the declarative rules", () => {
     ],
   );
 });
+
+test("oxlint runs the source-only rule, which reads scopes and JSX", () => {
+  const { status, stdout, stderr } = runOxlint(
+    {
+      "shop.jsx": `const mc = navigator.modelContext;
+const blurb = \`Search \${siteName} for products.\`;
+mc.registerTool({ name: "search", description: blurb, execute: () => ({}) });
+export const Form = () => <form toolname="subscribe" tooldescription={\`Join \${listName}.\`} />;
+`,
+    },
+    { jsPlugins: [{ name: "webmcp", specifier: pluginPath }], rules: { "webmcp/no-interpolated-text": "error" } },
+  );
+  assert.equal(status, 1, stderr);
+  const found = diagnostics(stdout);
+  assert.deepEqual(
+    found.map((d) => d.rule),
+    ["webmcp(no-interpolated-text)", "webmcp(no-interpolated-text)"],
+  );
+  // The binding is followed to the template it holds, as it is under ESLint.
+  assert.equal(found[0].line, 2);
+  assert.equal(found[1].line, 4);
+});

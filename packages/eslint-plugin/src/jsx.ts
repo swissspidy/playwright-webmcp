@@ -77,7 +77,7 @@ function hasSpread(el: JSXOpeningElementNode): boolean {
 }
 
 /** JSX elements inside a node, in document order, not descending into nested forms. */
-function* elementsWithin(node: unknown, seen = new Set<unknown>()): Generator<JSXElementNode> {
+export function* elementsWithin(node: unknown, seen = new Set<unknown>()): Generator<JSXElementNode> {
   if (!node || typeof node !== "object" || seen.has(node)) return;
   seen.add(node);
   if (Array.isArray(node)) {

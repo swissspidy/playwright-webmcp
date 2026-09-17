@@ -49,8 +49,10 @@ navigator.modelContext.registerTool({
 | `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                               |
 | `webmcp/schema-unsupported-keywords`      | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`. |
 | `webmcp/sensitive-params`                 | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).        |
-| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in descriptions.           |
+| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in any tool text.          |
 | `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists an insecure origin.                            |
+| `webmcp/exposed-to-wildcard`              | error       | `registerTool(tool, { exposedTo })` contains `"*"`, reachable by any embedder.           |
+| `webmcp/no-interpolated-text`             | warning     | Tool text assembled at runtime from values the author cannot name the source of.         |
 | `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                        |
 | `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.    |
 | `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field.                                        |
@@ -96,7 +98,7 @@ A `<form toolname="...">` in a React component is a declarative tool, and the th
 
 ## What it can and cannot see
 
-The plugin reads literals: strings, numbers, booleans, arrays and nested objects, including values wrapped in `as const` or `satisfies` when a TypeScript parser is used. A field whose value is computed (an import, a function call, a template with expressions, a spread, a getter) is treated as unknown, and findings about that field are dropped for that tool rather than guessed at; `description-injection` still checks a literal description when only the schema is computed. A tool whose `name` is not a literal is not linted at all. When a key is written twice the last one counts, as at runtime. A binding that is visibly mutated in place (`tool.name = ...`, `delete tool.x`, `Object.assign(tool, ...)`) is not followed; one passed to another function is assumed to come back unchanged. Definitions built by a helper in another module are out of reach; lint those with `lintTools()` from `webmcp-lint` in a unit test, or at runtime with `playwright-webmcp`.
+The plugin reads literals: strings, numbers, booleans, arrays and nested objects, including values wrapped in `as const` or `satisfies` when a TypeScript parser is used. A field whose value is computed (an import, a function call, a template with expressions, a spread, a getter) is treated as unknown, and findings about that field are dropped for that tool rather than guessed at; `description-injection` still checks a literal description when only the schema is computed, and reports separately on `title` and on annotation values. A tool whose `name` is not a literal has no definition to judge, so the rules that need one skip it; `no-interpolated-text` still reports on it, because a name assembled at runtime is what that rule is looking for. When a key is written twice the last one counts, as at runtime. A binding that is visibly mutated in place (`tool.name = ...`, `delete tool.x`, `Object.assign(tool, ...)`) is not followed; one passed to another function is assumed to come back unchanged. Definitions built by a helper in another module are out of reach; lint those with `lintTools()` from `webmcp-lint` in a unit test, or at runtime with `playwright-webmcp`.
 
 Rules that need the whole page are not here on purpose: duplicate names, near-identical descriptions, tool count and cross-origin frames depend on what the page actually registers at runtime. Run those with [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp) in a test, or with [`webmcp-audit`](https://www.npmjs.com/package/webmcp-audit) against a URL. The rule list and severities are documented in the [repository README](https://github.com/swissspidy/playwright-webmcp#readme).
 
@@ -116,6 +118,8 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-shape": "error",
     "webmcp/schema-no-null-literals": "error",
     "webmcp/exposed-to-secure-origins": "error",
+    "webmcp/exposed-to-wildcard": "error",
+    "webmcp/no-interpolated-text": "warn",
     "webmcp/description-length": "warn",
     "webmcp/param-description-missing": "warn",
     "webmcp/schema-depth": "warn",

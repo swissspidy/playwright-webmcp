@@ -139,9 +139,15 @@ export function nodeAtPath(obj: ESTree.ObjectExpression, path: string, resolve: 
 
 const TOOL_FIELDS = ["name", "title", "description", "inputSchema", "annotations"] as const;
 
-interface ExposedTo {
+export interface ExposedTo {
   value: Static;
   node?: Node;
+}
+
+/** One tool definition literal found at a definition site, before it is read. */
+export interface ToolObject {
+  node: ESTree.ObjectExpression;
+  exposedTo: ExposedTo;
 }
 
 function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: ExposedTo, resolve: Resolver): ExtractedTool | undefined {
@@ -189,11 +195,18 @@ function argumentAt(call: ESTree.CallExpression, index: number): Node | undefine
   return arg && arg.type !== "SpreadElement" ? arg : undefined;
 }
 
-/** Tool definitions passed to one call expression, if it matches a definition site. */
-export function toolsFromCall(call: ESTree.CallExpression, sites: DefinitionSite[], resolve: Resolver = identity): ExtractedTool[] {
+/**
+ * The tool definition literals passed to one call expression, if it matches a
+ * definition site, paired with the `exposedTo` written alongside them.
+ *
+ * Separate from `toolsFromCall` because a rule can care about a definition
+ * that rule cannot read: a tool whose `name` is computed has no snapshot to
+ * lint, but the computation itself may be the finding.
+ */
+export function toolObjectsFromCall(call: ESTree.CallExpression, sites: DefinitionSite[], resolve: Resolver = identity): ToolObject[] {
   const method = calleeName(call.callee as Node);
   if (!method) return [];
-  const out: ExtractedTool[] = [];
+  const out: ToolObject[] = [];
   for (const site of sites) {
     if (site.call !== method) continue;
     const arg = argumentAt(call, site.argument ?? 0);
@@ -222,16 +235,22 @@ export function toolsFromCall(call: ESTree.CallExpression, sites: DefinitionSite
       for (const el of arr.elements) {
         if (!el || el.type === "SpreadElement") continue;
         const item = unwrap(resolve(el));
-        if (item.type !== "ObjectExpression") continue;
-        const extracted = toolFromObject(item, exposedTo, resolve);
-        if (extracted) out.push(extracted);
+        if (item.type === "ObjectExpression") out.push({ node: item, exposedTo });
       }
     } else {
       const obj = unwrap(resolve(arg));
-      if (obj.type !== "ObjectExpression") continue;
-      const extracted = toolFromObject(obj, exposedTo, resolve);
-      if (extracted) out.push(extracted);
+      if (obj.type === "ObjectExpression") out.push({ node: obj, exposedTo });
     }
+  }
+  return out;
+}
+
+/** Tool definitions passed to one call expression, as data the lint rules can judge. */
+export function toolsFromCall(call: ESTree.CallExpression, sites: DefinitionSite[], resolve: Resolver = identity): ExtractedTool[] {
+  const out: ExtractedTool[] = [];
+  for (const { node, exposedTo } of toolObjectsFromCall(call, sites, resolve)) {
+    const extracted = toolFromObject(node, exposedTo, resolve);
+    if (extracted) out.push(extracted);
   }
   return out;
 }

@@ -6,6 +6,7 @@ import type { Finding, Severity } from "./types.js";
 import type { ArgumentKind } from "./generate.js";
 import { walk } from "./rules/helpers.js";
 import { scanValue } from "./injection.js";
+import { toolHints } from "./annotations.js";
 
 export interface SmokeRun {
   tool: string;
@@ -16,6 +17,12 @@ export interface SmokeRun {
   result?: unknown;
   error?: string;
   durationMs: number;
+  /**
+   * The tool's annotations as they stood when the run happened. Supplied by
+   * the runner so result rules can tell a declared untrusted-content boundary
+   * from a missing one.
+   */
+  annotations?: Record<string, unknown> | null;
 }
 
 export interface SmokeBudgets {
@@ -51,7 +58,13 @@ export const SMOKE_RULES = {
   },
   "result-suspicious-content": {
     severity: "warning" as Severity,
-    description: "Result text looks like an instruction to the agent or contains hidden characters; mark the tool untrustedContent or sanitize.",
+    description:
+      "Result text of a tool declared untrustedContent looks like an instruction to the agent; the declaration is there, so this is for the client to contain.",
+  },
+  "untrusted-content-unmarked": {
+    severity: "error" as Severity,
+    description:
+      "Result text reads as an instruction to the agent, but the tool does not declare untrustedContentHint, so no client can tell it apart from the page's own words.",
   },
 } as const;
 
@@ -150,13 +163,19 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
       ),
     );
 
+  // A tool that declares untrustedContent has done its part: the text is
+  // still worth reporting, but the boundary is marked and containing it is
+  // the client's job. One that does not declare it is passing somebody else's
+  // words off as the page's own.
+  const declared = toolHints(run.annotations).untrustedContent === true;
   for (const { path, hits } of scanValue(run.result)) {
+    const id: SmokeRuleId = declared ? "result-suspicious-content" : "untrusted-content-unmarked";
     out.push(
       make(
-        "result-suspicious-content",
+        id,
         run,
         `${where} returned ${hits.map((h) => h.kind.replace(/-/g, " ")).join(", ")} at ${path}: ${JSON.stringify(hits[0].match)}.`,
-        SMOKE_RULES["result-suspicious-content"].description,
+        declared ? SMOKE_RULES[id].description : "Set untrustedContentHint on this tool, or sanitize the text before returning it.",
       ),
     );
   }
