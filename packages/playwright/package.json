@@ -1,6 +1,6 @@
 {
   "name": "playwright-webmcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Playwright fixture, matchers, recorder, reporter and test-time shim for testing WebMCP tool surfaces.",
   "keywords": [
     "playwright",
