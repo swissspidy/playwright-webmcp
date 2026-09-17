@@ -1,5 +1,6 @@
 import "../src/webmcp-types.js";
 import { test, expect } from "../src/index.js";
+import { executeToolInPage } from "./helpers.js";
 
 test.describe("calling and recording", () => {
   test("call() executes tools in any frame and records them", async ({ page, webmcp }) => {
@@ -35,18 +36,46 @@ test.describe("calling and recording", () => {
 
   test("calls made by page scripts are recorded as api calls", async ({ page, webmcp }) => {
     await page.goto("/");
-    await page.evaluate(async () => {
-      const mc = (document.modelContext ?? navigator.modelContext)!;
-      const tools = await mc.getTools();
-      await mc.executeTool(
-        tools.find((t) => t.name === "search_products")!,
-        JSON.stringify({ query: "hat" }),
-      );
-    });
+    await executeToolInPage(page, "search_products", { query: "hat" });
     const calls = webmcp.calls();
     expect(calls).toHaveLength(1);
     expect(calls[0]).toMatchObject({ name: "search_products", via: "api", args: { query: "hat" } });
     expect(calls[0].result).toEqual({ products: [{ id: 3, name: "Green hat", price: 12 }] });
+  });
+
+  test("call() tries both input shapes, and retries only when the shape was refused", async ({ page, webmcp }) => {
+    await page.goto("/");
+    // Stand in for a browser that takes only a JSON string, as Chrome 154 did.
+    // The object goes first now, so this only works if the fallback fires.
+    const attempts = await page.evaluate(() => {
+      const mc = (document.modelContext ?? navigator.modelContext)!;
+      const original = mc.executeTool.bind(mc);
+      const seen: string[] = [];
+      (globalThis as Record<string, unknown>).__attempts = seen;
+      mc.executeTool = ((tool: never, args: unknown, options: never) => {
+        seen.push(typeof args);
+        if (typeof args !== "string") throw new TypeError("Failed to execute 'executeTool' on 'ModelContext': cannot parse input");
+        return original(tool, args, options);
+      }) as typeof mc.executeTool;
+      return seen;
+    });
+    expect(await webmcp.call("search_products", { query: "hat" })).toEqual({ products: [{ id: 3, name: "Green hat", price: 12 }] });
+    expect(await page.evaluate(() => (globalThis as Record<string, unknown>).__attempts as string[])).toEqual(["object", "string"]);
+    expect(attempts).toEqual([]);
+
+    // An error from the tool itself is not an input-shape complaint, so it is
+    // rethrown rather than retried: a tool that writes must not run twice.
+    await page.evaluate(() => {
+      const mc = (document.modelContext ?? navigator.modelContext)!;
+      const seen = (globalThis as Record<string, unknown>).__attempts as string[];
+      seen.length = 0;
+      mc.executeTool = ((_tool: never, args: unknown) => {
+        seen.push(typeof args);
+        throw new Error("the cart is closed");
+      }) as typeof mc.executeTool;
+    });
+    await expect(webmcp.call("add_to_cart", { productId: 1 })).rejects.toThrow(/the cart is closed/);
+    expect(await page.evaluate(() => (globalThis as Record<string, unknown>).__attempts as string[])).toEqual(["object"]);
   });
 
   test("failures are recorded and rethrown", async ({ page, webmcp }) => {

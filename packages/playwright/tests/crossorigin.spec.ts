@@ -1,4 +1,5 @@
 import { test, expect } from "../src/index.js";
+import { executeToolInPage } from "./helpers.js";
 
 test.describe("cross-origin exposure", () => {
   test("snapshot sees every frame, reachability respects allow and exposedTo", async ({ page, webmcp }) => {
@@ -23,12 +24,7 @@ test.describe("cross-origin exposure", () => {
 
   test("remote tools execute through the bridge with the embedder's origin checked", async ({ page, webmcp }) => {
     await page.goto("/embed.html");
-    const quote = await page.evaluate(async () => {
-      const mc = (document.modelContext ?? navigator.modelContext)!;
-      const tools = await mc.getTools({ fromOrigins: ["http://127.0.0.1:4173"] });
-      const remote = tools.find((t) => t.name === "partner_quote")!;
-      return mc.executeTool(remote, JSON.stringify({ country: "CH", weightKg: 2 }));
-    });
+    const quote = await executeToolInPage(page, "partner_quote", { country: "CH", weightKg: 2 }, { fromOrigins: ["http://127.0.0.1:4173"] });
     // executeTool() resolves with the JSON-serialized result, as the specification says.
     expect(typeof quote).toBe("string");
     expect(JSON.parse(quote as string)).toEqual({ country: "CH", weightKg: 2, price: 15, currency: "CHF" });
@@ -63,14 +59,7 @@ test.describe("cross-origin exposure", () => {
     await page.goto("/embed.html");
     await webmcp.mock("partner_quote", { result: { price: 1, currency: "CHF", mocked: true } });
     await expect(webmcp).toReachTool("partner_quote");
-    const viaEmbedder = await page.evaluate(async () => {
-      const mc = (document.modelContext ?? navigator.modelContext)!;
-      const tools = await mc.getTools({ fromOrigins: ["http://127.0.0.1:4173"] });
-      return mc.executeTool(
-        tools.find((t) => t.name === "partner_quote")!,
-        JSON.stringify({ country: "CH" }),
-      );
-    });
+    const viaEmbedder = await executeToolInPage(page, "partner_quote", { country: "CH" }, { fromOrigins: ["http://127.0.0.1:4173"] });
     expect(JSON.parse(viaEmbedder as string)).toEqual({ price: 1, currency: "CHF", mocked: true });
     expect(await webmcp.unmock("partner_quote")).toBe(true);
     await expect(webmcp).toReachTool("partner_quote");
