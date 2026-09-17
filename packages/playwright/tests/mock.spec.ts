@@ -1,18 +1,12 @@
 import { test, expect } from "../src/index.js";
+import { executeToolInPage } from "./helpers.js";
 
 test.describe("mock and replay", () => {
   test("mock replaces a tool for the page and the fixture", async ({ page, webmcp }) => {
     await page.goto("/");
     await webmcp.mock("add_to_cart", ({ quantity }) => ({ items: 1, total: 999 * Number(quantity ?? 1) }));
     expect(await webmcp.call("add_to_cart", { productId: 1, quantity: 2 })).toEqual({ items: 1, total: 1998 });
-    const fromPage = await page.evaluate(async () => {
-      const mc = (document.modelContext ?? navigator.modelContext)!;
-      const tools = await mc.getTools();
-      return mc.executeTool(
-        tools.find((t) => t.name === "add_to_cart")!,
-        JSON.stringify({ productId: 1 }),
-      );
-    });
+    const fromPage = await executeToolInPage(page, "add_to_cart", { productId: 1 });
     expect(JSON.parse(fromPage as string)).toEqual({ items: 1, total: 999 });
     expect(webmcp.calls().map((c) => c.via)).toEqual(["fixture", "api"]);
 

@@ -530,14 +530,17 @@ export class WebMCP {
         const tool = listed.find((t) => t.name === toolName);
         if (!tool) return { ok: false as const, error: `No WebMCP tool named "${toolName}" is registered` };
         try {
-          // executeTool() takes the RegisteredTool object. The specification declares the input as `any`;
-          // Chrome 154 accepts only a JSON string, so send the string first and fall back to the object.
+          // executeTool() takes the RegisteredTool object. The specification declares the input
+          // as `any`, and the shape Chrome accepts has moved: 154 took only a JSON string, 155
+          // only an object. Send the object and fall back to the string. Whichever is wrong is
+          // rejected while arguments are validated, before the tool runs, so the retry cannot
+          // execute anything twice.
           let raw: unknown;
           try {
-            raw = await mc.executeTool(tool, JSON.stringify(toolArgs), { __playwrightWebmcp: true });
-          } catch (err) {
-            if (!/parse input/i.test(String((err as Error)?.message))) throw err;
             raw = await mc.executeTool(tool, toolArgs, { __playwrightWebmcp: true });
+          } catch (err) {
+            if (!/parse input|input object|not an object/i.test(String((err as Error)?.message))) throw err;
+            raw = await mc.executeTool(tool, JSON.stringify(toolArgs), { __playwrightWebmcp: true });
           }
           // The result arrives as a string: JSON for objects, String(value) for primitives, "undefined" for no result.
           let result: unknown;
