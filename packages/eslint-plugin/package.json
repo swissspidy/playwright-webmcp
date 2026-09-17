@@ -1,6 +1,6 @@
 {
   "name": "eslint-plugin-webmcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "ESLint rules that lint WebMCP registerTool() definitions statically, using the webmcp-lint rule engine.",
   "keywords": [
     "eslint",
