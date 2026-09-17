@@ -266,3 +266,23 @@ test("third-party-registration names the script origin that is not the page's", 
     [],
   );
 });
+
+test("tool-shadowing treats missing provenance as unknown, not as a second script", () => {
+  const site = "https://example.test/app.js";
+  // One tool carries a registration site and the other does not, in one frame:
+  // the CDP collector omits `location` when no stack frame was available, and a
+  // page-side collector never sets it at all.
+  const partial = [{ name: "search_products", location: { url: site, line: 1, column: 1 } }, { name: "searchProducts" }];
+  assert.deepEqual(
+    lint(snap(partial)).findings.filter((f) => f.ruleId === "tool-shadowing"),
+    [],
+  );
+  // Two known and different scripts in one frame is the finding.
+  const both = [
+    { name: "search_products", location: { url: site, line: 1, column: 1 } },
+    { name: "searchProducts", location: { url: "https://widget.test/sdk.js", line: 2, column: 1 } },
+  ];
+  const found = lint(snap(both)).findings.filter((f) => f.ruleId === "tool-shadowing");
+  assert.equal(found.length, 1);
+  assert.match(found[0].message, /registered from https:\/\/widget\.test/);
+});

@@ -423,6 +423,11 @@ test("no-interpolated-text asks where runtime-built tool text comes from", () =>
         code: `const desc = \`Search \${siteName}.\`; mc.registerTool({ name: "ok", description: desc });`,
         errors: [{ messageId: "finding", column: 14 }],
       },
+      // A `+` chain is judged by what its operands hold, not by their syntax.
+      {
+        code: `const prefix = "Search "; mc.registerTool({ name: "ok", description: prefix + siteName });`,
+        errors: [{ messageId: "finding", data: { message: interpolated('The description of "ok"', "string concatenation", READS_DESCRIPTION) } }],
+      },
       // Parameter descriptions are tool text too.
       {
         code: `mc.registerTool({ name: "ok", description: "Search the catalogue by keyword.", inputSchema: { type: "object", properties: { q: { type: "string", description: \`Keyword, from \${source}\` } } } });`,

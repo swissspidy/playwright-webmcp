@@ -27,12 +27,19 @@ import { definitionSites } from "./settings.js";
 
 type Shape = "template" | "concatenation";
 
-/** A `+` chain with a string literal or template somewhere in it: text assembly, not arithmetic. */
-function assemblesText(node: ESTree.Node): boolean {
-  const n = unwrap(node);
+/**
+ * A `+` chain with a string literal or template somewhere in it: text assembly,
+ * not arithmetic. Operands are resolved like every other value this plugin
+ * reads, so `prefix + siteName` is judged by what `prefix` holds rather than by
+ * the fact that it is an identifier.
+ */
+function assemblesText(node: ESTree.Node, resolve: Resolver): boolean {
+  const n = unwrap(resolve(node));
   if (n.type === "Literal") return typeof n.value === "string";
   if (n.type === "TemplateLiteral") return true;
-  if (n.type === "BinaryExpression" && n.operator === "+") return assemblesText(n.left as ESTree.Node) || assemblesText(n.right);
+  if (n.type === "BinaryExpression" && n.operator === "+") {
+    return assemblesText(n.left as ESTree.Node, resolve) || assemblesText(n.right, resolve);
+  }
   return false;
 }
 
@@ -44,7 +51,7 @@ function assemblesText(node: ESTree.Node): boolean {
 export function interpolationOf(node: ESTree.Node, resolve: Resolver): { shape: Shape; node: ESTree.Node } | undefined {
   const n = unwrap(resolve(node));
   if (n.type === "TemplateLiteral" && n.expressions.length > 0) return { shape: "template", node: n };
-  if (n.type === "BinaryExpression" && n.operator === "+" && assemblesText(n)) return { shape: "concatenation", node: n };
+  if (n.type === "BinaryExpression" && n.operator === "+" && assemblesText(n, resolve)) return { shape: "concatenation", node: n };
   return undefined;
 }
 

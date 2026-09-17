@@ -60,9 +60,18 @@ function where(tool: ToolSnapshot): string {
   return script && script !== tool.origin ? `${place}, registered from ${script}` : place;
 }
 
-/** Whether the two tools sit on opposite sides of a boundary somebody else could own. */
+/**
+ * Whether the two tools sit on opposite sides of a boundary somebody else could own.
+ *
+ * Registration origins only count when both are known. `location` is optional --
+ * page-side collectors never set it, and the CDP collector sets it only when a
+ * stack frame was available -- so one tool having provenance and the other not
+ * is an absence of evidence, not evidence of a second script.
+ */
 function crossesBoundary(a: ToolSnapshot, b: ToolSnapshot): boolean {
-  return a.frame !== b.frame || a.origin !== b.origin || registrationOrigin(a) !== registrationOrigin(b);
+  if (a.frame !== b.frame || a.origin !== b.origin) return true;
+  const [scriptA, scriptB] = [registrationOrigin(a), registrationOrigin(b)];
+  return scriptA !== undefined && scriptB !== undefined && scriptA !== scriptB;
 }
 
 export const toolShadowing = defineRule({
