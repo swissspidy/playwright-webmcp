@@ -13,4 +13,4 @@ This repository uses [changesets](https://github.com/changesets/changesets) to v
 
 Publishing already runs with `id-token: write` and provenance. Once the packages exist on npm, npm's trusted publishing can replace the token: configure this repository and `release.yml` as a trusted publisher on each of the four packages, then drop the secret. A trusted publisher can only be added to a package that already exists, so the first release still has to go out under the token.
 
-No extra npm upgrade step is needed for that: `changeset publish` shells out to `pnpm publish`, pnpm 10 hands the registry call to the npm CLI, and Node 24 ships npm 11.19, well past the 11.5.1 that trusted publishing requires.
+The npm CLI version does not come into it: `changeset publish` shells out to `pnpm publish`, and since pnpm 12 that is pnpm's own implementation with trusted publishing built in, rather than a call through to npm. `pnpm/action-setup` has to be pinned at `v6.1.0` or newer for pnpm 12, because the `v6` tag still points at `v6.0.10`, which installs pnpm without running the postinstall that swaps the placeholder bin for the real binary.
