@@ -6,8 +6,9 @@
 import type { Rule as ESLintRule, Scope } from "eslint";
 import type * as ESTree from "estree";
 import { unwrap } from "./extract.js";
+import { ruleDocsUrl } from "./docs-url.js";
 
-const DOCS = "https://github.com/swissspidy/playwright-webmcp#rules";
+const DOCS = ruleDocsUrl("valid-event-name");
 
 /** The name of a non-computed property, or of a computed one written as a string. */
 function memberName(node: ESTree.MemberExpression): string | undefined {

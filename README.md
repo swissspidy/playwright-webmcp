@@ -375,6 +375,8 @@ Accept intended changes with `npx playwright test --update-snapshots`. The store
 
 Rules see the whole page: every frame, declarative forms, and all tools together. Each rule declares a scope. **tool** rules judge one definition on its own and also run statically in `eslint-plugin-webmcp` and with `lint({ scope: "tool" })`; **page** rules need everything the page registers and only run against a live page or a snapshot of one.
 
+The table below is the tour. [`docs/rules/`](docs/rules/README.md) is the reference: one page per rule, generated from the rules themselves, with each one's options and their defaults.
+
 | Rule                               | Severity | Scope | Checks                                                                                                |
 | ---------------------------------- | -------- | ----- | ----------------------------------------------------------------------------------------------------- |
 | `tool-name-valid`                  | error    | tool  | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                              |

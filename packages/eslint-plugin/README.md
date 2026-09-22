@@ -40,6 +40,8 @@ document.modelContext.registerTool({
 
 Definition rules judge what a tool declares. They are the tool-scoped rules of `@swissspidy/webmcp-lint`, so a finding here is the same finding `@swissspidy/playwright-webmcp` and `@swissspidy/webmcp-audit` report from a live page.
 
+Each rule has a page under [`docs/rules/`](https://github.com/swissspidy/playwright-webmcp/blob/main/docs/rules/README.md) listing its options and defaults, which is also the URL your editor opens from a finding.
+
 | Rule                                      | Recommended | Checks                                                                                             |
 | ----------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- |
 | `webmcp/tool-name-valid`                  | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                           |

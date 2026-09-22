@@ -24,6 +24,7 @@ import { findProperty, staticValue, toolObjectsFromCall, unwrap, type Resolver }
 import { elementsWithin, type JSXAttributeNode, type JSXElementNode, type JSXOpeningElementNode } from "./jsx.js";
 import { makeResolver } from "./rule.js";
 import { definitionSites } from "./settings.js";
+import { ruleDocsUrl } from "./docs-url.js";
 
 type Shape = "template" | "concatenation";
 
@@ -85,7 +86,7 @@ export const noInterpolatedText: ESLintRule.RuleModule = {
     type: "suggestion",
     docs: {
       description: "Tool names, titles and descriptions should be written out, not assembled at runtime from values the author cannot name the source of.",
-      url: "https://github.com/swissspidy/playwright-webmcp#rules",
+      url: ruleDocsUrl("no-interpolated-text"),
     },
     schema: [
       {
