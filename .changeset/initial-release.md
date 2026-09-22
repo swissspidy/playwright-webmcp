@@ -12,4 +12,6 @@ Initial release.
 - `@swissspidy/webmcp-audit`: a crawler and CLI that lints every page, runs smoke calls, detects cross-page drift, compares with a baseline and scores agent readiness.
 - `@swissspidy/eslint-plugin-webmcp`: the tool-scoped rules as ESLint rules for `registerTool()`, `useWebMCP()`, your own wrappers and `<form toolname>` in JSX, plus `valid-event-name` and `no-interpolated-text`; loads in oxlint.
 
+Every rule has a generated reference page under `docs/rules/`, which is also where a finding's `url` points from the ESLint plugin.
+
 Everything runs against the browser's own WebMCP implementation (`document.modelContext`): Playwright's Chromium with `--enable-features=WebMCP`, or Chrome Beta and Canary.

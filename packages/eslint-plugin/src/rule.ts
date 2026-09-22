@@ -12,6 +12,7 @@ import { builtinRules, lintTools, type Finding, type Rule as LintRule } from "@s
 import { findProperty, nodeAtPath, toolsFromCall, unwrap, type ExtractedTool, type Resolver } from "./extract.js";
 import { formTool, type ExtractedForm, type JSXElementNode } from "./jsx.js";
 import { definitionSites } from "./settings.js";
+import { ruleDocsUrl } from "./docs-url.js";
 
 /**
  * Which field of the definition a finding was derived from, so findings about
@@ -176,7 +177,7 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
       type: rule.severity === "error" ? "problem" : "suggestion",
       docs: {
         description: rule.description,
-        url: "https://github.com/swissspidy/playwright-webmcp#rules",
+        url: ruleDocsUrl(rule.id),
       },
       schema: optionSchema(rule),
       messages: { finding: "{{message}}" },
