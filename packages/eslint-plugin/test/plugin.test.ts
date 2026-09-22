@@ -33,7 +33,7 @@ test("exposes every tool-scoped imperative rule and a recommended config", () =>
   assert.ok(!ids.includes("duplicate-tool-name"), "page rules are not exposed");
   assert.ok(ids.includes("declarative-description"), "form rules are exposed for JSX");
   assert.ok(ids.includes("no-interpolated-text"), "source-only rules are exposed too");
-  assert.equal(ids.length, staticRules.length + 7);
+  assert.equal(ids.length, staticRules.length + 6);
   assert.equal(plugin.meta.name, "@swissspidy/eslint-plugin-webmcp");
   assert.match(plugin.meta.version, /^\d+\.\d+\.\d+/);
   assert.equal(plugin.configs.recommended.rules?.["webmcp/tool-name-valid"], "error");
@@ -468,14 +468,7 @@ test("no-interpolated-text reads JSX form attributes", () => {
   });
 });
 
-test("description-placeholder and annotations-valid run statically and point at the field", () => {
-  tester.run("description-placeholder", plugin.rules["description-placeholder"], {
-    valid: [good, `mc.registerTool({ name: "ok", description: t("desc") })`],
-    invalid: [
-      { code: `mc.registerTool({ name: "ok", description: "TODO" });`, errors: [{ messageId: "finding", column: 44 }] },
-      { code: `mc.registerTool({ name: "ok", description: "Search the catalogue.", title: "tbd" });`, errors: [{ messageId: "finding", column: 76 }] },
-    ],
-  });
+test("annotations-valid runs statically and points at the field", () => {
   tester.run("annotations-valid", plugin.rules["annotations-valid"], {
     valid: [
       good,
@@ -519,32 +512,6 @@ test("the opt-in rules are in `all` but not in `recommended`", () => {
         options: [{ fields: ["consequentialHint"] }],
         errors: [{ messageId: "finding" }],
       },
-    ],
-  });
-});
-
-test("no-legacy-api reports removed entry points and methods", () => {
-  tester.run("no-legacy-api", plugin.rules["no-legacy-api"], {
-    valid: [
-      good,
-      `document.modelContext.registerTool(tool);`,
-      `const mc = document.modelContext; mc.registerTool(tool);`,
-      `other.provideContext({});`,
-      `const agent = { window: 1 };`,
-    ],
-    invalid: [
-      { code: `navigator.modelContext.registerTool(tool);`, errors: [{ messageId: "entry", data: { written: "navigator.modelContext" } }] },
-      { code: `if (window.agent) {}`, errors: [{ messageId: "entry", data: { written: "window.agent" } }] },
-      {
-        code: `document.modelContext.provideContext({ tools: [] });`,
-        errors: [
-          {
-            messageId: "method",
-            data: { method: "provideContext", instead: "registerTool() once per tool; it was removed from the specification in March 2026" },
-          },
-        ],
-      },
-      { code: `const mc = document.modelContext; mc.unregisterTool("x"); mc.clearContext();`, errors: [{ messageId: "method" }, { messageId: "method" }] },
     ],
   });
 });

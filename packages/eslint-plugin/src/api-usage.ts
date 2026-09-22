@@ -1,7 +1,7 @@
 /**
  * Rules about how the API is called rather than what a tool declares:
- * removed entry points, properties the dictionaries do not have, methods
- * called unbound, event names nothing fires, and a missing `execute`. None
+ * properties the dictionaries do not have, methods called unbound, event
+ * names nothing fires, and a missing `execute`. None
  * of them has a `webmcp-lint` counterpart because none of them survives to
  * runtime: a misspelt dictionary member is silently dropped, and an
  * unbound method throws before any tool exists.
@@ -38,51 +38,6 @@ function calleeMethod(call: ESTree.CallExpression): string | undefined {
   if (callee.type === "MemberExpression") return memberName(callee);
   return callee.type === "Identifier" ? callee.name : undefined;
 }
-
-const REMOVED_METHODS: Record<string, string> = {
-  provideContext: "registerTool() once per tool; it was removed from the specification in March 2026",
-  clearContext: "an AbortSignal passed to registerTool(); abort it to unregister",
-  unregisterTool: "an AbortSignal passed to registerTool(); abort it to unregister",
-  requestUserInteraction: "nothing yet; it is not in the specification",
-};
-
-export const noLegacyApi: ESLintRule.RuleModule = {
-  meta: {
-    type: "problem",
-    docs: {
-      description:
-        "Entry points and methods that are no longer in the WebMCP specification: navigator.modelContext, window.agent, provideContext, clearContext, unregisterTool.",
-      url: DOCS,
-    },
-    schema: [],
-    messages: {
-      entry: "{{written}} is not where WebMCP lives; use document.modelContext.",
-      method: "{{method}}() is not in the WebMCP specification; use {{instead}}.",
-    },
-  },
-  create(context) {
-    const resolve = makeResolver(context.sourceCode);
-    return {
-      MemberExpression(node) {
-        const name = memberName(node);
-        const object = unwrap(node.object as ESTree.Node);
-        if (name === "modelContext" && object.type !== "Identifier" && object.type !== "MemberExpression") return;
-        if (name === "modelContext") {
-          const owner = object.type === "Identifier" ? object.name : object.type === "MemberExpression" ? memberName(object) : undefined;
-          if (owner === "navigator") context.report({ node: node as ESLintRule.Node, messageId: "entry", data: { written: "navigator.modelContext" } });
-          return;
-        }
-        if (name === "agent" && object.type === "Identifier" && (object.name === "window" || object.name === "self" || object.name === "globalThis")) {
-          context.report({ node: node as ESLintRule.Node, messageId: "entry", data: { written: `${object.name}.agent` } });
-          return;
-        }
-        if (name && name in REMOVED_METHODS && isModelContext(node.object as ESTree.Node, resolve)) {
-          context.report({ node: node.property as ESLintRule.Node, messageId: "method", data: { method: name, instead: REMOVED_METHODS[name] } });
-        }
-      },
-    } as ESLintRule.RuleListener;
-  },
-};
 
 const TOOL_PROPERTIES = new Set(["name", "title", "description", "inputSchema", "execute", "annotations"]);
 

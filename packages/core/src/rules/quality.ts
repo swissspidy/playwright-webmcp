@@ -1,50 +1,13 @@
 /**
- * Declarations that are syntactically fine and still say nothing, or say it
- * in a way the API will not read: placeholder text, annotation keys the
- * specification does not know (an MCP hint, or the CDP domain's spelling),
- * a missing title, a name that does not follow the project's convention, and
- * `exposedTo` entries written as URLs rather than origins.
+ * Declarations that are syntactically fine and still say it in a way the API
+ * will not read: annotation keys the specification does not know (an MCP
+ * hint, or the CDP domain's spelling), a missing title, a name that does not
+ * follow the project's convention, and `exposedTo` entries written as URLs
+ * rather than origins.
  */
 import { namingStyle, type NamingStyle } from "./naming.js";
 import type { Finding } from "../types.js";
-import { defineRule, finding, forEachTool, opt, schemaProperties } from "./helpers.js";
-
-const PLACEHOLDER =
-  /^(?:todo|tbd|fixme|xxx|n\/a|none|null|undefined|description|tool description|placeholder|test|testing|example|sample|change me|replace me|insert description(?: here)?|lorem ipsum.*|\.{2,}|-+|_+|\?+)$/i;
-const PLACEHOLDER_PREFIX = /^(?:todo|fixme|tbd|lorem ipsum)\b/i;
-
-function isPlaceholder(text: string): boolean {
-  const t = text.trim();
-  return t.length > 0 && (PLACEHOLDER.test(t) || PLACEHOLDER_PREFIX.test(t));
-}
-
-export const descriptionPlaceholder = defineRule({
-  id: "description-placeholder",
-  scope: "tool",
-  description: "A description that is only a placeholder (TODO, lorem ipsum, ...) tells the agent nothing and reads as unfinished.",
-  severity: "error",
-  check: (ctx) =>
-    forEachTool(ctx, (tool) => {
-      const out: Finding[] = [];
-      const texts: Array<[string | undefined, string, string]> = [[undefined, "Description", tool.description ?? ""]];
-      if (typeof tool.title === "string") texts.push(["/title", "Title", tool.title]);
-      for (const [name, prop] of Object.entries(schemaProperties(tool.inputSchema))) {
-        if (typeof prop.description === "string") texts.push([`/properties/${name}/description`, `Description of parameter "${name}"`, prop.description]);
-      }
-      for (const [path, label, text] of texts) {
-        if (isPlaceholder(text))
-          out.push(
-            finding(descriptionPlaceholder, `${label} of "${tool.name}" is a placeholder: ${JSON.stringify(text.trim())}.`, {
-              tool: tool.name,
-              frame: tool.frame,
-              path,
-              help: "Say what the tool does, when to use it, and what it returns.",
-            }),
-          );
-      }
-      return out;
-    }),
-});
+import { defineRule, finding, forEachTool, opt } from "./helpers.js";
 
 /** The hints the specification's ToolAnnotations dictionary knows. */
 export const KNOWN_ANNOTATIONS = ["readOnlyHint", "untrustedContentHint", "consequentialHint", "debugging"] as const;

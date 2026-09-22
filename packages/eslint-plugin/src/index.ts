@@ -15,12 +15,12 @@ import type { ESLint, Linter, Rule as ESLintRule } from "eslint";
 
 import { builtinRules, type Rule as LintRule } from "webmcp-lint";
 import { noInterpolatedText } from "./interpolation.js";
-import { noLegacyApi, noUnboundMethod, noUnknownOptions, noUnknownToolProperties, requireExecute, validEventName } from "./api-usage.js";
+import { noUnboundMethod, noUnknownOptions, noUnknownToolProperties, requireExecute, validEventName } from "./api-usage.js";
 import { createRule } from "./rule.js";
 
 export { createRule } from "./rule.js";
 export { noInterpolatedText, interpolationOf } from "./interpolation.js";
-export { noLegacyApi, noUnboundMethod, noUnknownOptions, noUnknownToolProperties, requireExecute, validEventName } from "./api-usage.js";
+export { noUnboundMethod, noUnknownOptions, noUnknownToolProperties, requireExecute, validEventName } from "./api-usage.js";
 export { toolsFromCall, toolObjectsFromCall, staticValue, DYNAMIC, type ExtractedTool, type ToolObject, type Resolver } from "./extract.js";
 export { formTool, type ExtractedForm } from "./jsx.js";
 export { DEFAULT_DEFINITION_SITES, definitionSites, type DefinitionSite, type DefinitionSiteSetting, type WebMCPSettings } from "./settings.js";
@@ -53,7 +53,6 @@ export const staticRules: LintRule[] = builtinRules.filter((r) => r.scope === "t
 const sourceOnlyRules: Record<string, { rule: ESLintRule.RuleModule; recommended: Linter.RuleSeverity }> = {
   // Interpolation is not by itself a bug; it is a question about provenance.
   "no-interpolated-text": { rule: noInterpolatedText, recommended: "warn" },
-  "no-legacy-api": { rule: noLegacyApi, recommended: "error" },
   "no-unknown-tool-properties": { rule: noUnknownToolProperties, recommended: "error" },
   "no-unknown-options": { rule: noUnknownOptions, recommended: "error" },
   "require-execute": { rule: requireExecute, recommended: "error" },

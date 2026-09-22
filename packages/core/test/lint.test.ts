@@ -287,30 +287,6 @@ test("tool-shadowing treats missing provenance as unknown, not as a second scrip
   assert.match(found[0].message, /registered from https:\/\/widget\.test/);
 });
 
-test("description-placeholder flags text that only stands in for a description", () => {
-  const r = lint(
-    snap([
-      { name: "todo_tool", description: "TODO" },
-      { name: "lorem_tool", description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit." },
-      { name: "dots", description: "..." },
-      { name: "param_tool", inputSchema: { type: "object", properties: { q: { type: "string", description: "tbd" } } } },
-      { name: "titled", title: "TODO", description: "Search the catalogue for products by keyword and return matches." },
-      { name: "fine", description: "Search the catalogue for products by keyword and return matches." },
-    ]),
-  );
-  const found = r.findings.filter((f) => f.ruleId === "description-placeholder");
-  assert.deepEqual(
-    found.map((f) => [f.tool, f.path]),
-    [
-      ["todo_tool", undefined],
-      ["lorem_tool", undefined],
-      ["dots", undefined],
-      ["param_tool", "/properties/q/description"],
-      ["titled", "/title"],
-    ],
-  );
-});
-
 test("annotations-valid knows the specification's hints and points at the rest", () => {
   const r = lint(
     snap([

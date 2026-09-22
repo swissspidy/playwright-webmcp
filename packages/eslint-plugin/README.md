@@ -46,7 +46,6 @@ Definition rules judge what a tool declares. They are the tool-scoped rules of `
 | `webmcp/tool-name-style`                  | off         | Name follows the project's `style` (`snake_case` by default) and `prefix`.                                                                      |
 | `webmcp/tool-title-missing`               | off         | The tool has a `title` for clients to show people.                                                                                              |
 | `webmcp/description-missing`              | error       | The tool has a description.                                                                                                                     |
-| `webmcp/description-placeholder`          | error       | The description, title or a parameter description is not `TODO`, `lorem ipsum`, `...` and the like.                                             |
 | `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                                                                                  |
 | `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                                                                         |
 | `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                                                                        |
@@ -65,15 +64,14 @@ Definition rules judge what a tool declares. They are the tool-scoped rules of `
 
 Source rules judge the code that calls the API. They have no `webmcp-lint` counterpart because nothing they catch survives to runtime: a misspelt dictionary member is silently dropped, an unbound method throws before any tool exists.
 
-| Rule                                | Recommended | Checks                                                                                                                        |
-| ----------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `webmcp/no-legacy-api`              | error       | `navigator.modelContext`, `window.agent`, `provideContext()`, `clearContext()`, `unregisterTool()`: not in the specification. |
-| `webmcp/no-unknown-tool-properties` | error       | A key the tool dictionary does not have (`parameters`, `handler`, `exposedTo` in the tool, ...); `allow` lists your own.      |
-| `webmcp/no-unknown-options`         | error       | An option `registerTool()`, `getTools()` or `executeTool()` does not take.                                                    |
-| `webmcp/require-execute`            | error       | `registerTool()` gets an `execute` callback, and not a string or object.                                                      |
-| `webmcp/valid-event-name`           | error       | Listeners for `tool*` events name `toolchange`, `toolactivated` or `toolcancel`.                                              |
-| `webmcp/no-unbound-method`          | error       | `registerTool` and friends are called on their `ModelContext`, not destructured or detached.                                  |
-| `webmcp/no-interpolated-text`       | warn        | Tool text assembled at runtime from values the author cannot name the source of.                                              |
+| Rule                                | Recommended | Checks                                                                                                                   |
+| ----------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `webmcp/no-unknown-tool-properties` | error       | A key the tool dictionary does not have (`parameters`, `handler`, `exposedTo` in the tool, ...); `allow` lists your own. |
+| `webmcp/no-unknown-options`         | error       | An option `registerTool()`, `getTools()` or `executeTool()` does not take.                                               |
+| `webmcp/require-execute`            | error       | `registerTool()` gets an `execute` callback, and not a string or object.                                                 |
+| `webmcp/valid-event-name`           | error       | Listeners for `tool*` events name `toolchange`, `toolactivated` or `toolcancel`.                                         |
+| `webmcp/no-unbound-method`          | error       | `registerTool` and friends are called on their `ModelContext`, not destructured or detached.                             |
+| `webmcp/no-interpolated-text`       | warn        | Tool text assembled at runtime from values the author cannot name the source of.                                         |
 
 Rule options are the same objects `webmcp-lint` accepts. `webmcp.configs.recommended` turns on every rule marked above except the `off` ones; `webmcp.configs.all` turns every rule, the opt-in ones included, into an error.
 
@@ -137,8 +135,6 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-no-null-literals": "error",
     "webmcp/exposed-to-secure-origins": "error",
     "webmcp/annotations-valid": "error",
-    "webmcp/description-placeholder": "error",
-    "webmcp/no-legacy-api": "error",
     "webmcp/no-unknown-tool-properties": "error",
     "webmcp/no-unknown-options": "error",
     "webmcp/require-execute": "error",
