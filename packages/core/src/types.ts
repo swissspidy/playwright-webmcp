@@ -14,7 +14,10 @@ export interface DeclarativeField {
   required: boolean;
   /** True when a <label for>, wrapping <label>, aria-label or aria-labelledby exists. */
   hasLabel: boolean;
+  /** The `toolparamdescription` attribute, when written. */
   paramDescription?: string;
+  /** The `autocomplete` attribute, when written (for example `cc-number` or `one-time-code`). */
+  autocomplete?: string;
   options?: string[];
 }
 
@@ -59,10 +62,8 @@ export interface FrameSnapshot {
   url: string;
   origin: string;
   isTop: boolean;
-  /** Which API implementation answered in this frame. */
-  api: "native" | "shim" | "none";
-  /** For child frames: the raw `allow` attribute of the owning <iframe>, if any. */
-  allow?: string | null;
+  /** Whether `document.modelContext` exists in this frame. */
+  api: "native" | "none";
   /** Set when getTools() threw in this frame; its tools are then unknown rather than absent. */
   error?: string;
   crossOriginFromTop?: boolean;
@@ -144,7 +145,7 @@ export interface RecordedCall {
   /**
    * "api" = executed by page code through modelContext;
    * "fixture" = executed through webmcp.call();
-   * "agent" = executed by an on-device model run through webmcp.promptApi.
+   * "agent" = executed by an agent the test drove: the `promptApi` fixture, `toolsForAgent()` callables, or `runAgent()`.
    */
   via: "api" | "fixture" | "agent";
   /** Where the call was observed: page-side hooks or the CDP WebMCP domain. Default "page". */

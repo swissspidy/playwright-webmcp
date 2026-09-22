@@ -35,8 +35,6 @@ export const SAFETY_RULES = new Set([
   "result-suspicious-content",
   "untrusted-content-unmarked",
   "exposed-to-secure-origins",
-  "exposed-to-wildcard",
-  "iframe-allow-tools",
   "capability-trifecta",
   "tool-shadowing",
   "third-party-registration",

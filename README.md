@@ -4,25 +4,25 @@ Testing tools for [WebMCP](https://github.com/webmachinelearning/webmcp) tool su
 
 The shape is deliberately the same as axe-core: one engine that judges tool definitions, thin adapters around it for wherever those definitions live (source files, a live page in a test, a URL).
 
-| Package                                          | What it is                                                                                                                                                                                                                                                                                          |
-| ------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [`webmcp-lint`](packages/core)                   | The engine: snapshot model, rules, `lint()` and `lintTools()`, a `webmcp-lint` CLI for `tools.json` files, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. No dependencies, no browser.                                           |
-| [`eslint-plugin-webmcp`](packages/eslint-plugin) | The tool-scoped rules as ESLint rules, run statically against `registerTool()`, `useWebMCP()` and your own wrappers, and against `<form toolname>` in JSX. Loads in oxlint too. `webmcp.configs.recommended` and done.                                                                              |
-| [`playwright-webmcp`](packages/playwright)       | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, mock, drive the on-device model, and run evals cases. Ships a test-time shim so it runs on any Chromium, and a reporter that writes suite-wide `tools.json`, `coverage.json` and `TOOLS.md`. |
-| [`webmcp-audit`](packages/audit)                 | CLI and library that crawls a site, lints every page, calls read-only tools with schema-derived inputs, detects cross-page drift, and scores agent readiness. Point it at a URL.                                                                                                                    |
+| Package                                                      | What it is                                                                                                                                                                                                                                                                                                   |
+| ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| [`webmcp-lint`](packages/core)                               | The engine: snapshot model, rules, `lint()` and `lintTools()`, a `webmcp-lint` CLI for `tools.json` files, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. No dependencies, no browser.                                                    |
+| [`@swissspidy/eslint-plugin-webmcp`](packages/eslint-plugin) | The tool-scoped rules as ESLint rules, run statically against `registerTool()`, `useWebMCP()` and your own wrappers, and against `<form toolname>` in JSX. Loads in oxlint too. `webmcp.configs.recommended` and done.                                                                                       |
+| [`playwright-webmcp`](packages/playwright)                   | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, mock, drive the on-device model, and run evals cases. Runs against the browser's own WebMCP implementation, and ships a reporter that writes suite-wide `tools.json`, `coverage.json` and `TOOLS.md`. |
+| [`webmcp-audit`](packages/audit)                             | CLI and library that crawls a site, lints every page, calls read-only tools with schema-derived inputs, detects cross-page drift, and scores agent readiness. Point it at a URL.                                                                                                                             |
 
 ## Which one do I need?
 
-| You want to                                                                   | Use                                                                                                                                    |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| See problems in the editor and fail `eslint` on CI                            | `eslint-plugin-webmcp`. Catches per-tool problems (names, descriptions, schemas, injection) in source, before a browser runs anything. |
-| Test tools end to end: shapes, behaviour, agent trajectories, contracts       | `playwright-webmcp`. The whole page, every frame, real executions, the on-device model, `webmcp-evals` cases.                          |
-| Check a site you do not have the source or tests for                          | `webmcp-audit https://...`. Crawls, lints, optionally calls read-only tools, reports drift and a score.                                |
-| Lint a `tools.json`, a snapshot, or definitions from your own driver or tests | `webmcp-lint`: `lintTools()`, the `webmcp-lint` CLI, or `collectFrame` + `snapshotFromFrames()` with Puppeteer, WebDriver or jsdom.    |
+| You want to                                                                   | Use                                                                                                                                                |
+| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| See problems in the editor and fail `eslint` on CI                            | `@swissspidy/eslint-plugin-webmcp`. Catches per-tool problems (names, descriptions, schemas, injection) in source, before a browser runs anything. |
+| Test tools end to end: shapes, behaviour, agent trajectories, contracts       | `playwright-webmcp`. The whole page, every frame, real executions, the on-device model, `webmcp-evals` cases.                                      |
+| Check a site you do not have the source or tests for                          | `webmcp-audit https://...`. Crawls, lints, optionally calls read-only tools, reports drift and a score.                                            |
+| Lint a `tools.json`, a snapshot, or definitions from your own driver or tests | `webmcp-lint`: `lintTools()`, the `webmcp-lint` CLI, or `collectFrame` + `snapshotFromFrames()` with Puppeteer, WebDriver or jsdom.                |
 
 The rule engine is the same in all four; only what feeds it differs. Page-level rules (duplicate names, similar descriptions, tool count, cross-origin frames) need a live page and are therefore not in the ESLint plugin. [`examples/react-shop`](examples/react-shop) shows the whole chain on a Vite + React app with [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool).
 
-Everything here is exercised against native WebMCP in Google Chrome Beta as well as against the test shim on plain Chromium; see [Running on native WebMCP](#running-on-native-webmcp).
+Everything here runs against the browser's own WebMCP implementation: Playwright's Chromium with `--enable-features=WebMCP`, and Google Chrome Beta; see [Browsers](#browsers).
 
 ## Quick start
 
@@ -97,10 +97,7 @@ export default defineConfig({
 
 ## The fixture
 
-`webmcp` is available in every test, and `promptApi` next to it for tests that want the on-device model (see [Agents](#agents)). Before navigation `webmcp` installs two init scripts:
-
-- a **shim** implementing `document.modelContext` (also mirrored on `navigator.modelContext`) with `registerTool` including `signal` and `exposedTo`, `getTools` including `fromOrigins`, `executeTool`, `toolchange`, and declarative `<form toolname>` tools with `SubmitEvent.respondWith` and `toolautosubmit`. The pre-spec `unregisterTool`, `provideContext` and `clearContext` are kept for pages written against older explainers. It only activates when the browser has no native WebMCP, so the same tests run on plain Chromium in CI and on Chrome with WebMCP enabled (`chrome://flags/#enable-webmcp-testing`, or the Chrome 149 origin trial).
-- a **recorder** that wraps registration and execution so calls made by page scripts or in-page agents are captured.
+`webmcp` is available in every test, and `promptApi` next to it for tests that want the on-device model (see [Agents](#agents)). The browser has to implement WebMCP (`document.modelContext`); the fixture does not polyfill it. Before navigation `webmcp` installs a **recorder** that wraps registration and execution so calls made by page scripts or in-page agents are captured.
 
 | Method                                                  | Purpose                                                                                              |
 | ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
@@ -119,15 +116,15 @@ export default defineConfig({
 | `codegen({ name })`, `docs()`                           | Playwright test source from the recording; Markdown tool reference.                                  |
 | `cdp`                                                   | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`.                     |
 
-Options via `test.use({ webmcpOptions: { shim: "auto" \| "always" \| "never", record: true, lint: {...}, cdp: "auto" \| "never" } })`.
+Options via `test.use({ webmcpOptions: { record: true, lint: {...}, cdp: "auto" \| "never" } })`.
 
 ### Seeing what Chrome's agent does
 
-On Chrome 150 and later the fixture also attaches to the CDP `WebMCP` domain. That domain reports every registration and every invocation the browser mediates, including calls made by Chrome's built-in agent or another DevTools client, which page scripts cannot observe. When it is available:
+When the browser has the CDP `WebMCP` domain (Chromium builds with WebMCP do), the fixture also attaches to it. That domain reports every registration and every invocation the browser mediates, including calls made by Chrome's built-in agent or another DevTools client, which page scripts cannot observe. When it is available:
 
 - recorded calls carry `source: "cdp"`, and calls not initiated by the fixture are recorded with `via: "agent"`;
 - `call()` invokes tools through `WebMCP.invokeTool` instead of page script;
-- snapshots gain `location` (the registration site) and the browser's own annotations. The CDP domain spells them `readOnly`, `consequential`, `untrustedContent` and `autosubmit`, while the specification uses `readOnlyHint`, `consequentialHint` and `untrustedContentHint`; `toolHints()` from `webmcp-lint` reads both, and everything here goes through it.
+- snapshots gain `location` (the registration site) and the browser's own annotations. The CDP domain spells them `readOnly`, `consequential`, `untrustedContent`, `debugging` and `autosubmit`, while the specification uses `readOnlyHint`, `consequentialHint`, `untrustedContentHint` and `debugging`; `toolHints()` from `webmcp-lint` reads both, and everything here goes through it.
 
 On browsers without the domain the collector stays off and everything falls back to the page-side hooks. Nothing in the API changes.
 
@@ -166,6 +163,8 @@ Everything above tests the tool surface directly. To test what an agent does wit
 
 `promptApi` drives Chrome's Prompt API (`LanguageModel`, Gemini Nano) inside the page, offering the page's WebMCP tools to the model the way an in-page agent would. It is a separate, lazy fixture: tests that do not ask for it pay nothing. It is the cheapest way to run eval cases locally, and Gemini Nano is not a strong model, so treat its verdicts as a smoke test of your descriptions rather than a benchmark.
 
+The harness speaks the tool-use protocol Chromium implements rather than the explainer's `execute` callbacks: the session is created with tool declarations (`name`, `description`, `inputSchema`) and `expectedOutputs: [{ type: "tool-call" }]`, `prompt()` answers with `tool-call` items, the harness runs each through `document.modelContext.executeTool()` and prompts again with `tool-response` items (`LanguageModelToolSuccess` or `LanguageModelToolError`) until the model answers in text. Tool use is behind `chrome://flags/#prompt-api-tool-use` and is not part of any origin trial; the harness has been checked against Chromium's IDL and web tests, not against a released build with the model installed.
+
 ```ts
 test("model can add to cart", async ({ page, webmcp, promptApi }) => {
   await page.goto("/");
@@ -188,7 +187,7 @@ test("model can add to cart", async ({ page, webmcp, promptApi }) => {
 | `evaluate(evalCase, { mode?, strict? })`                            | Send the case's user messages and reconcile the calls against `expectedCall`.               |
 | `useFake(plan)`                                                     | Install a scripted `LanguageModel` before navigation; a test double for your own harness.   |
 
-Tool results go back to the model as JSON strings with nulls stripped, which is what Chrome accepts.
+Tool results go back to the model as a `text` result item holding JSON, with nulls stripped (Chrome rejects them); `toolResultFormat: "object"` sends an `object` item instead.
 
 ### Bring your own agent
 
@@ -234,34 +233,35 @@ The cast and the type argument are what make that line compile: `webmcp-lint` ty
 
 `runAgent(webmcp, agent, { prompts, systemPrompt?, timeoutMs? })` is the driver underneath, for tests that want the run result (`{ status, responses, calls, toolsOffered }`) rather than a verdict; a thrown error becomes `status: "error"` and running past `timeoutMs` `status: "timeout"`. `evaluateAgent(webmcp, agent, evalCase, options)` is what `toPassEval` calls. The package does not depend on the AI SDK; the mapping above is copied into `tests/ai-sdk.spec.ts`, where it runs against the SDK's mock model.
 
-### Running on native WebMCP
+### Browsers
 
-Google Chrome Beta ships the API behind a flag. Point the suites at it with the binary and the flag, and everything runs against the real implementation instead of the shim: the fixture detects native support and stays out of the way, the CDP `WebMCP` domain is attached, and `webmcp.call()` goes through `WebMCP.invokeTool`.
+WebMCP is behind a feature flag in Chromium, so the suites launch Playwright's Chromium with `--enable-features=WebMCP` (the flag is in every `playwright.config.ts` in this repository and in `webmcp-audit`). Any other Chromium build works the same way; `PW_CHROMIUM` picks the binary and `PW_ARGS` adds flags:
 
 ```sh
+npx playwright install chromium                  # Playwright's Chromium, with the flag from the config
 npx playwright install chrome-beta
-PW_CHROMIUM=/opt/google/chrome-beta/chrome PW_ARGS="--enable-features=WebMCP" pnpm run test:e2e   # or: pnpm run test:native
-npx webmcp-audit https://shop.example --executable /opt/google/chrome-beta/chrome --arg --enable-features=WebMCP
+PW_CHROMIUM=/opt/google/chrome-beta/chrome pnpm run test:e2e   # or: pnpm run test:beta
+npx webmcp-audit https://shop.example --executable /opt/google/chrome-beta/chrome
 ```
 
-The repository's own suites pass on Chrome Beta 154 this way, and CI runs them there on every push. Things the shim mirrors from Chrome, because tests written against one must behave the same on the other:
+CI runs the suites on Playwright's Chromium on every push, and on Chrome Beta as an informational job, because the API is still an origin trial and the beta channel is where changes land first. Things the fixture accounts for, because tests written against one build must behave the same on the next:
 
-- `getTools()` returns `RegisteredTool` objects without `execute` (and, in Chrome 154, with `inputSchema` as a JSON string; the collector accepts both). `annotations` come back with all three hints, defaults filled in, when any were given.
-- `executeTool(tool, input)` takes the tool object, not a name. The shape of `input` has moved between betas: Chrome 154 accepted only a JSON string, 155 only the object the specification describes. The fixture sends the object and falls back to the string, and the same fallback is in the `promptApi` harness and in `tests/helpers.ts` for page script. Whichever shape is wrong is refused while arguments are validated, before the tool runs, so the retry cannot execute anything twice. The promise resolves with a string: JSON for objects, `String(value)` for primitives, `"undefined"` when the callback returned nothing.
-- Registering a name twice rejects with `InvalidStateError`; unregistering is the `AbortSignal` passed to `registerTool()`. The pre-spec `unregisterTool`, `provideContext` and `clearContext` exist only in the shim.
-- `getTools({ fromOrigins })` rejects `"*"`; a frame whose `<iframe>` lacks `allow="tools"` cannot register at all (the `tools` permissions policy), so `iframe-allow-tools` only ever fires against the shim.
-- Declarative `<select>` fields get a schema with one `const` per option plus `enum`; `schema-unsupported-keywords` skips browser-derived schemas for that reason.
+- `getTools()` returns `RegisteredTool` objects without `execute`; older builds returned `inputSchema` as a JSON string, which the collector still accepts. A build fills in whichever annotation defaults it knows (`consequentialHint` and `debugging` are recent), so contracts keep only the hints a tool declared `true`.
+- `executeTool(tool, input)` takes the tool object, not a name. The specification says `input` is an object; Chrome 154 and earlier took only a JSON string, and Chrome 155 deprecated the string. The fixture, the `promptApi` harness and `tests/helpers.ts` pick the shape from the browser's version (`webmcp.inputShape()`), because a refused attempt would still show up as an invocation on the CDP domain. The promise resolves with a string: JSON for objects, `String(value)` for primitives, `"undefined"` when the callback returned nothing.
+- Registering a name twice rejects with `InvalidStateError`; unregistering is the `AbortSignal` passed to `registerTool()`. `exposedTo` and `fromOrigins` accept potentially trustworthy origins only, so `"*"` rejects.
+- A frame whose `<iframe>` lacks `allow="tools"` cannot register at all (the `tools` permissions policy), so its tools never appear in a snapshot.
+- Declarative `<select>` fields get a schema with one `const` per option plus `enum`; `schema-unsupported-keywords` skips browser-derived schemas for that reason. A field without `toolparamdescription` gets its label text as the description.
 - A declarative tool without `toolautosubmit` fills the form and keeps the call open until a person submits it; that submit event carries `agentInvoked` and `respondWith`, and the call resolves with what `respondWith()` received. `webmcp.call()` therefore stays pending until the test (or a human) submits; `examples/react-shop` shows the pattern.
 
 When both the page hooks and the CDP domain observe the same execution, the fixture keeps one record: the page side knows a page script started it (`via: "api"`), the domain knows the fixture did (`"fixture"`), an agent driver did (`"agent"`), or nobody it can see did (`"agent"`).
 
-Three Chrome 154 behaviours the fixture works around rather than mirrors: under load, `getTools()` in a page occasionally never resolves, so the collector bounds it and fills the frame from the registry the CDP domain reported; the `invokeTool` response can be delivered after the invocation's own events, so the collector queues its request before sending; and the top frame's aggregated `getTools()` lists a same-origin iframe's tools late or, sometimes, not at all, so the fixture collects every frame itself and `call()` reaches the frame directly, while an agent running inside the page (the `promptApi` fixture) sees only what the page sees. Set `WEBMCP_DEBUG=1` to log every CDP event and invocation to stderr when something looks off.
+Three behaviours the fixture works around rather than mirrors: under load, `getTools()` in a page occasionally never resolves, so the collector bounds it and fills the frame from the registry the CDP domain reported; the `invokeTool` response can be delivered after the invocation's own events, so the collector queues its request before sending; and the top frame's aggregated `getTools()` lists a same-origin iframe's tools late or, sometimes, not at all, so the fixture collects every frame itself and `call()` reaches the frame directly, while an agent running inside the page (the `promptApi` fixture) sees only what the page sees. Set `WEBMCP_DEBUG=1` to log every CDP event and invocation to stderr when something looks off.
 
 ### Running against a real model
 
 Playwright launches Chrome with a fresh profile, so settings made in `chrome://flags` do not apply. Launch Chrome Canary yourself with the flags enabled in its profile and a DevTools port, then point the tests at it:
 
-1. In Chrome Canary enable `#optimization-guide-on-device-model`, `#prompt-api-for-gemini-nano`, `#prompt-api-tool-use`, and `#webmcp-for-testing`, then restart. Wait for the on-device model to finish downloading (check `chrome://components`).
+1. In Chrome Canary enable `#prompt-api`, `#prompt-api-tool-use` and `#enable-webmcp-testing`, then restart. Wait for the on-device model to finish downloading (check `chrome://components`).
 2. Start it with `--remote-debugging-port=9222`.
 3. Run `WEBMCP_CDP=http://localhost:9222 npx playwright test`.
 
@@ -282,24 +282,22 @@ await promptApi.useFake({
 await page.goto("/");
 ```
 
-The fake honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your own Prompt API wiring; a scripted model proves nothing about an eval case, so keep it out of eval suites. For deterministic agent-shaped tests without a model, a scripted function agent does the same job in Node.
+The fake speaks the same tool-call protocol as Chromium: it asks for the listed calls as `tool-call` items, waits for the `tool-response` items, and only then answers. It honours `tools`, `initialPrompts`, `inputQuota`, and can simulate a build without tool use via `rejectTools: true`. It exists to test your own Prompt API wiring; a scripted model proves nothing about an eval case, so keep it out of eval suites. For deterministic agent-shaped tests without a model, a scripted function agent does the same job in Node.
 
 ## Cross-origin exposure
 
-WebMCP lets a page expose tools to embedders with `exposedTo`, and lets an embedder opt in with `<iframe allow="tools">`. The test shim implements both over `postMessage`: `getTools({ fromOrigins })` in the embedder asks each allowed cross-origin frame for the tools exposed to the embedder's origin, and remote tools execute through the same channel. `snapshot()` still sees every frame because Playwright evaluates inside them, so you can assert both what exists and what an agent can actually reach:
+WebMCP lets a page expose tools to embedders with `exposedTo`, and lets an embedder opt in with `<iframe allow="tools">`. `snapshot()` sees every frame because Playwright evaluates inside them, so you can assert both what exists and what an agent can actually reach through `getTools({ fromOrigins })`:
 
 ```ts
 await expect(webmcp).toReachTool("partner_quote");
 await expect(webmcp).not.toReachTool("partner_private");
 ```
 
-The `exposed-to-secure-origins` rule flags `exposedTo` entries that the API would reject, and `iframe-allow-tools` points at cross-origin frames that register tools nobody can reach.
-
-Both halves of the handshake have to hold for a tool to be reachable, but only one of them is yours: an attacker writes their own embedder, so `allow="tools"` is always granted on a page that wants in. `exposedTo` is the half you control, and `exposed-to-wildcard` (error) flags `["*"]` — with it, any page that iframes yours drives the tool under the user's live session. Read-only or not, list the origins instead; re-level the rule to `warning` if the data really is public.
+Both halves of the handshake have to hold for a tool to be reachable, but only one of them is yours: an attacker writes their own embedder, so `allow="tools"` is always granted on a page that wants in. `exposedTo` is the half you control. The API takes potentially trustworthy origins and nothing else, so there is no way to expose a tool to every embedder: `["*"]` and `http://` origins other than localhost make `registerTool()` reject with `SecurityError`, and the `exposed-to-secure-origins` rule (error) flags them in source, where the intent is visible, before the browser silently drops the registration.
 
 ## Mocks and replay
 
-`mock(name, impl)` swaps a tool's implementation for one that runs in Node, so agent tests can exercise `add_to_cart` without side effects, and a `{ error }` mock reproduces backend failures. `replay(recording)` mocks every tool in a recording so calls with the same arguments return the recorded result, which turns any recording, including one made against the on-device model, into a deterministic fixture. Restoring the original works when the page's API exposes `execute` (the shim does; native builds may not).
+`mock(name, impl)` swaps a tool's implementation for one that runs in Node, so agent tests can exercise `add_to_cart` without side effects, and a `{ error }` mock reproduces backend failures. `replay(recording)` mocks every tool in a recording so calls with the same arguments return the recorded result, which turns any recording, including one made against the on-device model, into a deterministic fixture. The mock takes over inside the recorder's wrapper around the tool's `execute`, so nothing is re-registered and `unmock()` restores the original; only tools registered through `registerTool()` in the page can be mocked, which leaves declarative forms out.
 
 ## Registration timeline
 
@@ -377,36 +375,36 @@ Accept intended changes with `npx playwright test --update-snapshots`. The store
 
 Rules see the whole page: every frame, declarative forms, and all tools together. Each rule declares a scope. **tool** rules judge one definition on its own and also run statically in `eslint-plugin-webmcp` and with `lint({ scope: "tool" })`; **page** rules need everything the page registers and only run against a live page or a snapshot of one.
 
-| Rule                               | Severity | Scope | Checks                                                                                           |
-| ---------------------------------- | -------- | ----- | ------------------------------------------------------------------------------------------------ |
-| `tool-name-valid`                  | error    | tool  | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                         |
-| `description-missing`              | error    | tool  | Imperative tools have a description.                                                             |
-| `description-length`               | warning  | tool  | Between `min` (20) and `max` (600) characters.                                                   |
-| `param-description-missing`        | warning  | tool  | Every input property has a description.                                                          |
-| `schema-shape`                     | error    | tool  | Object schema; `required` entries exist in `properties`.                                         |
-| `schema-no-null-literals`          | error    | tool  | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                               |
-| `schema-depth`                     | warning  | tool  | Property nesting at most `max` (3) levels.                                                       |
-| `schema-unsupported-keywords`      | warning  | tool  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.         |
-| `sensitive-params`                 | warning  | tool  | Parameter names that look like credentials or payment data.                                      |
-| `duplicate-tool-name`              | error    | page  | Same name registered more than once across frames.                                               |
-| `tool-shadowing`                   | error    | page  | Names that read alike, registered from different frames, origins or scripts.                     |
-| `third-party-registration`         | warning  | page  | A tool registered by a script from another origin than the frame's.                              |
-| `similar-descriptions`             | warning  | page  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied. |
-| `too-many-tools`                   | warning  | page  | More than `max` (20) tools on a page.                                                            |
-| `no-tools`                         | info     | page  | Page exposes nothing.                                                                            |
-| `iframe-allow-tools`               | info     | page  | Cross-origin frame registers tools but its `<iframe>` lacks `allow="tools"`.                     |
-| `declarative-description`          | error    | tool  | `<form toolname>` also has `tooldescription`.                                                    |
-| `declarative-field-description`    | warning  | tool  | Each named field has a label or `toolparamdescription`.                                          |
-| `declarative-autosubmit-sensitive` | error    | tool  | `toolautosubmit` on forms with password or payment fields.                                       |
-| `description-injection`            | error    | tool  | Instructions to the agent, role markers, or hidden characters in any tool text.                  |
-| `naming-consistency`               | warning  | page  | Mixed naming styles across tool or parameter names.                                              |
-| `exposed-to-secure-origins`        | error    | tool  | `exposedTo` lists an insecure origin.                                                            |
-| `exposed-to-wildcard`              | error    | tool  | `exposedTo` contains `"*"`, so any embedder reaches the tool with the user's session.            |
-| `capability-trifecta`              | warning  | page  | An undeclared source of third-party content sits on a page whose other tools act.                |
+| Rule                               | Severity | Scope | Checks                                                                                                |
+| ---------------------------------- | -------- | ----- | ----------------------------------------------------------------------------------------------------- |
+| `tool-name-valid`                  | error    | tool  | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                              |
+| `description-missing`              | error    | tool  | Imperative tools have a description.                                                                  |
+| `description-length`               | warning  | tool  | Between `min` (20) and `max` (600) characters.                                                        |
+| `param-description-missing`        | warning  | tool  | Every input property has a description.                                                               |
+| `schema-shape`                     | error    | tool  | Object schema; `required` entries exist in `properties`.                                              |
+| `schema-no-null-literals`          | error    | tool  | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                    |
+| `schema-depth`                     | warning  | tool  | Property nesting at most `max` (3) levels.                                                            |
+| `schema-unsupported-keywords`      | warning  | tool  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.              |
+| `sensitive-params`                 | warning  | tool  | Parameter names that look like credentials or payment data.                                           |
+| `duplicate-tool-name`              | error    | page  | Same name registered more than once across frames.                                                    |
+| `tool-shadowing`                   | error    | page  | Names that read alike, registered from different frames, origins or scripts.                          |
+| `third-party-registration`         | warning  | page  | A tool registered by a script from another origin than the frame's.                                   |
+| `similar-descriptions`             | warning  | page  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied.      |
+| `too-many-tools`                   | warning  | page  | More than `max` (20) tools on a page.                                                                 |
+| `no-tools`                         | info     | page  | Page exposes nothing.                                                                                 |
+| `declarative-description`          | error    | tool  | `<form toolname>` also has `tooldescription`.                                                         |
+| `declarative-field-description`    | warning  | tool  | Each named field has a label or `toolparamdescription`.                                               |
+| `declarative-autosubmit-sensitive` | error    | tool  | `toolautosubmit` on forms with a password field, or an `autocomplete` naming a card or one-time code. |
+| `description-injection`            | error    | tool  | Instructions to the agent, role markers, or hidden characters in any tool text.                       |
+| `naming-consistency`               | warning  | page  | Mixed naming styles across tool or parameter names.                                                   |
+| `exposed-to-secure-origins`        | error    | tool  | `exposedTo` lists something the API rejects: an insecure origin, or `"*"`.                            |
+| `capability-trifecta`              | warning  | page  | An undeclared source of third-party content sits on a page whose other tools act.                     |
 
 The declarative rules read `<form>` markup: from the page at runtime, or statically from JSX (`<form toolname="...">` in a React component) through the ESLint plugin.
 
-`tool-shadowing` is the near-miss half of `duplicate-tool-name`: an agent picks a tool by reading its name, so `search_products` in your page and `searchProducts` in an embedded widget are one choice presented as two, and a one-character difference between longer names is a typosquat. Identical names stay `duplicate-tool-name`'s finding, and near names inside a single frame are a naming problem rather than a trust one, so the rule only fires across a frame, an origin, or a registering script. `third-party-registration` asks the other question — not which tool gets picked, but whose code defined it — and needs the [CDP collector](#seeing-what-chromes-agent-does), which is what records a registration site; add your own bundle host to its `allow` list.
+`tool-shadowing` is the near-miss half of `duplicate-tool-name`: an agent picks a tool by reading its name, so `search_products` in your page and `searchProducts` in an embedded widget are one choice presented as two, and a one-character difference between longer names is a typosquat. Identical names stay `duplicate-tool-name`'s finding, and near names inside a single frame are a naming problem rather than a trust one, so the rule only fires across a frame, an origin, or a registering script. `third-party-registration` asks the other question, not which tool gets picked but whose code defined it, and needs the [CDP collector](#seeing-what-chromes-agent-does), which is what records a registration site; add your own bundle host to its `allow` list.
+
+Annotations are read under both spellings (`readOnlyHint`, `consequentialHint`, `untrustedContentHint`, `debugging` in the specification; `readOnly`, `consequential`, `untrustedContent`, `debugging`, `autosubmit` on the CDP domain). A tool declared `debugging` is rendered as such in `TOOLS.md`; it is not treated differently by the rules.
 
 A project that runs the ESLint plugin can keep its Playwright assertion to the page-level rules, so a finding is reported once, where it is fixed: `await expect(webmcp).toPassLint({ scope: "page" })`. Without `scope` the assertion runs everything, which is the right default when there is no static lint.
 
@@ -425,13 +423,13 @@ Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRu
 
 The same engine runs wherever tool definitions are available.
 
-**In ESLint or oxlint.** `eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()`, `provideContext({ tools })` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed.
+**In ESLint or oxlint.** `@swissspidy/eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed.
 
-It also carries one rule with no `webmcp-lint` counterpart, because only the source shows it. `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
+It also carries one rule with no `webmcp-lint` counterpart, because only the source shows it. `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js
-import webmcp from "eslint-plugin-webmcp";
+import webmcp from "@swissspidy/eslint-plugin-webmcp";
 export default [
   webmcp.configs.recommended,
   { rules: { "webmcp/description-length": ["warn", { min: 30 }] } },
@@ -467,15 +465,15 @@ const result = lint(snapshotFromFrames(frames, { url: page.url() }));
 pnpm install
 pnpm run build           # typecheck resolves workspace packages through their built declarations, so build first
 pnpm run typecheck
-pnpm run test:unit       # webmcp-lint and eslint-plugin-webmcp, node --test
-pnpm run test:e2e        # set PW_CHROMIUM=/path/to/chrome to use a specific binary, PW_ARGS for flags
-pnpm run test:native     # the same on Google Chrome Beta with --enable-features=WebMCP
-pnpm run lint            # eslint-plugin-webmcp on examples/react-shop
+pnpm run test:unit       # webmcp-lint and @swissspidy/eslint-plugin-webmcp, node --test
+pnpm run test:e2e        # Playwright's Chromium with --enable-features=WebMCP; PW_CHROMIUM picks another binary, PW_ARGS adds flags
+pnpm run test:beta       # the same on Google Chrome Beta (npx playwright install chrome-beta)
+pnpm run lint            # @swissspidy/eslint-plugin-webmcp on examples/react-shop
 pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
 ```
 
-`examples/demo-site` is the page the Playwright suite runs against. The four packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance.
+`examples/demo-site` is the page the Playwright suite runs against. The four packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance. Types for the API itself come from the [`webmcp-types`](https://www.npmjs.com/package/webmcp-types) package, which `playwright-webmcp` depends on and re-exports as `WebMCPTypes`.
 
 ## Recordings and evals
 
@@ -504,10 +502,10 @@ Chrome reports declarative form problems as DevTools issues (missing tool name o
 
 ## Status and limits
 
-- Pre-1.0. APIs will move, and the WebMCP specification itself is still changing (Chrome 149 runs an origin trial).
-- The CDP collector and the fixture are exercised against Google Chrome Beta 154 with `--enable-features=WebMCP` (see [Running on native WebMCP](#running-on-native-webmcp)); the beta channel moves weekly, so the native CI job is informational until the API ships to stable.
-- The shim exists for tests only; it is not a production polyfill. Its cross-origin bridge approximates `exposedTo` and `allow="tools"` over `postMessage`; it does not implement `requestUserInteraction` or `toolcanceled`.
-- Page-side recording covers executions that go through `modelContext` in the page, including the ones the `promptApi` fixture and `toolsForAgent()` callables trigger. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
+- Pre-1.0. APIs will move, and the WebMCP specification itself is still changing; Chrome runs an origin trial and the API is otherwise behind `--enable-features=WebMCP`.
+- The suites run on Playwright's Chromium and on Google Chrome Beta (see [Browsers](#browsers)); the beta channel moves weekly, so that CI job is informational until the API ships to stable. There is no polyfill here: a browser without `document.modelContext` sees only declarative forms in a snapshot and can execute nothing.
+- The `promptApi` harness follows Chromium's tool-use protocol as specified in its IDL and web tests; it has not been run against a released build with the on-device model and tool use enabled.
+- Page-side recording covers executions that go through `document.modelContext` in the page, including the ones the `promptApi` fixture and `toolsForAgent()` callables trigger. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.
 - The similarity rule is lexical. Embedding-based similarity was considered and left out for now.
 - On-device runs need Chrome Canary with the flags above; the fake model covers CI.

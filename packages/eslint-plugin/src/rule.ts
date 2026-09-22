@@ -18,12 +18,12 @@ import { definitionSites } from "./settings.js";
  * a field the extractor could not read are dropped rather than guessed at. A
  * finding with a path is about the input schema; the rest are keyed by rule.
  */
-const EXPOSED_TO_RULES = new Set(["exposed-to-secure-origins", "exposed-to-wildcard"]);
+const EXPOSED_TO_RULES = new Set(["exposed-to-secure-origins"]);
 
 const NEEDS: Record<string, string[]> = {
   description: ["description-missing", "description-length", "description-injection", "declarative-description"],
   inputSchema: ["param-description-missing", "schema-shape", "schema-no-null-literals", "schema-depth", "schema-unsupported-keywords", "sensitive-params"],
-  exposedTo: ["exposed-to-secure-origins", "exposed-to-wildcard"],
+  exposedTo: ["exposed-to-secure-origins"],
 };
 
 function fieldOf(finding: Finding): string | undefined {

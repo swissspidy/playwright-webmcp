@@ -24,7 +24,7 @@ test.describe("mock and replay", () => {
     // The form tool has no execute() to wrap, so it cannot be mocked; a failed attempt to register an
     // imperative twin must not change that.
     const rejected = await page.evaluate(async () => {
-      const mc = (document.modelContext ?? navigator.modelContext)!;
+      const mc = document.modelContext!;
       try {
         await mc.registerTool({
           name: "subscribe_newsletter",
@@ -37,7 +37,7 @@ test.describe("mock and replay", () => {
         return true;
       }
     });
-    // Both the shim and Chrome reject a name that is already registered; without that, the rest proves nothing.
+    // The API rejects a name that is already registered; without that, the rest proves nothing.
     expect(rejected).toBe(true);
     await expect(webmcp.mock("subscribe_newsletter", { result: {} })).rejects.toThrow(/cannot be mocked/);
   });

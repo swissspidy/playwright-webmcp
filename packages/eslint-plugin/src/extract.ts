@@ -4,7 +4,6 @@
  * definition sites comes from ./settings.ts; by default:
  *
  *   x.registerTool({ name, description, inputSchema, annotations, execute }, { exposedTo })
- *   x.provideContext({ tools: [ { ... }, { ... } ] })
  *   useWebMCP({ name, description, inputSchema, execute })
  *
  * Only literal values are read. An identifier that refers to a `const` or

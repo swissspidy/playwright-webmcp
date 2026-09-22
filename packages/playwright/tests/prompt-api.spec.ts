@@ -130,7 +130,7 @@ test.describe("prompt api harness", () => {
     await promptApi.useFake({ turns: [{ calls: [{ name: "nullable", args: {} }], response: "{{result:0}}" }] });
     await page.goto("/");
     await page.evaluate(async () => {
-      const mc = (document.modelContext ?? navigator.modelContext)!;
+      const mc = document.modelContext!;
       await mc.registerTool({
         name: "nullable",
         description: "Returns a value containing nulls so the harness can scrub them.",

@@ -1,9 +1,9 @@
 /**
- * eslint-plugin-webmcp: the tool-scoped rules of `webmcp-lint`, run
- * statically against `registerTool()` and `provideContext()` literals.
+ * @swissspidy/eslint-plugin-webmcp: the tool-scoped rules of `webmcp-lint`,
+ * run statically against `registerTool()` literals.
  *
  *   // eslint.config.js
- *   import webmcp from "eslint-plugin-webmcp";
+ *   import webmcp from "@swissspidy/eslint-plugin-webmcp";
  *   export default [webmcp.configs.recommended];
  *
  * Page-level rules (duplicate names, similar descriptions, tool count,
@@ -29,12 +29,12 @@ function packageMeta(): { name: string; version: string } {
   for (const candidate of ["../package.json", "../../package.json"]) {
     try {
       const pkg = require(candidate) as { name?: string; version?: string };
-      if (pkg.name === "eslint-plugin-webmcp" && pkg.version) return { name: pkg.name, version: pkg.version };
+      if (pkg.name === "@swissspidy/eslint-plugin-webmcp" && pkg.version) return { name: pkg.name, version: pkg.version };
     } catch {
       /* try the next location */
     }
   }
-  return { name: "eslint-plugin-webmcp", version: "0.0.0" };
+  return { name: "@swissspidy/eslint-plugin-webmcp", version: "0.0.0" };
 }
 
 const { name, version } = packageMeta();

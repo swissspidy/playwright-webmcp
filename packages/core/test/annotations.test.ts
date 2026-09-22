@@ -10,12 +10,14 @@ test("toolHints accepts spec hints and CDP spellings", () => {
     consequential: false,
     untrustedContent: true,
   });
-  assert.deepEqual(toolHints({ readOnly: true, consequential: true, untrustedContent: false, autosubmit: true }), {
+  assert.deepEqual(toolHints({ readOnly: true, consequential: true, untrustedContent: false, debugging: true, autosubmit: true }), {
     readOnly: true,
     consequential: true,
     untrustedContent: false,
+    debugging: true,
     autosubmit: true,
   });
+  assert.deepEqual(toolHints({ readOnlyHint: true, debugging: true }), { readOnly: true, debugging: true });
   assert.deepEqual(toolHints({ readOnlyHint: false, readOnly: true }), { readOnly: false });
   assert.deepEqual(toolHints(undefined), {});
   assert.equal(isReadOnlyTool({ annotations: { readOnlyHint: true } }), true);

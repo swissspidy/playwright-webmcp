@@ -1,5 +1,4 @@
 import { lexicalSimilarity, type SimilarityFn } from "../similarity.js";
-import type { Finding } from "../types.js";
 import { defineRule, finding, opt } from "./helpers.js";
 
 export const duplicateToolName = defineRule({
@@ -72,26 +71,4 @@ export const noTools = defineRule({
   description: "Reports pages that expose no tools at all, which usually means registration failed.",
   severity: "info",
   check: (ctx) => (ctx.snapshot.tools.length === 0 ? [finding(noTools, `No WebMCP tools were found on ${ctx.snapshot.url}.`)] : []),
-});
-
-export const iframeAllowTools = defineRule({
-  id: "iframe-allow-tools",
-  scope: "page",
-  description: 'Cross-origin iframes only expose tools when the embedding element carries allow="tools".',
-  severity: "info",
-  check: (ctx) => {
-    const out: Finding[] = [];
-    ctx.snapshot.frames.forEach((f, i) => {
-      if (f.isTop || !f.crossOriginFromTop) return;
-      const hasTools = ctx.snapshot.tools.some((t) => t.frame === i);
-      const allowed = (f.allow ?? "").split(/[;\s]+/).includes("tools");
-      if (hasTools && !allowed)
-        out.push(
-          finding(iframeAllowTools, `Cross-origin frame ${f.url} registers tools but its <iframe> lacks allow="tools".`, {
-            frame: i,
-          }),
-        );
-    });
-    return out;
-  },
 });

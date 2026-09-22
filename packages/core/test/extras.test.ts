@@ -16,7 +16,7 @@ import type { PageSnapshot, RecordedCall } from "../src/types.js";
 const snapshot: PageSnapshot = {
   url: "https://shop.test/",
   capturedAt: "",
-  frames: [{ url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "shim" }],
+  frames: [{ url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "native" }],
   tools: [
     {
       name: "search_products",

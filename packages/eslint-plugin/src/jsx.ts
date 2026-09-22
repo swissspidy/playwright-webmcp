@@ -100,6 +100,16 @@ export function* elementsWithin(node: unknown, seen = new Set<unknown>()): Gener
 
 const SKIPPED_TYPES = new Set(["submit", "button", "reset", "hidden", "image"]);
 
+/** The literal text directly inside a JSX element (its JSXText children), collapsed like HTML would; undefined when there is none. */
+function staticText(children: unknown[]): string | undefined {
+  const parts: string[] = [];
+  for (const child of children as Array<{ type?: string; value?: unknown } | null>) {
+    if (child && child.type === "JSXText" && typeof child.value === "string") parts.push(child.value);
+  }
+  const text = parts.join(" ").replace(/\s+/g, " ").trim();
+  return text || undefined;
+}
+
 /** Extract a declarative tool from a `<form toolname>` element, or undefined when it is not one. */
 export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm | undefined {
   if (tagName(el) !== "form") return undefined;
@@ -117,15 +127,24 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
   const required: string[] = [];
   const labelledIds = new Set<string>();
   const labelledNames = new Set<string>();
+  const labelTexts = new Map<string, string>();
+  const wrappingLabelTexts = new Map<string, string>();
 
   // First pass: labels. <label htmlFor="id"> and fields wrapped in <label>.
   for (const child of elementsWithin(el.children)) {
     if (tagName(child) !== "label") continue;
     const htmlFor = attribute(child.openingElement, "htmlFor", resolve) ?? attribute(child.openingElement, "for", resolve);
-    if (typeof htmlFor === "string") labelledIds.add(htmlFor);
+    const text = staticText(child.children);
+    if (typeof htmlFor === "string") {
+      labelledIds.add(htmlFor);
+      if (text) labelTexts.set(htmlFor, text);
+    }
     for (const inner of elementsWithin(child.children)) {
       const innerName = attribute(inner.openingElement, "name", resolve);
-      if (typeof innerName === "string") labelledNames.add(innerName);
+      if (typeof innerName === "string") {
+        labelledNames.add(innerName);
+        if (text) wrappingLabelTexts.set(innerName, text);
+      }
     }
   }
 
@@ -143,17 +162,28 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
     const ariaLabel = attribute(child.openingElement, "aria-label", resolve);
     const ariaLabelledBy = attribute(child.openingElement, "aria-labelledby", resolve);
     const requiredValue = attribute(child.openingElement, "required", resolve);
+    const autocompleteValue = attribute(child.openingElement, "autocomplete", resolve);
+    const autocomplete = typeof autocompleteValue === "string" ? autocompleteValue : undefined;
     // Anything computed or spread onto the element may carry a label; findings about the field are dropped.
-    if (hasSpread(child.openingElement) || paramDescriptionValue === DYNAMIC || ariaLabel === DYNAMIC || ariaLabelledBy === DYNAMIC) {
+    if (
+      hasSpread(child.openingElement) ||
+      paramDescriptionValue === DYNAMIC ||
+      ariaLabel === DYNAMIC ||
+      ariaLabelledBy === DYNAMIC ||
+      autocompleteValue === DYNAMIC
+    ) {
       dynamic.add(`/properties/${fieldName}`);
     }
+    const labelText = typeof ariaLabel === "string" ? ariaLabel : typeof id === "string" ? labelTexts.get(id) : undefined;
     const hasLabel = isPresent(ariaLabel) || isPresent(ariaLabelledBy) || (typeof id === "string" && labelledIds.has(id)) || labelledNames.has(fieldName);
     // A boolean attribute is present whatever its value, as in HTML (`required="false"` still requires).
     const isRequired = isPresent(requiredValue) || requiredValue === DYNAMIC;
-    fields.push({ name: fieldName, type, required: isRequired, hasLabel, paramDescription });
+    fields.push({ name: fieldName, type, required: isRequired, hasLabel, paramDescription, autocomplete });
     fieldNodes.set(fieldName, child.openingElement);
     const prop: JsonSchema = { type: type === "number" || type === "range" ? "number" : type === "checkbox" ? "boolean" : "string" };
-    if (paramDescription) prop.description = paramDescription;
+    // The browser uses the label's text as the description when toolparamdescription is absent.
+    const description = paramDescription ?? labelText ?? (labelledNames.has(fieldName) ? wrappingLabelTexts.get(fieldName) : undefined);
+    if (description) prop.description = description;
     properties[fieldName] = prop;
     if (isRequired) required.push(fieldName);
   }

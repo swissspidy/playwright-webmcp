@@ -38,13 +38,17 @@ function sortKeys(value: unknown): unknown {
 }
 
 /**
- * The CDP domain reports `autosubmit` as an annotation on declarative tools;
- * the page-side collector only knows it from the form attribute. Fold it in so
- * contracts and docs see the same thing whichever collector produced the
- * snapshot.
+ * Annotations as declared, not as filled in: every hint defaults to `false`,
+ * and browsers differ in which defaults `getTools()` materialises (a build
+ * that predates `consequentialHint` or `debugging` leaves them out), so a
+ * `false` carries no information and would make the same page's contract
+ * differ from one browser to the next. The CDP domain reports `autosubmit` as
+ * an annotation on declarative tools while the page-side collector only knows
+ * it from the form attribute; fold it in so both collectors agree.
  */
 function contractAnnotations(tool: ToolSnapshot): Record<string, unknown> | undefined {
-  const annotations = { ...(tool.annotations ?? {}) };
+  const annotations: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(tool.annotations ?? {})) if (value !== false) annotations[key] = value;
   if (tool.declarative?.autosubmit && annotations.autosubmit === undefined) annotations.autosubmit = true;
   return Object.keys(annotations).length ? (sortKeys(annotations) as Record<string, unknown>) : undefined;
 }

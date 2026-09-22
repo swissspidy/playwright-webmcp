@@ -33,6 +33,8 @@ jobs:
       - run: pnpm run lint
 
   e2e:
+    # Playwright's Chromium implements WebMCP behind --enable-features=WebMCP, which the
+    # Playwright configs pass; no other browser is needed.
     name: Playwright (Node ${{ matrix.node }})
     runs-on: ubuntu-latest
     strategy:
@@ -61,12 +63,11 @@ jobs:
             examples/*/test-results
           retention-days: 7
 
-  native:
-    # The same suites on Google Chrome Beta with WebMCP enabled, so the shim,
-    # the collector and the CDP domain are checked against the real
-    # implementation. Chrome Beta moves every week; this job is informational
-    # until the API ships to stable, so it does not block merges.
-    name: Native WebMCP (Chrome Beta)
+  beta:
+    # The same suites on Google Chrome Beta, one milestone ahead of Playwright's
+    # Chromium, so API changes show up before they reach the stable build. Chrome
+    # Beta moves every week; this job is informational and does not block merges.
+    name: Chrome Beta
     runs-on: ubuntu-latest
     continue-on-error: true
     steps:
@@ -78,11 +79,11 @@ jobs:
       - run: pnpm run build
       - run: pnpm exec playwright install --with-deps chrome-beta
       - run: /opt/google/chrome-beta/chrome --version
-      - run: pnpm run test:native
+      - run: pnpm run test:beta
       - uses: actions/upload-artifact@v7
         if: failure()
         with:
-          name: playwright-results-native
+          name: playwright-results-beta
           path: |
             packages/*/test-results
             examples/*/test-results

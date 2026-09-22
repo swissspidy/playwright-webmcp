@@ -73,7 +73,7 @@ test("snapshotFromFrames assembles frames like the Playwright fixture", () => {
       { name: "search", description: "Search the catalogue for products by keyword.", inputSchema: null, origin: "https://shop.test", source: "imperative" },
     ],
   };
-  const partner: FrameCollectResult & { allow?: string | null } = {
+  const partner: FrameCollectResult = {
     frame: { url: "https://partner.test/widget", origin: "https://partner.test", isTop: false, api: "native" },
     tools: [
       {
@@ -84,17 +84,14 @@ test("snapshotFromFrames assembles frames like the Playwright fixture", () => {
         source: "imperative",
       },
     ],
-    allow: null,
   };
   const s = snapshotFromFrames([top, partner]);
   assert.equal(s.url, "https://shop.test/");
   assert.equal(s.frames[1].crossOriginFromTop, true);
-  assert.equal(s.frames[1].allow, null);
   assert.equal(s.tools[1].frame, 1);
+  assert.equal(s.tools[1].origin, "https://partner.test");
   const r = lint(s);
-  assert.ok(r.findings.some((f) => f.ruleId === "iframe-allow-tools" && f.frame === 1));
-  const allowed = lint(snapshotFromFrames([top, { ...partner, allow: "tools" }]));
-  assert.ok(!allowed.findings.some((f) => f.ruleId === "iframe-allow-tools"));
+  assert.ok(!r.findings.some((f) => f.severity === "error"));
 });
 
 test("a malformed inputSchema is kept so schema-shape can report it", () => {

@@ -1,5 +1,5 @@
 {
-  "name": "eslint-plugin-webmcp",
+  "name": "@swissspidy/eslint-plugin-webmcp",
   "version": "0.1.0",
   "description": "ESLint rules that lint WebMCP registerTool() definitions statically, using the webmcp-lint rule engine.",
   "keywords": [
@@ -38,7 +38,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md"
   ],
   "publishConfig": {
     "access": "public",

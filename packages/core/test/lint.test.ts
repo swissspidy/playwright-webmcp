@@ -7,7 +7,7 @@ function snap(tools: Partial<PageSnapshot["tools"][number]>[], frames?: PageSnap
   return {
     url: "https://example.test/",
     capturedAt: new Date(0).toISOString(),
-    frames: frames ?? [{ url: "https://example.test/", origin: "https://example.test", isTop: true, api: "shim" }],
+    frames: frames ?? [{ url: "https://example.test/", origin: "https://example.test", isTop: true, api: "native" }],
     tools: tools.map((t) => ({
       name: "tool",
       description: "A perfectly adequate description of what this does.",
@@ -107,23 +107,23 @@ test("description-injection covers title and annotations, not just descriptions"
   assert.equal(r.counts.error, 2);
 });
 
-test("exposed-to-wildcard flags the star that exposed-to-secure-origins skips", () => {
+test("exposed-to-secure-origins rejects what the API rejects, the wildcard included", () => {
   const r = lint(
     snap([
       { name: "public_quote", exposedTo: ["*"], annotations: { readOnlyHint: true } },
-      { name: "place_order", exposedTo: ["*"] },
-      { name: "partner_only", exposedTo: ["https://partner.test"] },
+      { name: "place_order", exposedTo: ["http://partner.test"] },
+      { name: "partner_only", exposedTo: ["https://partner.test", "http://localhost:3000", "http://app.localhost"] },
     ]),
   );
-  const wildcard = r.findings.filter((f) => f.ruleId === "exposed-to-wildcard");
+  const found = r.findings.filter((f) => f.ruleId === "exposed-to-secure-origins");
   assert.deepEqual(
-    wildcard.map((f) => f.tool),
+    found.map((f) => f.tool),
     ["public_quote", "place_order"],
   );
-  assert.match(wildcard[0].message, /can read what it returns/);
-  assert.match(wildcard[1].message, /can make it act/);
+  assert.match(found[0].message, /"\*", which is not an origin/);
+  assert.match(found[1].message, /not a potentially trustworthy origin/);
   assert.equal(
-    r.findings.some((f) => f.ruleId === "exposed-to-secure-origins"),
+    r.findings.some((f) => f.ruleId === "exposed-to-wildcard"),
     false,
   );
 });
@@ -190,8 +190,8 @@ test("capability-trifecta does not infer a source from a tool that only accepts 
 
 test("tool-shadowing catches the near-copies duplicate-tool-name does not", () => {
   const frames: PageSnapshot["frames"] = [
-    { url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "shim" },
-    { url: "https://widget.test/", origin: "https://widget.test", isTop: false, api: "shim", crossOriginFromTop: true },
+    { url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "native" },
+    { url: "https://widget.test/", origin: "https://widget.test", isTop: false, api: "native", crossOriginFromTop: true },
   ];
   const r = lint(
     snap(

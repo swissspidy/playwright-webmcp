@@ -1,5 +1,5 @@
 /**
- * Collector for the CDP `WebMCP` domain (Chrome 150+). It sees every tool
+ * Collector for the CDP `WebMCP` domain. It sees every tool
  * registration and invocation the browser mediates, including calls made by
  * Chrome's own agent or by other CDP clients, which page scripts cannot see.
  *
@@ -19,6 +19,7 @@ export interface CdpAnnotations {
   readOnly?: boolean;
   untrustedContent?: boolean;
   consequential?: boolean;
+  debugging?: boolean;
   autosubmit?: boolean;
 }
 

@@ -19,7 +19,7 @@
     "@playwright/test": "1.63.0",
     "@vitejs/plugin-react": "^6.0.0",
     "eslint": "^10.10.0",
-    "eslint-plugin-webmcp": "workspace:*",
+    "@swissspidy/eslint-plugin-webmcp": "workspace:*",
     "playwright-webmcp": "workspace:*",
     "vite": "^8.0.0"
   }

@@ -102,7 +102,7 @@ test("reads a real file from disk and a fixture snapshot", async () => {
     JSON.stringify({
       url: "https://shop.test/",
       capturedAt: "",
-      frames: [{ url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "shim" }],
+      frames: [{ url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "native" }],
       tools: [],
     }),
   );

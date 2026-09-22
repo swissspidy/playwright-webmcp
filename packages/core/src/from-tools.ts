@@ -92,17 +92,15 @@ export function snapshotFromTools(tools: ToolDefinitionLike[] | EvalToolsSchema,
 
 /**
  * Assemble a snapshot from `collectFrame()` results, one per frame, in the
- * order the driver lists them (top frame first). Pass the owning `<iframe>`'s
- * `allow` attribute alongside child frames when you have it so the
- * `iframe-allow-tools` rule can judge cross-origin exposure. This is what the
- * Playwright fixture does; use it with Puppeteer, WebDriver or jsdom.
+ * order the driver lists them (top frame first). This is what the Playwright
+ * fixture does; use it with Puppeteer, WebDriver or any other driver.
  */
-export function snapshotFromFrames(frames: Array<FrameCollectResult & { allow?: string | null }>, options: SnapshotFromFramesOptions = {}): PageSnapshot {
+export function snapshotFromFrames(frames: FrameCollectResult[], options: SnapshotFromFramesOptions = {}): PageSnapshot {
   const url = options.url ?? frames[0]?.frame.url ?? "about:blank";
   const topOrigin = originOf(url);
   const snapshot: PageSnapshot = { url, capturedAt: new Date().toISOString(), frames: [], tools: [] };
   frames.forEach((r, i) => {
-    snapshot.frames.push({ ...r.frame, isTop: i === 0, allow: i > 0 ? r.allow : undefined, crossOriginFromTop: i > 0 && r.frame.origin !== topOrigin });
+    snapshot.frames.push({ ...r.frame, isTop: i === 0, crossOriginFromTop: i > 0 && r.frame.origin !== topOrigin });
     for (const t of r.tools) snapshot.tools.push({ ...t, frame: i });
   });
   return snapshot;

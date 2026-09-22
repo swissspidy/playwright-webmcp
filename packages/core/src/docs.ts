@@ -32,6 +32,7 @@ export function renderToolDocs(contract: ToolContract, options: DocsOptions = {}
     if (hints.readOnly) meta.push("read-only");
     if (hints.consequential) meta.push("consequential");
     if (hints.untrustedContent) meta.push("returns untrusted content");
+    if (hints.debugging) meta.push("for debugging");
     if (hints.autosubmit) meta.push("auto-submits");
     lines.push(`_${meta.join(", ")}._`, "");
     const props = (tool.inputSchema?.properties ?? {}) as Record<string, Record<string, unknown>>;

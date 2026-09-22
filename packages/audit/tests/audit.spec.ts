@@ -62,7 +62,7 @@ test("the report explains an empty smoke run", () => {
       {
         url: "https://shop.test/",
         status: "ok",
-        api: "shim",
+        api: "native",
         contract: { version: 1, tools: [] },
         smoke: { runs: [], findings: [], counts: { error: 0, warning: 0, info: 0 }, skipped: ["add_to_cart"] },
       },
