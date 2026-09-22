@@ -1,4 +1,4 @@
-import { toEvalCase } from "webmcp-lint";
+import { toEvalCase } from "@swissspidy/webmcp-lint";
 import { test, expect } from "../src/index.js";
 
 test.describe("prompt api harness", () => {

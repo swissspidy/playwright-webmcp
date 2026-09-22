@@ -19,7 +19,7 @@ function escapeProperty(value: string): string {
 export interface GitHubAnnotationOptions {
   /** File to attach the annotations to, e.g. the linted tools.json. */
   file?: string;
-  /** Prefix for the annotation title, e.g. "webmcp-audit". */
+  /** Prefix for the annotation title, e.g. "webmcp-audit". The command name, not the package. */
   tool?: string;
 }
 

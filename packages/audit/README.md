@@ -1,17 +1,17 @@
-# webmcp-audit
+# @swissspidy/webmcp-audit
 
-Crawl a site and audit its [WebMCP](https://github.com/webmachinelearning/webmcp) tools from the outside: lint every page, optionally call the tools with inputs derived from their schemas, detect tools whose description or schema drift between pages, and score agent readiness. Built on [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp). No test suite or code access needed; point it at a URL.
+Crawl a site and audit its [WebMCP](https://github.com/webmachinelearning/webmcp) tools from the outside: lint every page, optionally call the tools with inputs derived from their schemas, detect tools whose description or schema drift between pages, and score agent readiness. Built on [`@swissspidy/playwright-webmcp`](https://www.npmjs.com/package/@swissspidy/playwright-webmcp). No test suite or code access needed; point it at a URL.
 
 ```sh
-npm install --save-dev webmcp-audit @playwright/test
+npm install --save-dev @swissspidy/webmcp-audit @playwright/test
 npx playwright install chromium
-npx webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
+npx @swissspidy/webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
 ```
 
 The browser has to implement WebMCP. Playwright's Chromium does behind a flag, which the audit passes on its own (`--enable-features=WebMCP`); `--executable` points it at another build, such as Chrome Beta or Canary.
 
 ```
-Usage: webmcp-audit <url> [options]
+Usage: @swissspidy/webmcp-audit <url> [options]
 
   --max-pages <n>       Maximum pages to visit (default 10)
   --no-crawl            Audit only <url>; do not follow links
@@ -62,17 +62,17 @@ Because these are real executions, only tools that declare `annotations: { readO
 ## On CI
 
 ```yaml
-- run: npx webmcp-audit https://staging.shop.example --smoke --format github --fail-on warning --header "Authorization: Bearer ${{ secrets.STAGING_TOKEN }}" --baseline audit-baseline/report.json
+- run: npx @swissspidy/webmcp-audit https://staging.shop.example --smoke --format github --fail-on warning --header "Authorization: Bearer ${{ secrets.STAGING_TOKEN }}" --baseline audit-baseline/report.json
 ```
 
-Findings become annotations on the run, the Markdown report lands in the job summary, and `--baseline` turns a stored `report.json` from an earlier run into a contract: a tool whose description, schema or annotations changed on a page reports `contract-changed`, a page that disappeared reports `baseline-page-missing`. Logins, cookies and storage state are out of scope here; use the `playwright-webmcp` fixture for those.
+Findings become annotations on the run, the Markdown report lands in the job summary, and `--baseline` turns a stored `report.json` from an earlier run into a contract: a tool whose description, schema or annotations changed on a page reports `contract-changed`, a page that disappeared reports `baseline-page-missing`. Logins, cookies and storage state are out of scope here; use the `@swissspidy/playwright-webmcp` fixture for those.
 
 To audit with another Chrome build, for example the current beta: `--executable /opt/google/chrome-beta/chrome`.
 
 ## As a library
 
 ```ts
-import { audit, renderMarkdown } from "webmcp-audit";
+import { audit, renderMarkdown } from "@swissspidy/webmcp-audit";
 
 const report = await audit({
   url: "https://shop.example",

@@ -1,5 +1,5 @@
 {
-  "name": "webmcp-audit",
+  "name": "@swissspidy/webmcp-audit",
   "version": "0.0.0",
   "description": "Crawl a site and audit its WebMCP tools: lint, smoke runs, cross-page drift and an agent-readiness score. CLI and library.",
   "keywords": [
@@ -57,8 +57,8 @@
     "@playwright/test": ">=1.49"
   },
   "dependencies": {
-    "playwright-webmcp": "workspace:*",
-    "webmcp-lint": "workspace:*"
+    "@swissspidy/playwright-webmcp": "workspace:*",
+    "@swissspidy/webmcp-lint": "workspace:*"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",

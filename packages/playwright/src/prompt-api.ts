@@ -13,7 +13,7 @@
  * `runPromptApiInPage` is evaluated inside the top frame, so it must stay
  * self contained: no imports, no closures over module scope.
  */
-import { ATTACHMENTS, type EvalCase } from "webmcp-lint";
+import { ATTACHMENTS, type EvalCase } from "@swissspidy/webmcp-lint";
 import type { WebMCP as WebMCPTypes } from "webmcp-types";
 import { evaluateAgent, type AgentRunner, type AgentRunResult, type EvalRunOptions, type EvalRunResult } from "./agent.js";
 import { fakeLanguageModelSource, type FakeLanguageModelPlan } from "./fake-language-model.js";

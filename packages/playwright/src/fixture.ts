@@ -32,7 +32,7 @@ import {
   type TimelineReport,
   type ToolContract,
   type ToolSnapshot,
-} from "webmcp-lint";
+} from "@swissspidy/webmcp-lint";
 import { CdpCollector, type CdpTool } from "./cdp.js";
 
 const debug = process.env.WEBMCP_DEBUG

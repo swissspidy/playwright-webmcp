@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { CdpCollector, type CdpLikeSession } from "../src/cdp.js";
-import type { RecordedCall } from "webmcp-lint";
+import type { RecordedCall } from "@swissspidy/webmcp-lint";
 
 class FakeSession implements CdpLikeSession {
   handlers = new Map<string, Array<(p: any) => void>>();

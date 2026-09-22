@@ -14,7 +14,7 @@
  * findings.
  */
 import type * as ESTree from "estree";
-import type { ToolDefinitionLike } from "webmcp-lint";
+import type { ToolDefinitionLike } from "@swissspidy/webmcp-lint";
 import type { DefinitionSite } from "./settings.js";
 
 type Node = ESTree.Node;

@@ -13,7 +13,7 @@ export interface CodegenOptions {
   prompt?: string;
   /** How arguments are asserted in toMatchCalls. Default "exact". */
   argumentsMode?: ArgumentsMode;
-  /** Import specifier for the fixture. Default "playwright-webmcp". */
+  /** Import specifier for the fixture. Default "@swissspidy/playwright-webmcp". */
   importFrom?: string;
 }
 
@@ -24,7 +24,7 @@ function literal(value: unknown): string {
 }
 
 export function toPlaywrightTest(options: CodegenOptions): string {
-  const { name, url = "/", calls, prompt, argumentsMode = "exact", importFrom = "playwright-webmcp" } = options;
+  const { name, url = "/", calls, prompt, argumentsMode = "exact", importFrom = "@swissspidy/playwright-webmcp" } = options;
   const lines: string[] = [];
   lines.push(`import { test, expect } from ${JSON.stringify(importFrom)};`, "");
   lines.push(`test(${JSON.stringify(name)}, async ({ page, webmcp${prompt ? ", promptApi" : ""} }) => {`);

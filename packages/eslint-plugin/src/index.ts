@@ -13,7 +13,7 @@
 import { createRequire } from "node:module";
 import type { ESLint, Linter, Rule as ESLintRule } from "eslint";
 
-import { builtinRules, type Rule as LintRule } from "webmcp-lint";
+import { builtinRules, type Rule as LintRule } from "@swissspidy/webmcp-lint";
 import { noInterpolatedText } from "./interpolation.js";
 import { validEventName } from "./api-usage.js";
 import { createRule } from "./rule.js";

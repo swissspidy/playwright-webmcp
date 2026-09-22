@@ -1,5 +1,5 @@
 {
-  "name": "playwright-webmcp",
+  "name": "@swissspidy/playwright-webmcp",
   "version": "0.0.0",
   "description": "Playwright fixture, matchers, recorder and reporter for testing WebMCP tool surfaces.",
   "keywords": [
@@ -59,7 +59,7 @@
     "@playwright/test": ">=1.49"
   },
   "dependencies": {
-    "webmcp-lint": "workspace:*",
+    "@swissspidy/webmcp-lint": "workspace:*",
     "webmcp-types": "^0.1.9"
   },
   "devDependencies": {
