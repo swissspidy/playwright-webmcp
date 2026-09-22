@@ -18,12 +18,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      # Installs pnpm from packageManager, Node from .node-version, and runs
+      # the install itself. require-lockfile makes that install --frozen-lockfile
+      # and fails outright if the lockfile has gone missing.
+      - uses: pnpm/setup@v3
         with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          cache: true
+          require-lockfile: true
       - run: pnpm run format:check
       - run: pnpm run build
       - run: pnpm run typecheck
@@ -37,15 +38,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24]
+        node: [24, 26]
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      # An explicit runtime outranks .node-version, so the matrix still picks
+      # the Node version even though the file pins the one the packages target.
+      - uses: pnpm/setup@v3
         with:
-          node-version: ${{ matrix.node }}
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          runtime: node@${{ matrix.node }}
+          cache: true
+          require-lockfile: true
       - run: pnpm run build
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm run test:e2e
@@ -69,12 +71,10 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      - uses: pnpm/setup@v3
         with:
-          node-version-file: .node-version
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
+          cache: true
+          require-lockfile: true
       - run: pnpm run build
       - run: pnpm exec playwright install --with-deps chrome-beta
       - run: /opt/google/chrome-beta/chrome --version

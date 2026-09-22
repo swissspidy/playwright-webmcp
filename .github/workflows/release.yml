@@ -15,21 +15,17 @@ jobs:
   release:
     name: Version or publish
     runs-on: ubuntu-latest
-    env:
-      # setup-node writes an .npmrc that reads the registry token from this variable.
-      # Keep it empty for install and build; only the publish step below gets the secret.
-      NODE_AUTH_TOKEN: ""
     steps:
       - uses: actions/checkout@v7
         with:
           fetch-depth: 0
-      - uses: pnpm/action-setup@v6
-      - uses: actions/setup-node@v7
+      # Installs pnpm from packageManager, Node from .node-version, and runs
+      # the install itself. No .npmrc is written, so nothing carries registry
+      # credentials into the install and build below.
+      - uses: pnpm/setup@v3
         with:
-          node-version-file: .node-version
-          cache: pnpm
-          registry-url: https://registry.npmjs.org
-      - run: pnpm install --frozen-lockfile
+          cache: true
+          require-lockfile: true
       - run: pnpm run build
       - name: Create release pull request or publish
         uses: changesets/action@v2
@@ -39,5 +35,16 @@ jobs:
           commit-message: "Version packages"
           pr-title: "Version packages"
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-          NPM_CONFIG_PROVENANCE: "true"
+          # Registry and token together, on the publish step alone. Trusted
+          # publishing replaces this once the packages exist on npm: pnpm does
+          # the OIDC exchange itself, so the whole block goes away rather than
+          # being swapped for another secret. Provenance comes from
+          # publishConfig.provenance in each package, not from here.
+          pnpm_config__auth: |
+            {
+              "https://registry.npmjs.org": {
+                "@": {
+                  "authToken": ${{ toJSON(secrets.NPM_TOKEN) }}
+                }
+              }
+            }
