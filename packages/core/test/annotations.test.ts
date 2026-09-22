@@ -10,12 +10,14 @@ test("toolHints accepts spec hints and CDP spellings", () => {
     consequential: false,
     untrustedContent: true,
   });
-  assert.deepEqual(toolHints({ readOnly: true, consequential: true, untrustedContent: false, autosubmit: true }), {
+  assert.deepEqual(toolHints({ readOnly: true, consequential: true, untrustedContent: false, debugging: true, autosubmit: true }), {
     readOnly: true,
     consequential: true,
     untrustedContent: false,
+    debugging: true,
     autosubmit: true,
   });
+  assert.deepEqual(toolHints({ readOnlyHint: true, debugging: true }), { readOnly: true, debugging: true });
   assert.deepEqual(toolHints({ readOnlyHint: false, readOnly: true }), { readOnly: false });
   assert.deepEqual(toolHints(undefined), {});
   assert.equal(isReadOnlyTool({ annotations: { readOnlyHint: true } }), true);
@@ -49,6 +51,30 @@ test("title is part of the contract and the docs", () => {
   const md = renderToolDocs(after);
   assert.match(md, /\*\*Search\*\*/);
   assert.match(md, /read-only/);
+});
+
+test("contracts drop the hints the API defaults to false, and nothing else", () => {
+  const snap = (annotations: Record<string, unknown>) => ({
+    url: "u",
+    capturedAt: "",
+    frames: [],
+    tools: [
+      {
+        name: "t",
+        description: "A description long enough for the rules.",
+        inputSchema: null,
+        origin: "o",
+        frame: 0,
+        source: "imperative" as const,
+        annotations,
+      },
+    ],
+  });
+  assert.deepEqual(toContract(snap({ readOnlyHint: true, consequentialHint: false, untrustedContentHint: false, debugging: false })).tools[0].annotations, {
+    readOnlyHint: true,
+  });
+  assert.deepEqual(toContract(snap({ readOnlyHint: false, featureEnabled: false })).tools[0].annotations, { featureEnabled: false });
+  assert.equal(toContract(snap({ readOnlyHint: false })).tools[0].annotations, undefined);
 });
 
 test("declarative autosubmit becomes an annotation in the contract", () => {

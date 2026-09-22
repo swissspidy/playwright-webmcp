@@ -39,28 +39,23 @@ const debug = process.env.WEBMCP_DEBUG
   ? (...args: unknown[]) => console.error(`[webmcp fixture ${new Date().toISOString().slice(11, 23)}]`, ...args)
   : () => {};
 import { runSmoke, type SmokeOptions } from "./smoke.js";
-import { shimSource } from "./shim.js";
 import { RECORDER_SOURCE } from "./recorder.js";
+import { executeToolInputShape, type ExecuteToolInputShape } from "./input-shape.js";
 import { PromptApiHarness } from "./prompt-api.js";
 
 export interface WebMCPOptions {
-  /**
-   * "auto": install the test shim only when the browser has no native WebMCP.
-   * "always": install it regardless. "never": rely on native support.
-   */
-  shim: "auto" | "always" | "never";
   /** Record tool executions triggered from inside the page. */
   record: boolean;
   /** Default lint options for `webmcp.lint()` and `toPassLint()`. */
   lint: LintOptions;
   /**
-   * "auto": attach to the CDP WebMCP domain when the browser has it (Chrome 150+),
-   * so calls made by Chrome's own agent are recorded too. "never": page-side hooks only.
+   * "auto": attach to the CDP WebMCP domain when the browser has it, so calls
+   * made by Chrome's own agent are recorded too. "never": page-side hooks only.
    */
   cdp: "auto" | "never";
 }
 
-export const DEFAULT_OPTIONS: WebMCPOptions = { shim: "auto", record: true, lint: {}, cdp: "auto" };
+export const DEFAULT_OPTIONS: WebMCPOptions = { record: true, lint: {}, cdp: "auto" };
 
 export { ATTACHMENTS };
 
@@ -109,7 +104,7 @@ export class WebMCP {
     return instances.get(page);
   }
 
-  /** Install the shim and recorder. Must run before navigation; the fixture does this for you. */
+  /** Install the recorder. Must run before navigation; the fixture does this for you. */
   async install(): Promise<void> {
     if (this.installed) return;
     this.installed = true;
@@ -145,9 +140,6 @@ export class WebMCP {
       this.page.on("framenavigated", (frame) => {
         if (frame === this.page.mainFrame()) this.timelineEvents = [];
       });
-    }
-    if (this.options.shim !== "never") {
-      await this.page.addInitScript(shimSource({ force: this.options.shim === "always" }));
     }
     if (this.options.record) await this.page.addInitScript(RECORDER_SOURCE);
     if (this.options.cdp === "auto") await this.attachCdp();
@@ -215,7 +207,7 @@ export class WebMCP {
     for (let i = 0; i < frames.length; i++) {
       let r = results[i];
       if (this.cdp?.enabled && (!r || r.frame.error)) {
-        // getTools() failed or never settled in this frame (seen on Chrome 154 under load); the
+        // getTools() failed or never settled in this frame (seen on Chrome under load); the
         // registry the browser reported over CDP stands in for it.
         const url = frames[i].url();
         const fromRegistry = registryFor(i);
@@ -243,17 +235,7 @@ export class WebMCP {
         snapshot.frames.push({ url: frames[i].url(), origin: safeOrigin(frames[i].url()), isTop: i === 0, api: "none" });
         continue;
       }
-      let allow: string | null | undefined;
-      if (i > 0) {
-        try {
-          const el = await frames[i].frameElement();
-          allow = await el.getAttribute("allow");
-          await el.dispose();
-        } catch {
-          allow = undefined;
-        }
-      }
-      snapshot.frames.push({ ...r.frame, allow, crossOriginFromTop: i > 0 && r.frame.origin !== topOrigin });
+      snapshot.frames.push({ ...r.frame, crossOriginFromTop: i > 0 && r.frame.origin !== topOrigin });
       for (const t of r.tools) snapshot.tools.push({ ...t, frame: i });
     }
     if (this.cdp?.enabled) {
@@ -289,8 +271,7 @@ export class WebMCP {
     const frame = this.page.frames()[options.from ?? 0];
     if (!frame) throw new Error(`No frame at index ${options.from}`);
     return frame.evaluate(async () => {
-      const w = window as unknown as Record<string, any>;
-      const mc = (document as unknown as Record<string, any>).modelContext ?? w.navigator?.modelContext;
+      const mc = document.modelContext;
       if (!mc) return [];
       const origins = new Set<string>();
       for (const el of Array.from(document.querySelectorAll("iframe"))) {
@@ -299,11 +280,11 @@ export class WebMCP {
           if (origin !== location.origin) origins.add(origin);
         } catch {}
       }
-      const listed: any[] = origins.size ? await mc.getTools({ fromOrigins: [...origins] }) : await mc.getTools();
+      const listed = origins.size ? await mc.getTools({ fromOrigins: [...origins] }) : await mc.getTools();
       return listed.map((t) => ({
         name: String(t.name),
         origin: String(t.origin ?? location.origin),
-        remote: Boolean(t._isRemote || (t.origin && t.origin !== location.origin)),
+        remote: Boolean(t.origin && t.origin !== location.origin),
       }));
     });
   }
@@ -523,25 +504,16 @@ export class WebMCP {
     }
     const startedAt = Date.now();
     const outcome = await owner.evaluate(
-      async ([toolName, toolArgs]) => {
-        const w = window as unknown as Record<string, any>;
-        const mc = (document as unknown as Record<string, any>).modelContext ?? w.navigator?.modelContext;
-        const listed: any[] = (await mc.getTools()) ?? [];
+      async ([toolName, toolArgs, shape]) => {
+        const mc = document.modelContext!;
+        const listed = (await mc.getTools()) ?? [];
         const tool = listed.find((t) => t.name === toolName);
         if (!tool) return { ok: false as const, error: `No WebMCP tool named "${toolName}" is registered` };
         try {
-          // executeTool() takes the RegisteredTool object. The specification declares the input
-          // as `any`, and the shape Chrome accepts has moved: 154 took only a JSON string, 155
-          // only an object. Send the object and fall back to the string. Whichever is wrong is
-          // rejected while arguments are validated, before the tool runs, so the retry cannot
-          // execute anything twice.
-          let raw: unknown;
-          try {
-            raw = await mc.executeTool(tool, toolArgs, { __playwrightWebmcp: true });
-          } catch (err) {
-            if (!/parse input|input object|not an object/i.test(String((err as Error)?.message))) throw err;
-            raw = await mc.executeTool(tool, JSON.stringify(toolArgs), { __playwrightWebmcp: true });
-          }
+          // executeTool() takes the RegisteredTool object. The specification declares the input as an
+          // object; Chrome 154 and earlier took only a JSON string, which `shape` accounts for.
+          const input = shape === "string" ? JSON.stringify(toolArgs) : toolArgs;
+          const raw: unknown = await mc.executeTool(tool, input as object, { __playwrightWebmcp: true } as never);
           // The result arrives as a string: JSON for objects, String(value) for primitives, "undefined" for no result.
           let result: unknown;
           if (typeof raw !== "string") result = JSON.parse(JSON.stringify(raw === undefined ? null : raw));
@@ -558,7 +530,7 @@ export class WebMCP {
           return { ok: false as const, error: String((err as Error)?.message ?? err) };
         }
       },
-      [name, args] as const,
+      [name, args, this.inputShape()] as const,
     );
     const entry: RecordedCall = {
       name,
@@ -571,6 +543,14 @@ export class WebMCP {
     this.recorded.push(entry);
     if (!outcome.ok) throw new Error(`Tool "${name}" failed: ${outcome.error}`);
     return outcome.result as T;
+  }
+
+  /**
+   * The shape `executeTool()` takes in this browser: an object as the
+   * specification says, or the JSON string Chrome 154 and earlier required.
+   */
+  inputShape(): ExecuteToolInputShape {
+    return executeToolInputShape(this.page.context().browser()?.version());
   }
 
   /** All recorded calls so far, in execution order. */
@@ -679,23 +659,27 @@ async function collectInFrame(frame: Frame, getToolsTimeoutMs = 3000): Promise<F
 
 /** A registration the CDP domain reported, as the page-side collector would have described it. */
 function toolFromRegistry(tool: CdpTool, origin: string): Omit<ToolSnapshot, "frame"> {
-  // The CDP domain spells the hints without the "Hint" suffix; the page's getTools() spells them with it
-  // and fills all three in. Use the page's spelling so a snapshot built from the registry matches one
-  // built from the page, contract diffs included.
+  // The CDP domain spells the hints without the "Hint" suffix; the page's getTools() spells them with it.
+  // Use the page's spelling so a snapshot built from the registry matches one built from the page.
   const a = tool.annotations;
   const declarative = tool.backendNodeId !== undefined;
   const annotations = !a
     ? undefined
     : declarative
       ? { autosubmit: Boolean(a.autosubmit) }
-      : { readOnlyHint: Boolean(a.readOnly), consequentialHint: Boolean(a.consequential), untrustedContentHint: Boolean(a.untrustedContent) };
+      : {
+          readOnlyHint: Boolean(a.readOnly),
+          consequentialHint: Boolean(a.consequential),
+          untrustedContentHint: Boolean(a.untrustedContent),
+          debugging: Boolean(a.debugging),
+        };
   return {
     name: tool.name,
     description: tool.description,
     inputSchema: tool.inputSchema ?? null,
     annotations,
     origin,
-    source: tool.backendNodeId !== undefined ? "declarative" : "imperative",
+    source: declarative ? "declarative" : "imperative",
     location: tool.location,
   };
 }
@@ -710,7 +694,7 @@ function safeOrigin(url: string): string {
 
 export interface WebMCPFixtures {
   webmcp: WebMCP;
-  /** Chrome's on-device model driving the page's tools; created only when a test asks for it. */
+  /** Chrome's on-device model (the Prompt API) driving the page's tools; created only when a test asks for it. */
   promptApi: PromptApiHarness;
 }
 
@@ -722,7 +706,8 @@ export interface WebMCPFixtureOptions {
  * Set WEBMCP_CDP to a DevTools endpoint (e.g. http://localhost:9222) to run
  * tests in a Chrome you launched yourself, with the WebMCP and Prompt API
  * flags enabled in that profile. Playwright's own launch uses a fresh profile
- * where chrome://flags settings do not apply.
+ * where chrome://flags settings do not apply; pass `--enable-features=WebMCP`
+ * through `launchOptions.args` there instead.
  */
 export const test = base.extend<WebMCPFixtures & WebMCPFixtureOptions>({
   browser: [

@@ -7,7 +7,7 @@ test.describe("tool discovery", () => {
     await expect(webmcp).toHaveTool("list_reviews");
     const snapshot = await webmcp.snapshot();
     expect(snapshot.frames).toHaveLength(2);
-    expect(["shim", "native"]).toContain(snapshot.frames[0].api);
+    expect(snapshot.frames[0].api).toBe("native");
     const names = snapshot.tools.map((t) => t.name).sort();
     expect(names).toEqual(["add_to_cart", "list_reviews", "search_products", "subscribe_newsletter"]);
     expect(snapshot.tools.find((t) => t.name === "list_reviews")?.frame).toBe(1);

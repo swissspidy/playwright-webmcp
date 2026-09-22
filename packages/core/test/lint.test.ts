@@ -7,7 +7,7 @@ function snap(tools: Partial<PageSnapshot["tools"][number]>[], frames?: PageSnap
   return {
     url: "https://example.test/",
     capturedAt: new Date(0).toISOString(),
-    frames: frames ?? [{ url: "https://example.test/", origin: "https://example.test", isTop: true, api: "shim" }],
+    frames: frames ?? [{ url: "https://example.test/", origin: "https://example.test", isTop: true, api: "native" }],
     tools: tools.map((t) => ({
       name: "tool",
       description: "A perfectly adequate description of what this does.",
@@ -102,28 +102,30 @@ test("description-injection covers title and annotations, not just descriptions"
       },
     ]),
   );
-  const paths = r.findings.filter((f) => f.ruleId === "description-injection").map((f) => f.path);
-  assert.deepEqual(paths.sort(), ["/annotations/note", "/title"]);
-  assert.equal(r.counts.error, 2);
+  const injections = r.findings.filter((f) => f.ruleId === "description-injection");
+  assert.deepEqual(injections.map((f) => f.path).sort(), ["/annotations/note", "/title"]);
+  assert.ok(injections.every((f) => f.severity === "error"));
 });
 
-test("exposed-to-wildcard flags the star that exposed-to-secure-origins skips", () => {
+test("exposed-to-secure-origins rejects what the API rejects, the wildcard included", () => {
   const r = lint(
     snap([
       { name: "public_quote", exposedTo: ["*"], annotations: { readOnlyHint: true } },
-      { name: "place_order", exposedTo: ["*"] },
-      { name: "partner_only", exposedTo: ["https://partner.test"] },
+      { name: "place_order", exposedTo: ["http://partner.test"] },
+      { name: "malformed", exposedTo: ["https://[invalid", "https://"] },
+      { name: "partner_only", exposedTo: ["https://partner.test", "http://localhost:3000", "http://app.localhost", "wss://live.partner.test"] },
     ]),
   );
-  const wildcard = r.findings.filter((f) => f.ruleId === "exposed-to-wildcard");
+  const found = r.findings.filter((f) => f.ruleId === "exposed-to-secure-origins");
   assert.deepEqual(
-    wildcard.map((f) => f.tool),
-    ["public_quote", "place_order"],
+    found.map((f) => f.tool),
+    ["public_quote", "place_order", "malformed", "malformed"],
   );
-  assert.match(wildcard[0].message, /can read what it returns/);
-  assert.match(wildcard[1].message, /can make it act/);
+  assert.match(found[0].message, /"\*", which is not an origin/);
+  assert.match(found[1].message, /not a potentially trustworthy origin/);
+  assert.match(found[2].message, /does not parse as a URL/);
   assert.equal(
-    r.findings.some((f) => f.ruleId === "exposed-to-secure-origins"),
+    r.findings.some((f) => f.ruleId === "exposed-to-wildcard"),
     false,
   );
 });
@@ -190,8 +192,8 @@ test("capability-trifecta does not infer a source from a tool that only accepts 
 
 test("tool-shadowing catches the near-copies duplicate-tool-name does not", () => {
   const frames: PageSnapshot["frames"] = [
-    { url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "shim" },
-    { url: "https://widget.test/", origin: "https://widget.test", isTop: false, api: "shim", crossOriginFromTop: true },
+    { url: "https://shop.test/", origin: "https://shop.test", isTop: true, api: "native" },
+    { url: "https://widget.test/", origin: "https://widget.test", isTop: false, api: "native", crossOriginFromTop: true },
   ];
   const r = lint(
     snap(
@@ -285,4 +287,40 @@ test("tool-shadowing treats missing provenance as unknown, not as a second scrip
   const found = lint(snap(both)).findings.filter((f) => f.ruleId === "tool-shadowing");
   assert.equal(found.length, 1);
   assert.match(found[0].message, /registered from https:\/\/widget\.test/);
+});
+
+test("opt-in rules: annotations-explicit, tool-title-missing and tool-name-style stay off until configured", () => {
+  const s = snap([
+    { name: "searchProducts", annotations: { readOnlyHint: true } },
+    { name: "shop.add_item", title: "Add" },
+  ]);
+  const off = ids(lint(s));
+  for (const id of ["annotations-explicit", "tool-title-missing", "tool-name-style"]) assert.ok(!off.includes(id), `${id} is off by default`);
+  const on = lint(s, {
+    rules: { "annotations-explicit": { fields: ["readOnlyHint"] }, "tool-title-missing": true, "tool-name-style": { style: "snake_case", prefix: "shop." } },
+  });
+  assert.deepEqual(
+    on.findings.filter((f) => f.ruleId === "annotations-explicit").map((f) => f.tool),
+    ["shop.add_item"],
+  );
+  assert.deepEqual(
+    on.findings.filter((f) => f.ruleId === "tool-title-missing").map((f) => f.tool),
+    ["searchProducts"],
+  );
+  assert.deepEqual(
+    on.findings.filter((f) => f.ruleId === "tool-name-style").map((f) => f.message),
+    ['Tool name "searchProducts" does not start with "shop.".', 'Tool name "searchProducts" is camelCase; the project uses snake_case.'],
+  );
+});
+
+test("exposed-to-origin-only reports entries that are URLs rather than origins", () => {
+  const r = lint(
+    snap([
+      { name: "pathy", exposedTo: ["https://partner.test/widget?x=1#top", "https://user:pw@partner.test", "https://partner.test/", "https://other.test"] },
+    ]),
+  );
+  const found = r.findings.filter((f) => f.ruleId === "exposed-to-origin-only");
+  assert.equal(found.length, 2);
+  assert.match(found[0].message, /the path \/widget, a query, a fragment; only the origin https:\/\/partner\.test counts/);
+  assert.match(found[1].message, /credentials/);
 });

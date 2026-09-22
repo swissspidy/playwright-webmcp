@@ -1,47 +1,61 @@
 /**
- * Who, other than the page itself, can reach a tool. `exposedTo` decides which
+ * Who, other than the page itself, can reach a tool. `exposedTo` lists the
  * embedding origins a tool answers for; the embedder still has to opt in with
  * `<iframe allow="tools">`, but an attacker writes their own embedder, so
  * `exposedTo` is the only half of that handshake the author controls.
+ *
+ * The API runs each entry through the URL parser and accepts potentially
+ * trustworthy origins and nothing else: something that does not parse, an
+ * `http://` origin other than localhost, or a wildcard makes `registerTool()`
+ * reject with `SecurityError`, so the tool never registers at all. That is
+ * still worth a finding, because the code that wrote it meant something.
  */
-import { toolHints } from "../annotations.js";
 import { defineRule, finding } from "./helpers.js";
 
-const SECURE_ORIGIN = /^https:\/\//;
-const LOCAL_ORIGIN = /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/;
+const LOCAL_HOST = /^(localhost|[a-z0-9-]+\.localhost|127\.0\.0\.1|\[::1\])$/i;
+
+/** Whether a parsed URL's origin is potentially trustworthy in the sense of the Secure Contexts specification. */
+export function isPotentiallyTrustworthy(url: URL): boolean {
+  if (url.protocol === "https:" || url.protocol === "wss:") return true;
+  if (url.protocol === "http:" || url.protocol === "ws:") return LOCAL_HOST.test(url.hostname);
+  return false;
+}
 
 export const exposedToInsecure = defineRule({
   id: "exposed-to-secure-origins",
   scope: "tool",
-  description: "exposedTo must list secure origins; http:// origins other than localhost are rejected by the API.",
+  description: 'exposedTo entries must parse as potentially trustworthy origins; anything else, "*" included, makes registerTool() reject with SecurityError.',
   severity: "error",
   check: (ctx) =>
     ctx.snapshot.tools.flatMap((t) =>
-      (t.exposedTo ?? [])
-        .filter((o) => o !== "*" && !SECURE_ORIGIN.test(o) && !LOCAL_ORIGIN.test(o))
-        .map((o) => finding(exposedToInsecure, `Tool "${t.name}" is exposed to insecure origin ${o}.`, { tool: t.name, frame: t.frame })),
-    ),
-});
-
-export const exposedToWildcard = defineRule({
-  id: "exposed-to-wildcard",
-  scope: "tool",
-  description: 'exposedTo: ["*"] answers any embedder, so any page that iframes this one drives the tool with the user\'s session.',
-  severity: "error",
-  check: (ctx) =>
-    ctx.snapshot.tools
-      .filter((t) => (t.exposedTo ?? []).includes("*"))
-      .map((t) => {
-        const readOnly = toolHints(t.annotations).readOnly === true;
-        const consequence = readOnly
-          ? "any embedder can read what it returns for the signed-in user"
-          : "any embedder can make it act on behalf of the signed-in user";
-        return finding(exposedToWildcard, `Tool "${t.name}" is exposed to "*", so ${consequence}.`, {
-          tool: t.name,
-          frame: t.frame,
-          help: readOnly
-            ? 'List the embedding origins instead. Re-level this rule to "warning" if the data really is public.'
-            : "List the embedding origins instead, and keep tools that write behind a same-origin check.",
-        });
+      (t.exposedTo ?? []).flatMap((o) => {
+        if (o === "*")
+          return [
+            finding(exposedToInsecure, `Tool "${t.name}" is exposed to "*", which is not an origin; registerTool() rejects it and the tool never registers.`, {
+              tool: t.name,
+              frame: t.frame,
+              help: "List the embedding origins instead. The API has no wildcard, so a tool meant for every embedder cannot be expressed.",
+            }),
+          ];
+        let url: URL;
+        try {
+          url = new URL(o);
+        } catch {
+          return [
+            finding(exposedToInsecure, `Tool "${t.name}" is exposed to ${JSON.stringify(o)}, which does not parse as a URL; registerTool() rejects it.`, {
+              tool: t.name,
+              frame: t.frame,
+              help: "Write the origin as scheme://host[:port], for example https://partner.example.",
+            }),
+          ];
+        }
+        if (isPotentiallyTrustworthy(url)) return [];
+        return [
+          finding(exposedToInsecure, `Tool "${t.name}" is exposed to ${o}, which is not a potentially trustworthy origin; registerTool() rejects it.`, {
+            tool: t.name,
+            frame: t.frame,
+          }),
+        ];
       }),
+    ),
 });

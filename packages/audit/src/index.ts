@@ -40,7 +40,7 @@ export interface AuditOptions {
   browser?: Browser;
   /** Chrome executable path, for environments with a preinstalled browser. */
   executablePath?: string;
-  /** Extra Chromium args, e.g. ["--enable-features=WebMCP"]. */
+  /** Extra Chromium args, added to `--enable-features=WebMCP`, which turns the API on in Chromium builds that carry it. */
   args?: string[];
   /**
    * HTTP headers sent with every request to the audited origin, e.g. an
@@ -63,7 +63,7 @@ export interface PageAudit {
   lint?: LintResult;
   smoke?: SmokeReport & { skipped: string[] };
   score?: Score;
-  api?: "native" | "shim" | "none";
+  api?: "native" | "none";
   cdp?: boolean;
 }
 
@@ -106,7 +106,7 @@ async function discoverLinks(page: Page, base: string): Promise<string[]> {
 }
 
 export async function auditPage(page: Page, url: string, options: AuditOptions): Promise<PageAudit> {
-  const webmcp = new WebMCP(page, undefined, { shim: "auto", record: true, lint: options.lint ?? {}, cdp: "auto" });
+  const webmcp = new WebMCP(page, undefined, { record: true, lint: options.lint ?? {}, cdp: "auto" });
   await webmcp.install();
   try {
     await page.goto(url, { waitUntil: "load" });
@@ -192,6 +192,9 @@ export function compareWithBaseline(pages: PageAudit[], baseline: Pick<AuditRepo
 
 const MAX_REDIRECT_HOPS = 10;
 
+/** WebMCP is behind a feature flag in Chromium; the audit turns it on in the browser it launches. */
+export const WEBMCP_ARGS = ["--enable-features=WebMCP"];
+
 /**
  * Send extra headers with every request to one origin and to no other. Not
  * `extraHTTPHeaders`, which goes to every origin the page touches, and not a
@@ -235,7 +238,7 @@ async function sendHeadersToOrigin(context: BrowserContext, origin: string, head
 export async function audit(options: AuditOptions): Promise<AuditReport> {
   const maxPages = options.maxPages ?? 10;
   const ownBrowser = !options.browser;
-  const browser = options.browser ?? (await chromium.launch({ executablePath: options.executablePath, args: options.args }));
+  const browser = options.browser ?? (await chromium.launch({ executablePath: options.executablePath, args: [...WEBMCP_ARGS, ...(options.args ?? [])] }));
   const context = await browser.newContext();
   if (options.headers && Object.keys(options.headers).length) await sendHeadersToOrigin(context, new URL(options.url).origin, options.headers);
   const queue = [normalize(options.url)];

@@ -39,8 +39,10 @@ Options:
   --format <format>     What to print: md (default, the Markdown report), json (the
                         report), or github (one workflow-command annotation per
                         finding; also appends the Markdown to $GITHUB_STEP_SUMMARY)
-  --executable <path>   Chrome/Chromium binary (default: Playwright's, or $PW_CHROMIUM)
-  --arg <flag>          Extra browser argument; repeatable, e.g. --arg=--enable-features=WebMCP
+  --executable <path>   Chrome/Chromium binary (default: Playwright's Chromium, or $PW_CHROMIUM).
+                        The browser has to implement WebMCP; --enable-features=WebMCP is
+                        always passed, which turns it on in Chromium builds that carry it
+  --arg <flag>          Extra browser argument; repeatable, e.g. --arg=--enable-experimental-web-platform-features
   --quiet               Do not print the report to stdout
   -h, --help            Show this help
 `;

@@ -125,7 +125,7 @@ export const thirdPartyRegistration = defineRule({
         finding(thirdPartyRegistration, `Tool "${tool.name}" was registered by a script from ${script}, not from ${tool.origin}.`, {
           tool: tool.name,
           frame: tool.frame,
-          help: `Its definition is not in this origin's source, so eslint-plugin-webmcp will never see it; lint it from the page. Add ${script} to this rule's "allow" if it is your own bundle host.`,
+          help: `Its definition is not in this origin's source, so a static lint of this origin's source will never see it; lint it from the page. Add ${script} to this rule's "allow" if it is your own bundle host.`,
         }),
       ];
     });

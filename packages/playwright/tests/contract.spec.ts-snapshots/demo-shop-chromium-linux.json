@@ -40,7 +40,6 @@
         "type": "object"
       },
       "annotations": {
-        "consequentialHint": false,
         "readOnlyHint": true,
         "untrustedContentHint": true
       },
@@ -64,9 +63,7 @@
         "type": "object"
       },
       "annotations": {
-        "consequentialHint": false,
-        "readOnlyHint": true,
-        "untrustedContentHint": false
+        "readOnlyHint": true
       },
       "source": "imperative",
       "origin": "http://localhost:4173"

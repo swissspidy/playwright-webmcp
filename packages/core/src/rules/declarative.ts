@@ -40,7 +40,7 @@ export const declarativeFieldLabels = defineRule({
 });
 
 const SENSITIVE_TYPES = new Set(["password"]);
-const SENSITIVE_AUTOCOMPLETE = /^(cc-|new-password|current-password|one-time-code)/;
+const SENSITIVE_AUTOCOMPLETE = /(^|\s)(cc-[a-z-]+|new-password|current-password|one-time-code)(\s|$)/;
 
 export const declarativeAutosubmit = defineRule({
   id: "declarative-autosubmit-sensitive",
@@ -51,7 +51,7 @@ export const declarativeAutosubmit = defineRule({
     forEachTool(ctx, (tool) => {
       const d = tool.declarative;
       if (tool.source !== "declarative" || !d || !d.autosubmit) return [];
-      const risky = d.fields.filter((f) => SENSITIVE_TYPES.has(f.type) || SENSITIVE_AUTOCOMPLETE.test(f.paramDescription ?? ""));
+      const risky = d.fields.filter((f) => SENSITIVE_TYPES.has(f.type) || SENSITIVE_AUTOCOMPLETE.test(f.autocomplete ?? ""));
       return risky.length
         ? [
             finding(declarativeAutosubmit, `Form tool "${tool.name}" auto-submits but contains ${risky.map((f) => `"${f.name}"`).join(", ")}.`, {

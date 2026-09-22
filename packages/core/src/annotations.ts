@@ -1,16 +1,19 @@
 /**
  * Tool annotations arrive under two spellings. The WebMCP specification and
  * `webmcp-types` use MCP-style hints (`readOnlyHint`, `consequentialHint`,
- * `untrustedContentHint`); the CDP `WebMCP` domain reports the same facts as
- * `readOnly`, `consequential`, `untrustedContent` and adds `autosubmit` for
- * declarative tools. Everything in this repository reads annotations through
- * `toolHints()` so both spellings behave the same.
+ * `untrustedContentHint`) plus `debugging`; the CDP `WebMCP` domain reports
+ * the same facts as `readOnly`, `consequential`, `untrustedContent`,
+ * `debugging` and adds `autosubmit` for declarative tools. Everything in this
+ * repository reads annotations through `toolHints()` so both spellings behave
+ * the same.
  */
 
 export interface ToolHints {
   readOnly?: boolean;
   consequential?: boolean;
   untrustedContent?: boolean;
+  /** The tool exists for developer tooling rather than end users. */
+  debugging?: boolean;
   /** Declarative tools only: the form carries `toolautosubmit`. */
   autosubmit?: boolean;
 }
@@ -19,6 +22,7 @@ const HINT_KEYS: Record<keyof ToolHints, string[]> = {
   readOnly: ["readOnlyHint", "readOnly"],
   consequential: ["consequentialHint", "consequential"],
   untrustedContent: ["untrustedContentHint", "untrustedContent"],
+  debugging: ["debugging"],
   autosubmit: ["autosubmit"],
 };
 

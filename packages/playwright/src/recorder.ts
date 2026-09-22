@@ -1,9 +1,9 @@
 /**
- * In-page recorder. Wraps registerTool / provideContext / executeTool on
- * whichever modelContext exists (native or shim) so tool executions triggered
- * from inside the page are reported to Playwright through the
- * `__webmcpReport` binding. Calls made through the fixture's `call()` are
- * recorded on the Node side instead and are skipped here.
+ * In-page recorder. Wraps registerTool / executeTool on `document.modelContext`
+ * so tool executions triggered from inside the page are reported to
+ * Playwright through the `__webmcpReport` binding. Calls made through the
+ * fixture's `call()` are recorded on the Node side instead and are skipped
+ * here.
  */
 export const RECORDER_SOURCE = String.raw`(() => {
   const marker = "__webmcpRecorderInstalled";
@@ -24,7 +24,7 @@ export const RECORDER_SOURCE = String.raw`(() => {
     try { return JSON.parse(v); } catch { return v; }
   }
   // Mocks installed from the test take over inside the execute wrapper, so no
-  // re-registration is needed (native rejects duplicate names).
+  // re-registration is needed (the API rejects duplicate names).
   const mocks = (window.__webmcpMocks = window.__webmcpMocks || Object.create(null));
   const wrappedNames = (window.__webmcpWrappedTools = window.__webmcpWrappedTools || new Set());
   async function runMock(name, args) {
@@ -68,10 +68,7 @@ export const RECORDER_SOURCE = String.raw`(() => {
     if (!mc || mc[marker]) return;
     Object.defineProperty(mc, marker, { value: true });
     const origRegister = typeof mc.registerTool === "function" ? mc.registerTool.bind(mc) : null;
-    const origProvide = typeof mc.provideContext === "function" ? mc.provideContext.bind(mc) : null;
     const origExecuteTool = typeof mc.executeTool === "function" ? mc.executeTool.bind(mc) : null;
-    const origUnregister = typeof mc.unregisterTool === "function" ? mc.unregisterTool.bind(mc) : null;
-    const origClear = typeof mc.clearContext === "function" ? mc.clearContext.bind(mc) : null;
     if (origRegister) mc.registerTool = async (tool, options) => {
       const name = tool && tool.name;
       // Only a registration the browser accepted is mockable, and only its own abort signal removes it:
@@ -85,24 +82,12 @@ export const RECORDER_SOURCE = String.raw`(() => {
       }, { once: true });
       return r;
     };
-    if (origProvide) mc.provideContext = async (ctx) => {
-      const provided = (ctx && Array.isArray(ctx.tools) ? ctx.tools : []);
-      const r = await origProvide(ctx && Array.isArray(ctx.tools) ? Object.assign({}, ctx, { tools: ctx.tools.map(wrapTool) }) : ctx);
-      // provideContext replaces the context's tools, so earlier ones are no longer mockable.
-      wrappedNames.clear();
-      for (const t of provided) {
-        if (isWrapped(t)) wrappedNames.add(t.name);
-        reportRegistration("registered", t && t.name);
-      }
-      return r;
-    };
-    if (origUnregister) mc.unregisterTool = (name) => { const r = origUnregister(name); wrappedNames.delete(name); reportRegistration("unregistered", name); return r; };
-    if (origClear) mc.clearContext = () => { const r = origClear(); wrappedNames.clear(); reportRegistration("unregistered", "*"); return r; };
     if (origExecuteTool) {
       mc.executeTool = async (tool, args, options) => {
         const fromFixture = Boolean(options && options.__playwrightWebmcp);
         const name = typeof tool === "string" ? tool : tool && tool.name;
-        const parsedArgs = typeof args === "string" ? JSON.parse(args) : args;
+        let parsedArgs = args;
+        if (typeof args === "string") { try { parsedArgs = JSON.parse(args); } catch { parsedArgs = { raw: args }; } }
         const startedAt = Date.now();
         suppress++;
         try {
@@ -119,11 +104,11 @@ export const RECORDER_SOURCE = String.raw`(() => {
     }
   }
   window.__webmcpInstallMock = async function (name) {
-    const mc = document.modelContext || navigator.modelContext;
+    const mc = document.modelContext;
     if (!mc) throw new Error("No modelContext to mock on");
     const listed = await mc.getTools();
     if (!listed.some((t) => t.name === name)) throw new Error("No tool named " + name + " to mock");
-    if (!wrappedNames.has(name)) throw new Error("Tool " + name + " cannot be mocked: it was not registered through modelContext.registerTool() in this frame");
+    if (!wrappedNames.has(name)) throw new Error("Tool " + name + " cannot be mocked: it was not registered through document.modelContext.registerTool() in this frame");
     mocks[name] = true;
   };
   window.__webmcpRestoreMock = async function (name) {
@@ -131,10 +116,7 @@ export const RECORDER_SOURCE = String.raw`(() => {
     delete mocks[name];
     return had;
   };
-  const tryInstall = () => {
-    install(document.modelContext);
-    if (navigator.modelContext && navigator.modelContext !== document.modelContext) install(navigator.modelContext);
-  };
+  const tryInstall = () => install(document.modelContext);
   tryInstall();
   document.addEventListener("DOMContentLoaded", tryInstall, { once: true });
 })();`;

@@ -13,7 +13,7 @@ test.describe("smoke", () => {
   test("schema-driven runs judge results", async ({ page, webmcp }) => {
     await page.goto("/");
     await page.evaluate(async () => {
-      const mc = (document.modelContext ?? navigator.modelContext)!;
+      const mc = document.modelContext!;
       await mc.registerTool({
         name: "lookup",
         description: "Look up a product by id and return a record that contains a null field.",
@@ -43,7 +43,7 @@ test.describe("smoke", () => {
     await expect(webmcp).toPassSmoke({ tools: ["search_products"] });
     await expect(webmcp).not.toPassSmoke({ tools: ["search_products"], failOn: "warning" });
     await page.evaluate(async () => {
-      const mc = (document.modelContext ?? navigator.modelContext)!;
+      const mc = document.modelContext!;
       await mc.registerTool({
         name: "flaky",
         description: "Always fails, to show that runtime errors on valid input are reported.",

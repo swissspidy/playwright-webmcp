@@ -6,21 +6,19 @@
 import type { DeclarativeField, FrameSnapshot, ToolSnapshot } from "./types.js";
 
 export interface FrameCollectResult {
-  frame: Omit<FrameSnapshot, "allow" | "crossOriginFromTop">;
+  frame: Omit<FrameSnapshot, "crossOriginFromTop">;
   tools: Omit<ToolSnapshot, "frame">[];
 }
 
 export async function collectFrame(options: { getToolsTimeoutMs?: number } = {}): Promise<FrameCollectResult> {
   const getToolsTimeoutMs = options.getToolsTimeoutMs ?? 3000;
-  const w = window as unknown as Record<string, any>;
   const d = document as unknown as Record<string, any>;
-  const api = d.modelContext ?? w.navigator?.modelContext ?? null;
-  const shim = Boolean(api && api.__webmcpShim);
+  const api = d.modelContext ?? null;
   const frame: FrameCollectResult["frame"] = {
     url: location.href,
     origin: location.origin,
     isTop: window === window.top,
-    api: (api ? (shim ? "shim" : "native") : "none") as FrameSnapshot["api"],
+    api: (api ? "native" : "none") as FrameSnapshot["api"],
   };
 
   const declarativeByName = new Map<string, ReturnType<typeof describeForm>>();
@@ -81,7 +79,7 @@ export async function collectFrame(options: { getToolsTimeoutMs?: number } = {})
   }
   return { frame, tools };
 
-  // Chrome's RegisteredTool carries inputSchema as the JSON string it was stored as; the specification says object.
+  // Chrome 154 and earlier handed inputSchema back as a JSON string; the specification (and Chrome since) says object.
   function fromJsonString(v: unknown): unknown {
     if (typeof v !== "string") return v;
     try {
@@ -98,6 +96,32 @@ export async function collectFrame(options: { getToolsTimeoutMs?: number } = {})
     } catch {
       return null;
     }
+  }
+
+  /**
+   * The text a person sees next to the control: `aria-label`, the text of the
+   * elements `aria-labelledby` names, a `<label for>`, or the wrapping label.
+   * Chrome uses it as the parameter description when `toolparamdescription`
+   * is absent, so the derived schema does the same.
+   */
+  function labelText(el: Element): string | undefined {
+    const aria = el.getAttribute("aria-label");
+    if (aria?.trim()) return aria.trim();
+    const labelledBy = el.getAttribute("aria-labelledby");
+    if (labelledBy) {
+      const text = labelledBy
+        .split(/\s+/)
+        .map((id) => document.getElementById(id)?.textContent?.trim() ?? "")
+        .filter(Boolean)
+        .join(" ");
+      if (text) return text;
+    }
+    const labels = (el as HTMLInputElement).labels ? Array.from((el as HTMLInputElement).labels!) : [];
+    for (const label of labels) {
+      const text = label.textContent?.trim();
+      if (text) return text;
+    }
+    return undefined;
   }
 
   function hasLabel(el: Element): boolean {
@@ -122,17 +146,19 @@ export async function collectFrame(options: { getToolsTimeoutMs?: number } = {})
       const type = tag === "input" ? (el.getAttribute("type") ?? "text").toLowerCase() : tag;
       if (type === "submit" || type === "button" || type === "reset" || type === "hidden" || tag === "button" || tag === "fieldset") continue;
       const paramDescription = el.getAttribute("toolparamdescription") ?? undefined;
+      const autocomplete = el.getAttribute("autocomplete") ?? undefined;
       const selectOptions = tag === "select" ? Array.from((el as HTMLSelectElement).options) : undefined;
       const options = selectOptions?.map((o) => o.value);
       const isRequired = el.hasAttribute("required");
-      fields.push({ name: fieldName, type, required: isRequired, hasLabel: hasLabel(el), paramDescription, options });
+      fields.push({ name: fieldName, type, required: isRequired, hasLabel: hasLabel(el), paramDescription, autocomplete, options });
       const prop: Record<string, unknown> = {};
       if (type === "number" || type === "range") prop.type = "number";
       else if (type === "checkbox") prop.type = "boolean";
       else prop.type = "string";
-      if (paramDescription) prop.description = paramDescription;
+      const description = paramDescription ?? labelText(el);
+      if (description) prop.description = description;
       if (selectOptions && options) {
-        // Chrome 154 derives one const per option, titled with the option label, plus the enum.
+        // Chrome derives one const per option, titled with the option label, plus the enum.
         prop.anyOf = selectOptions.map((o) => ({ type: "string", const: o.value, title: o.label || o.textContent || o.value }));
         prop.enum = options;
       }

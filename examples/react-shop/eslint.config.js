@@ -1,6 +1,6 @@
 // The WebMCP rules run statically on every registerTool(), useWebMCP() and
 // <form toolname> in the source, before a browser ever loads the app.
-import webmcp from "eslint-plugin-webmcp";
+import webmcp from "@swissspidy/eslint-plugin-webmcp";
 
 export default [
   { ignores: ["dist/**", "test-results/**", "playwright-report/**"] },

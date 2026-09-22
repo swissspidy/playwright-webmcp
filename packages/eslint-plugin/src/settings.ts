@@ -17,7 +17,7 @@ export interface DefinitionSite {
   argument?: number;
   /**
    * When set, the argument is a context object and this property holds an
-   * array of tool definitions, like `provideContext({ tools: [...] })`.
+   * array of tool definitions, like `addTools({ items: [...] })`.
    */
   tools?: string;
   /** Index of an options argument that may carry `exposedTo`. */
@@ -35,7 +35,6 @@ export interface WebMCPSettings {
 export const DEFAULT_DEFINITION_SITES: DefinitionSite[] = [
   // The API itself.
   { call: "registerTool", argument: 0, options: 1 },
-  { call: "provideContext", argument: 0, tools: "tools" },
   // The React hook from `use-webmcp-tool`; same object shape as registerTool.
   { call: "useWebMCP", argument: 0 },
 ];

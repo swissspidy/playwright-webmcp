@@ -100,6 +100,26 @@ export function* elementsWithin(node: unknown, seen = new Set<unknown>()): Gener
 
 const SKIPPED_TYPES = new Set(["submit", "button", "reset", "hidden", "image"]);
 
+/**
+ * The literal text inside a JSX element, nested elements included, collapsed
+ * like the browser's `textContent` would be; undefined when there is none.
+ * Expressions contribute nothing, so text a component renders at runtime is
+ * not guessed at.
+ */
+function staticText(children: unknown[]): string | undefined {
+  const parts: string[] = [];
+  const visit = (nodes: unknown[]) => {
+    for (const child of nodes as Array<{ type?: string; value?: unknown; children?: unknown[] } | null>) {
+      if (!child) continue;
+      if (child.type === "JSXText" && typeof child.value === "string") parts.push(child.value);
+      else if (child.type === "JSXElement" && Array.isArray(child.children)) visit(child.children);
+    }
+  };
+  visit(children);
+  const text = parts.join(" ").replace(/\s+/g, " ").trim();
+  return text || undefined;
+}
+
 /** Extract a declarative tool from a `<form toolname>` element, or undefined when it is not one. */
 export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm | undefined {
   if (tagName(el) !== "form") return undefined;
@@ -117,15 +137,31 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
   const required: string[] = [];
   const labelledIds = new Set<string>();
   const labelledNames = new Set<string>();
+  const labelTexts = new Map<string, string>();
+  const wrappingLabelTexts = new Map<string, string>();
+  // Static text by element id, for aria-labelledby.
+  const textById = new Map<string, string>();
 
-  // First pass: labels. <label htmlFor="id"> and fields wrapped in <label>.
+  // First pass: labels. <label htmlFor="id">, fields wrapped in <label>, and anything with an id.
   for (const child of elementsWithin(el.children)) {
+    const childId = attribute(child.openingElement, "id", resolve);
+    if (typeof childId === "string") {
+      const text = staticText(child.children);
+      if (text) textById.set(childId, text);
+    }
     if (tagName(child) !== "label") continue;
     const htmlFor = attribute(child.openingElement, "htmlFor", resolve) ?? attribute(child.openingElement, "for", resolve);
-    if (typeof htmlFor === "string") labelledIds.add(htmlFor);
+    const text = staticText(child.children);
+    if (typeof htmlFor === "string") {
+      labelledIds.add(htmlFor);
+      if (text) labelTexts.set(htmlFor, text);
+    }
     for (const inner of elementsWithin(child.children)) {
       const innerName = attribute(inner.openingElement, "name", resolve);
-      if (typeof innerName === "string") labelledNames.add(innerName);
+      if (typeof innerName === "string") {
+        labelledNames.add(innerName);
+        if (text) wrappingLabelTexts.set(innerName, text);
+      }
     }
   }
 
@@ -143,17 +179,31 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
     const ariaLabel = attribute(child.openingElement, "aria-label", resolve);
     const ariaLabelledBy = attribute(child.openingElement, "aria-labelledby", resolve);
     const requiredValue = attribute(child.openingElement, "required", resolve);
+    const autocompleteValue = attribute(child.openingElement, "autocomplete", resolve);
+    const autocomplete = typeof autocompleteValue === "string" ? autocompleteValue : undefined;
     // Anything computed or spread onto the element may carry a label; findings about the field are dropped.
+    // A computed autocomplete is not a label, so it only makes the autosubmit rule treat it as absent.
     if (hasSpread(child.openingElement) || paramDescriptionValue === DYNAMIC || ariaLabel === DYNAMIC || ariaLabelledBy === DYNAMIC) {
       dynamic.add(`/properties/${fieldName}`);
     }
+    const labelledByText =
+      typeof ariaLabelledBy === "string"
+        ? ariaLabelledBy
+            .split(/\s+/)
+            .map((ref) => textById.get(ref))
+            .filter((t): t is string => Boolean(t))
+            .join(" ") || undefined
+        : undefined;
+    const labelText = typeof ariaLabel === "string" ? ariaLabel : (labelledByText ?? (typeof id === "string" ? labelTexts.get(id) : undefined));
     const hasLabel = isPresent(ariaLabel) || isPresent(ariaLabelledBy) || (typeof id === "string" && labelledIds.has(id)) || labelledNames.has(fieldName);
     // A boolean attribute is present whatever its value, as in HTML (`required="false"` still requires).
     const isRequired = isPresent(requiredValue) || requiredValue === DYNAMIC;
-    fields.push({ name: fieldName, type, required: isRequired, hasLabel, paramDescription });
+    fields.push({ name: fieldName, type, required: isRequired, hasLabel, paramDescription, autocomplete });
     fieldNodes.set(fieldName, child.openingElement);
     const prop: JsonSchema = { type: type === "number" || type === "range" ? "number" : type === "checkbox" ? "boolean" : "string" };
-    if (paramDescription) prop.description = paramDescription;
+    // The browser uses the label's text as the description when toolparamdescription is absent.
+    const description = paramDescription ?? labelText ?? (labelledNames.has(fieldName) ? wrappingLabelTexts.get(fieldName) : undefined);
+    if (description) prop.description = description;
     properties[fieldName] = prop;
     if (isRequired) required.push(fieldName);
   }

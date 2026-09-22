@@ -1,6 +1,6 @@
 # webmcp-lint
 
-The rule engine behind [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp), [`webmcp-audit`](https://www.npmjs.com/package/webmcp-audit) and [`eslint-plugin-webmcp`](https://www.npmjs.com/package/eslint-plugin-webmcp): a plain-JSON snapshot model for a page's [WebMCP](https://github.com/webmachinelearning/webmcp) tools, lint rules that see the whole page, schema-driven smoke checks, tool contracts, coverage and scoring, and the argument matcher and trajectory matcher of Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) CLI. No dependencies, no browser required.
+The rule engine behind [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp), [`webmcp-audit`](https://www.npmjs.com/package/webmcp-audit) and [`@swissspidy/eslint-plugin-webmcp`](https://www.npmjs.com/package/@swissspidy/eslint-plugin-webmcp): a plain-JSON snapshot model for a page's [WebMCP](https://github.com/webmachinelearning/webmcp) tools, lint rules that see the whole page, schema-driven smoke checks, tool contracts, coverage and scoring, and the argument matcher and trajectory matcher of Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) CLI. No dependencies, no browser required.
 
 ```sh
 npm install --save-dev webmcp-lint
@@ -47,7 +47,7 @@ Exit code 1 when a finding at or above `--fail-on` exists (default `error`), 2 o
 import puppeteer from "puppeteer";
 import { collectFrame, snapshotFromFrames, lint, formatFindings } from "webmcp-lint";
 
-const browser = await puppeteer.launch();
+const browser = await puppeteer.launch({ args: ["--enable-features=WebMCP"] });
 const page = await browser.newPage();
 await page.goto("https://shop.example/");
 const frames = await Promise.all(page.frames().map((frame) => frame.evaluate(collectFrame)));
@@ -55,7 +55,7 @@ const snapshot = snapshotFromFrames(frames, { url: page.url() });
 console.log(formatFindings(lint(snapshot)));
 ```
 
-Pass `allow` next to a child frame's result (the owning `<iframe>`'s `allow` attribute) when you have it, so the `iframe-allow-tools` rule can judge cross-origin exposure. `webmcp-lint/collect` exports `collectFrame` alone for bundling into a page.
+`webmcp-lint/collect` exports `collectFrame` alone for bundling into a page. The browser has to implement WebMCP (`document.modelContext`); see the repository README for how to enable it in Chrome.
 
 ## Everything else
 

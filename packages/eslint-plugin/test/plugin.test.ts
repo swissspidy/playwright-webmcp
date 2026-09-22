@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ESLint, RuleTester } from "eslint";
+import { ESLint, Linter, RuleTester } from "eslint";
 import plugin, { staticRules } from "../src/index.js";
 
 const tester = new RuleTester({ languageOptions: { ecmaVersion: 2024, sourceType: "module", parserOptions: { ecmaFeatures: { jsx: true } } } });
@@ -14,7 +14,7 @@ const READS_DESCRIPTION = "A description is read by every agent that visits the 
 const READS_PARAM = "A parameter description is read by every agent that visits the page";
 
 const good = `
-navigator.modelContext.registerTool({
+document.modelContext.registerTool({
   name: "search_products",
   description: "Search the product catalogue by keyword and return matching products.",
   inputSchema: {
@@ -33,8 +33,8 @@ test("exposes every tool-scoped imperative rule and a recommended config", () =>
   assert.ok(!ids.includes("duplicate-tool-name"), "page rules are not exposed");
   assert.ok(ids.includes("declarative-description"), "form rules are exposed for JSX");
   assert.ok(ids.includes("no-interpolated-text"), "source-only rules are exposed too");
-  assert.equal(ids.length, staticRules.length + 1);
-  assert.equal(plugin.meta.name, "eslint-plugin-webmcp");
+  assert.equal(ids.length, staticRules.length + 2);
+  assert.equal(plugin.meta.name, "@swissspidy/eslint-plugin-webmcp");
   assert.match(plugin.meta.version, /^\d+\.\d+\.\d+/);
   assert.equal(plugin.configs.recommended.rules?.["webmcp/tool-name-valid"], "error");
   assert.equal(plugin.configs.recommended.rules?.["webmcp/description-length"], "warn");
@@ -53,7 +53,7 @@ test("tool-name-valid", () => {
         errors: [{ messageId: "finding", data: { message: 'Tool name "bad name!" is not a valid WebMCP tool name.' }, line: 1, column: 44 }],
       },
       {
-        code: `mc.provideContext({ tools: [{ name: "ok_tool", description: "A description long enough to pass the length rule." }, { name: "", description: "Another description long enough to pass the rule." }] });`,
+        code: `mc.registerTool({ name: "", description: "A description long enough to pass the length rule." });`,
         errors: [{ messageId: "finding" }],
       },
     ],
@@ -119,31 +119,25 @@ test("schema rules point at the offending schema node", () => {
   });
 });
 
-test("exposed-to-secure-origins reads registerTool options", () => {
+test("exposed-to-secure-origins reads registerTool options and points at the exposedTo value", () => {
   tester.run("exposed-to-secure-origins", plugin.rules["exposed-to-secure-origins"], {
     valid: [
-      `mc.registerTool({ name: "ok" }, { exposedTo: ["https://partner.example"] })`,
+      good,
+      `mc.registerTool({ name: "ok" }, { exposedTo: ["https://partner.example", "http://localhost:3000"] })`,
       `mc.registerTool({ name: "ok" }, { exposedTo: origins })`,
       `mc.registerTool({ name: "ok" }, options)`,
     ],
-    invalid: [{ code: `mc.registerTool({ name: "ok" }, { exposedTo: ["http://partner.example"] })`, errors: [{ messageId: "finding" }] }],
-  });
-});
-
-test("exposed-to-wildcard flags the star, and points at the exposedTo value", () => {
-  tester.run("exposed-to-wildcard", plugin.rules["exposed-to-wildcard"], {
-    valid: [good, `mc.registerTool({ name: "ok" }, { exposedTo: ["https://partner.example"] })`, `mc.registerTool({ name: "ok" }, { exposedTo: origins })`],
     invalid: [
-      { code: `mc.registerTool({ name: "ok" }, { exposedTo: ["*"] })`, errors: [{ messageId: "finding", column: 46 }] },
+      { code: `mc.registerTool({ name: "ok" }, { exposedTo: ["http://partner.example"] })`, errors: [{ messageId: "finding", column: 46 }] },
       {
-        code: `mc.registerTool({ name: "ok", annotations: { readOnlyHint: true } }, { exposedTo: ["https://a.example", "*"] })`,
+        code: `mc.registerTool({ name: "ok" }, { exposedTo: ["https://a.example", "*"] })`,
         errors: [
           {
             messageId: "finding",
-            // A read-only tool is described by what an embedder can read, not do.
+            column: 46,
             data: {
               message:
-                'Tool "ok" is exposed to "*", so any embedder can read what it returns for the signed-in user. List the embedding origins instead. Re-level this rule to "warning" if the data really is public.',
+                'Tool "ok" is exposed to "*", which is not an origin; registerTool() rejects it and the tool never registers. List the embedding origins instead. The API has no wildcard, so a tool meant for every embedder cannot be expressed.',
             },
           },
         ],
@@ -187,8 +181,16 @@ test("definitions behind identifiers and wrappers are found", () => {
     ],
     invalid: [
       { code: `const tool = { name: "bad name" }; mc.registerTool(tool);`, errors: [{ messageId: "finding", line: 1, column: 22 }] },
-      { code: `const tools = [{ name: "bad name" }]; mc.provideContext({ tools });`, errors: [{ messageId: "finding", column: 24 }] },
-      { code: `const t = { name: "bad name" }; mc.provideContext({ tools: [t] });`, errors: [{ messageId: "finding", column: 19 }] },
+      {
+        code: `const tools = [{ name: "bad name" }]; addTools({ items: tools });`,
+        settings: { webmcp: { definitions: [{ call: "addTools", tools: "items" }] } },
+        errors: [{ messageId: "finding", column: 24 }],
+      },
+      {
+        code: `const t = { name: "bad name" }; addTools({ items: [t] });`,
+        settings: { webmcp: { definitions: [{ call: "addTools", tools: "items" }] } },
+        errors: [{ messageId: "finding", column: 19 }],
+      },
       // use-webmcp-tool's hook, bare call.
       { code: `import { useWebMCP } from "use-webmcp-tool"; useWebMCP({ name: "bad name", execute() {} });`, errors: [{ messageId: "finding" }] },
       // A project-specific wrapper declared in settings.
@@ -370,7 +372,7 @@ test("the recommended config lints a file through the ESLint API", async () => {
   const eslint = new ESLint({ overrideConfigFile: true, overrideConfig: [plugin.configs.recommended] });
   const [result] = await eslint.lintText(
     `
-    const mc = navigator.modelContext;
+    const mc = document.modelContext;
     mc.registerTool({
       name: "add to cart",
       description: "Add.",
@@ -464,4 +466,83 @@ test("no-interpolated-text reads JSX form attributes", () => {
       },
     ],
   });
+});
+
+test("the opt-in rules are in `all` but not in `recommended`", () => {
+  for (const id of ["annotations-explicit", "tool-title-missing", "tool-name-style"]) {
+    assert.ok(id in plugin.rules, `${id} is exposed`);
+    assert.equal(plugin.configs.recommended.rules?.[`webmcp/${id}`], undefined, `${id} is not recommended`);
+    assert.equal(plugin.configs.all.rules?.[`webmcp/${id}`], "error");
+  }
+  tester.run("tool-name-style", plugin.rules["tool-name-style"], {
+    valid: [
+      {
+        code: `mc.registerTool({ name: "shop.search_products", description: "Search the catalogue by keyword." })`,
+        options: [{ style: "snake_case", prefix: "shop." }],
+      },
+    ],
+    invalid: [
+      {
+        code: `mc.registerTool({ name: "searchProducts", description: "Search the catalogue by keyword." })`,
+        options: [{ style: "snake_case" }],
+        errors: [{ messageId: "finding", data: { message: 'Tool name "searchProducts" is camelCase; the project uses snake_case.' } }],
+      },
+    ],
+  });
+  tester.run("annotations-explicit", plugin.rules["annotations-explicit"], {
+    valid: [{ code: good, options: [{ fields: ["readOnlyHint"] }] }],
+    invalid: [
+      {
+        code: `mc.registerTool({ name: "ok", description: "Search the catalogue by keyword.", annotations: { readOnlyHint: true } })`,
+        options: [{ fields: ["consequentialHint"] }],
+        errors: [{ messageId: "finding" }],
+      },
+    ],
+  });
+});
+
+test("valid-event-name", () => {
+  tester.run("valid-event-name", plugin.rules["valid-event-name"], {
+    valid: [
+      `document.modelContext.addEventListener("toolchange", f)`,
+      `const mc = document.modelContext; mc.addEventListener("toolcancel", f); mc.ontoolactivated = f;`,
+      `el.addEventListener("click", f)`,
+      // Any other receiver may fire its own tool* events.
+      `widget.addEventListener("toolupdate", f)`,
+      `widget.ontoolupdate = f`,
+    ],
+    invalid: [
+      {
+        code: `document.modelContext.addEventListener("toolchanged", f)`,
+        errors: [{ messageId: "unknown", data: { name: "toolchanged", events: "toolchange, toolactivated, toolcancel" } }],
+      },
+      { code: `const mc = document.modelContext; mc.removeEventListener("toolcanceled", f)`, errors: [{ messageId: "unknown" }] },
+      { code: `const mc = document.modelContext; mc.ontoolsChanged = f`, errors: [{ messageId: "unknown" }] },
+    ],
+  });
+});
+
+test("JSX label text reaches the derived schema the way the browser derives it", () => {
+  const { formTool } = plugin as unknown as { formTool: never };
+  void formTool;
+  const source = `
+    <form toolname="signup" tooldescription="Sign a person up for the newsletter with their details.">
+      <label htmlFor="email"><span>Email</span> address</label>
+      <input id="email" name="email" />
+      <span id="city-label">City</span> <span id="city-hint">of residence</span>
+      <input name="city" aria-labelledby="city-label city-hint" />
+      <input name="card" autocomplete={token} />
+    </form>`;
+  const linter = new Linter();
+  const messages = linter.verify(source, {
+    languageOptions: { ecmaVersion: 2024, sourceType: "module", parserOptions: { ecmaFeatures: { jsx: true } } },
+    plugins: { webmcp: plugin },
+    rules: { "webmcp/param-description-missing": "warn", "webmcp/declarative-field-description": "warn" },
+  });
+  // email and city get their descriptions from nested label text and aria-labelledby; card has no label and a computed
+  // autocomplete, which is not a label and so does not hide the finding.
+  assert.deepEqual(messages.map((m) => [m.ruleId, m.message]).sort(), [
+    ["webmcp/declarative-field-description", 'Field "card" of form tool "signup" has neither a label nor toolparamdescription.'],
+    ["webmcp/param-description-missing", 'Parameter "card" of "signup" has no description.'],
+  ]);
 });

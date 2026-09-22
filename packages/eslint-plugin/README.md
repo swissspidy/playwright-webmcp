@@ -1,14 +1,14 @@
-# eslint-plugin-webmcp
+# @swissspidy/eslint-plugin-webmcp
 
-ESLint rules for [WebMCP](https://github.com/webmachinelearning/webmcp) tool definitions. Every rule is one of the tool-scoped rules of [`webmcp-lint`](https://www.npmjs.com/package/webmcp-lint), run statically against the object literals passed to `registerTool()` and `provideContext({ tools })`, so problems show up in the editor and in `eslint` on CI before a browser ever loads the page.
+ESLint rules for [WebMCP](https://github.com/webmachinelearning/webmcp) tool definitions. Every rule is one of the tool-scoped rules of [`webmcp-lint`](https://www.npmjs.com/package/webmcp-lint), run statically against the object literals passed to `registerTool()`, so problems show up in the editor and in `eslint` on CI before a browser ever loads the page.
 
 ```sh
-npm install --save-dev eslint-plugin-webmcp eslint
+npm install --save-dev @swissspidy/eslint-plugin-webmcp eslint
 ```
 
 ```js
 // eslint.config.js
-import webmcp from "eslint-plugin-webmcp";
+import webmcp from "@swissspidy/eslint-plugin-webmcp";
 
 export default [
   webmcp.configs.recommended,
@@ -24,7 +24,7 @@ export default [
 ```
 
 ```js
-navigator.modelContext.registerTool({
+document.modelContext.registerTool({
   name: "add to cart", // webmcp/tool-name-valid: not a valid WebMCP tool name
   description: "Add.", // webmcp/description-length: 4 characters; aim for at least 20
   inputSchema: {
@@ -38,30 +38,41 @@ navigator.modelContext.registerTool({
 
 ## Rules
 
-| Rule                                      | Recommended | Checks                                                                                   |
-| ----------------------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
-| `webmcp/tool-name-valid`                  | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                 |
-| `webmcp/description-missing`              | error       | The tool has a description.                                                              |
-| `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                           |
-| `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                  |
-| `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                 |
-| `webmcp/schema-no-null-literals`          | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                       |
-| `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                               |
-| `webmcp/schema-unsupported-keywords`      | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`. |
-| `webmcp/sensitive-params`                 | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).        |
-| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in any tool text.          |
-| `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists an insecure origin.                            |
-| `webmcp/exposed-to-wildcard`              | error       | `registerTool(tool, { exposedTo })` contains `"*"`, reachable by any embedder.           |
-| `webmcp/no-interpolated-text`             | warning     | Tool text assembled at runtime from values the author cannot name the source of.         |
-| `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                        |
-| `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.    |
-| `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field.                                        |
+Definition rules judge what a tool declares. They are the tool-scoped rules of `webmcp-lint`, so a finding here is the same finding `playwright-webmcp` and `webmcp-audit` report from a live page.
 
-Rule options are the same objects `webmcp-lint` accepts. `webmcp.configs.all` turns every rule into an error.
+| Rule                                      | Recommended | Checks                                                                                             |
+| ----------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- |
+| `webmcp/tool-name-valid`                  | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                           |
+| `webmcp/tool-name-style`                  | off         | Name follows the project's `style` (`snake_case` by default) and `prefix`.                         |
+| `webmcp/tool-title-missing`               | off         | The tool has a `title` for clients to show people.                                                 |
+| `webmcp/description-missing`              | error       | The tool has a description.                                                                        |
+| `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                                     |
+| `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                            |
+| `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                           |
+| `webmcp/schema-no-null-literals`          | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                 |
+| `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                                         |
+| `webmcp/schema-unsupported-keywords`      | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.           |
+| `webmcp/sensitive-params`                 | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).                  |
+| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in any tool text.                    |
+| `webmcp/annotations-explicit`             | off         | The hints listed in `fields` (`readOnlyHint`, `consequentialHint`) are declared on every tool.     |
+| `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists something the API rejects: an insecure origin, or `"*"`. |
+| `webmcp/exposed-to-origin-only`           | warn        | An `exposedTo` entry carries a path, query, fragment or credentials, which the API ignores.        |
+| `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                                  |
+| `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.              |
+| `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field or a payment/one-time-code `autocomplete`.        |
+
+Source rules judge the code that calls the API. They have no `webmcp-lint` counterpart because nothing they catch survives to runtime. Shape mistakes in the dictionaries themselves (an unknown property, a missing `execute`, a misspelt hint) are TypeScript's job, with the [`webmcp-types`](https://www.npmjs.com/package/webmcp-types) package installed.
+
+| Rule                          | Recommended | Checks                                                                           |
+| ----------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| `webmcp/valid-event-name`     | error       | Listeners for `tool*` events name `toolchange`, `toolactivated` or `toolcancel`. |
+| `webmcp/no-interpolated-text` | warn        | Tool text assembled at runtime from values the author cannot name the source of. |
+
+Rule options are the same objects `webmcp-lint` accepts. `webmcp.configs.recommended` turns on every rule marked above except the `off` ones; `webmcp.configs.all` turns every rule, the opt-in ones included, into an error.
 
 ## Where definitions are found
 
-Out of the box the plugin looks at the argument of `registerTool()`, the `tools` array of `provideContext()`, and the argument of `useWebMCP()` from [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool), whose object has the same shape. Bare calls and member calls both match, so `useWebMCP({...})` and `document.modelContext.registerTool({...})` are found the same way.
+Out of the box the plugin looks at the argument of `registerTool()` and the argument of `useWebMCP()` from [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool), whose object has the same shape. Bare calls and member calls both match, so `useWebMCP({...})` and `document.modelContext.registerTool({...})` are found the same way.
 
 Wrappers of your own are declared once in ESLint's shared `settings`, and every rule picks them up:
 
@@ -94,7 +105,7 @@ useWebMCP(searchTool);
 
 ## Declarative tools in JSX
 
-A `<form toolname="...">` in a React component is a declarative tool, and the three `declarative-*` rules judge it the way the browser collector would: the form needs a `tooldescription`, every named `<input>`, `<select>` and `<textarea>` needs a `<label htmlFor>`, a wrapping `<label>`, an `aria-label` or a `toolparamdescription`, and `toolautosubmit` must not sit on a form with a password field. Findings point at the form or the field. Attributes are matched case-insensitively, so `toolName` works too. A form with a computed `tooldescription` gets no description findings, and a field with a spread (`{...props}`) or a computed label attribute gets no field findings: what cannot be read is not reported.
+A `<form toolname="...">` in a React component is a declarative tool, and the three `declarative-*` rules judge it the way the browser collector would: the form needs a `tooldescription`, every named `<input>`, `<select>` and `<textarea>` needs a `<label htmlFor>`, a wrapping `<label>`, an `aria-label` or a `toolparamdescription`, and `toolautosubmit` must not sit on a form with a password field or a field whose `autocomplete` names a payment card or a one-time code. Findings point at the form or the field. Attributes are matched case-insensitively, so `toolName` works too. A form with a computed `tooldescription` gets no description findings, and a field with a spread (`{...props}`) or a computed label attribute gets no field findings: what cannot be read is not reported.
 
 ## What it can and cannot see
 
@@ -109,7 +120,7 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
 ```jsonc
 // .oxlintrc.json
 {
-  "jsPlugins": ["eslint-plugin-webmcp"],
+  "jsPlugins": ["@swissspidy/eslint-plugin-webmcp"],
   "settings": { "webmcp": { "definitions": ["defineAgentTool"] } },
   "rules": {
     "webmcp/tool-name-valid": "error",
@@ -118,7 +129,7 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-shape": "error",
     "webmcp/schema-no-null-literals": "error",
     "webmcp/exposed-to-secure-origins": "error",
-    "webmcp/exposed-to-wildcard": "error",
+    "webmcp/valid-event-name": "error",
     "webmcp/no-interpolated-text": "warn",
     "webmcp/description-length": "warn",
     "webmcp/param-description-missing": "warn",

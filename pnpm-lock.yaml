@@ -205,15 +205,15 @@ importers:
       '@playwright/test':
         specifier: 1.63.0
         version: 1.63.0
+      '@swissspidy/eslint-plugin-webmcp':
+        specifier: workspace:*
+        version: link:../../packages/eslint-plugin
       '@vitejs/plugin-react':
         specifier: ^6.0.0
         version: 6.1.1(vite@8.3.0(@types/node@26.6.2)(yaml@2.9.1))
       eslint:
         specifier: ^10.10.0
         version: 10.10.0
-      eslint-plugin-webmcp:
-        specifier: workspace:*
-        version: link:../../packages/eslint-plugin
       playwright-webmcp:
         specifier: workspace:*
         version: link:../../packages/playwright
@@ -276,6 +276,9 @@ importers:
       webmcp-lint:
         specifier: workspace:*
         version: link:../core
+      webmcp-types:
+        specifier: ^0.1.9
+        version: 0.1.9
     devDependencies:
       '@playwright/test':
         specifier: 1.63.0
@@ -1373,6 +1376,9 @@ packages:
   webmcp-types@0.1.7:
     resolution: {integrity: sha512-70YszESbCx+ozBejmBPTSc0hMyXim+/Kpj8UOZsHd36ANcYqIfkDbMBTTn5y+tQzQYUYN1x2R+5PseKJtVaLqA==}
 
+  webmcp-types@0.1.9:
+    resolution: {integrity: sha512-ibdkppgRDkQ/nvH541YS48kVt96OiuDr+d9JHnirAtI5k0coaFdo2QqCipbXyfwrteDC6xXwPoUGC9uS5ZGwfw==}
+
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
     engines: {node: '>= 8'}
@@ -2282,6 +2288,8 @@ snapshots:
       yaml: 2.9.1
 
   webmcp-types@0.1.7: {}
+
+  webmcp-types@0.1.9: {}
 
   which@2.0.2:
     dependencies:

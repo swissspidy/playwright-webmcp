@@ -1,10 +1,14 @@
 # webmcp-audit
 
-Crawl a site and audit its [WebMCP](https://github.com/webmachinelearning/webmcp) tools from the outside: lint every page, optionally call the tools with inputs derived from their schemas, detect tools whose description or schema drift between pages, and score agent readiness. Built on [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp), so it works on plain Chromium as well as Chrome with WebMCP enabled. No test suite or code access needed; point it at a URL.
+Crawl a site and audit its [WebMCP](https://github.com/webmachinelearning/webmcp) tools from the outside: lint every page, optionally call the tools with inputs derived from their schemas, detect tools whose description or schema drift between pages, and score agent readiness. Built on [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp). No test suite or code access needed; point it at a URL.
 
 ```sh
+npm install --save-dev webmcp-audit @playwright/test
+npx playwright install chromium
 npx webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
 ```
+
+The browser has to implement WebMCP. Playwright's Chromium does behind a flag, which the audit passes on its own (`--enable-features=WebMCP`); `--executable` points it at another build, such as Chrome Beta or Canary.
 
 ```
 Usage: webmcp-audit <url> [options]
@@ -33,12 +37,14 @@ Usage: webmcp-audit <url> [options]
   --format <format>     What to print: md (default, the Markdown report), json (the
                         report), or github (one workflow-command annotation per
                         finding; also appends the Markdown to $GITHUB_STEP_SUMMARY)
-  --executable <path>   Chrome/Chromium binary (default: Playwright's, or $PW_CHROMIUM)
+  --executable <path>   Chrome/Chromium binary (default: Playwright's Chromium, or $PW_CHROMIUM).
+                        The browser has to implement WebMCP; --enable-features=WebMCP is
+                        always passed, which turns it on in Chromium builds that carry it
   --arg <flag>          Extra browser argument; repeatable
   --quiet               Do not print the report to stdout
 ```
 
-Writes `report.json` and `report.md`. Exit code 2 on usage errors. Browser flags go through `--arg`, for example `--arg --enable-features=WebMCP` or `--arg=--enable-features=WebMCP`.
+Writes `report.json` and `report.md`. Exit code 2 on usage errors. Further browser flags go through `--arg`, for example `--arg --enable-experimental-web-platform-features` or `--arg=--enable-experimental-web-platform-features`.
 
 ## What `--smoke` runs
 
@@ -61,7 +67,7 @@ Because these are real executions, only tools that declare `annotations: { readO
 
 Findings become annotations on the run, the Markdown report lands in the job summary, and `--baseline` turns a stored `report.json` from an earlier run into a contract: a tool whose description, schema or annotations changed on a page reports `contract-changed`, a page that disappeared reports `baseline-page-missing`. Logins, cookies and storage state are out of scope here; use the `playwright-webmcp` fixture for those.
 
-To audit on native WebMCP instead of the shim: `--executable /opt/google/chrome-beta/chrome --arg --enable-features=WebMCP`.
+To audit with another Chrome build, for example the current beta: `--executable /opt/google/chrome-beta/chrome`.
 
 ## As a library
 

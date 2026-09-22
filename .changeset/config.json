@@ -7,7 +7,7 @@
     }
   ],
   "commit": false,
-  "fixed": [["webmcp-lint", "playwright-webmcp", "webmcp-audit", "eslint-plugin-webmcp"]],
+  "fixed": [["webmcp-lint", "playwright-webmcp", "webmcp-audit", "@swissspidy/eslint-plugin-webmcp"]],
   "linked": [],
   "access": "public",
   "baseBranch": "main",

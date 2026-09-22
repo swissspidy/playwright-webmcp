@@ -32,7 +32,7 @@ function diagnostics(stdout: string): Array<{ rule: string; message: string; lin
 test("oxlint loads the plugin and reports the tool-scoped rules", () => {
   const { status, stdout, stderr } = runOxlint(
     {
-      "shop.js": `const mc = navigator.modelContext;
+      "shop.js": `const mc = document.modelContext;
 mc.registerTool({
   name: "add to cart",
   description: "Add.",
@@ -134,7 +134,7 @@ test("oxlint lints JSX form tools with the declarative rules", () => {
 test("oxlint runs the source-only rule, which reads scopes and JSX", () => {
   const { status, stdout, stderr } = runOxlint(
     {
-      "shop.jsx": `const mc = navigator.modelContext;
+      "shop.jsx": `const mc = document.modelContext;
 const blurb = \`Search \${siteName} for products.\`;
 mc.registerTool({ name: "search", description: blurb, execute: () => ({}) });
 export const Form = () => <form toolname="subscribe" tooldescription={\`Join \${listName}.\`} />;
