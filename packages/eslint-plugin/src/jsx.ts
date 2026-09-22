@@ -100,12 +100,22 @@ export function* elementsWithin(node: unknown, seen = new Set<unknown>()): Gener
 
 const SKIPPED_TYPES = new Set(["submit", "button", "reset", "hidden", "image"]);
 
-/** The literal text directly inside a JSX element (its JSXText children), collapsed like HTML would; undefined when there is none. */
+/**
+ * The literal text inside a JSX element, nested elements included, collapsed
+ * like the browser's `textContent` would be; undefined when there is none.
+ * Expressions contribute nothing, so text a component renders at runtime is
+ * not guessed at.
+ */
 function staticText(children: unknown[]): string | undefined {
   const parts: string[] = [];
-  for (const child of children as Array<{ type?: string; value?: unknown } | null>) {
-    if (child && child.type === "JSXText" && typeof child.value === "string") parts.push(child.value);
-  }
+  const visit = (nodes: unknown[]) => {
+    for (const child of nodes as Array<{ type?: string; value?: unknown; children?: unknown[] } | null>) {
+      if (!child) continue;
+      if (child.type === "JSXText" && typeof child.value === "string") parts.push(child.value);
+      else if (child.type === "JSXElement" && Array.isArray(child.children)) visit(child.children);
+    }
+  };
+  visit(children);
   const text = parts.join(" ").replace(/\s+/g, " ").trim();
   return text || undefined;
 }
@@ -129,9 +139,16 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
   const labelledNames = new Set<string>();
   const labelTexts = new Map<string, string>();
   const wrappingLabelTexts = new Map<string, string>();
+  // Static text by element id, for aria-labelledby.
+  const textById = new Map<string, string>();
 
-  // First pass: labels. <label htmlFor="id"> and fields wrapped in <label>.
+  // First pass: labels. <label htmlFor="id">, fields wrapped in <label>, and anything with an id.
   for (const child of elementsWithin(el.children)) {
+    const childId = attribute(child.openingElement, "id", resolve);
+    if (typeof childId === "string") {
+      const text = staticText(child.children);
+      if (text) textById.set(childId, text);
+    }
     if (tagName(child) !== "label") continue;
     const htmlFor = attribute(child.openingElement, "htmlFor", resolve) ?? attribute(child.openingElement, "for", resolve);
     const text = staticText(child.children);
@@ -165,16 +182,19 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
     const autocompleteValue = attribute(child.openingElement, "autocomplete", resolve);
     const autocomplete = typeof autocompleteValue === "string" ? autocompleteValue : undefined;
     // Anything computed or spread onto the element may carry a label; findings about the field are dropped.
-    if (
-      hasSpread(child.openingElement) ||
-      paramDescriptionValue === DYNAMIC ||
-      ariaLabel === DYNAMIC ||
-      ariaLabelledBy === DYNAMIC ||
-      autocompleteValue === DYNAMIC
-    ) {
+    // A computed autocomplete is not a label, so it only makes the autosubmit rule treat it as absent.
+    if (hasSpread(child.openingElement) || paramDescriptionValue === DYNAMIC || ariaLabel === DYNAMIC || ariaLabelledBy === DYNAMIC) {
       dynamic.add(`/properties/${fieldName}`);
     }
-    const labelText = typeof ariaLabel === "string" ? ariaLabel : typeof id === "string" ? labelTexts.get(id) : undefined;
+    const labelledByText =
+      typeof ariaLabelledBy === "string"
+        ? ariaLabelledBy
+            .split(/\s+/)
+            .map((ref) => textById.get(ref))
+            .filter((t): t is string => Boolean(t))
+            .join(" ") || undefined
+        : undefined;
+    const labelText = typeof ariaLabel === "string" ? ariaLabel : (labelledByText ?? (typeof id === "string" ? labelTexts.get(id) : undefined));
     const hasLabel = isPresent(ariaLabel) || isPresent(ariaLabelledBy) || (typeof id === "string" && labelledIds.has(id)) || labelledNames.has(fieldName);
     // A boolean attribute is present whatever its value, as in HTML (`required="false"` still requires).
     const isRequired = isPresent(requiredValue) || requiredValue === DYNAMIC;

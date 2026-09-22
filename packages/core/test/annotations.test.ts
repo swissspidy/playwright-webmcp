@@ -53,6 +53,30 @@ test("title is part of the contract and the docs", () => {
   assert.match(md, /read-only/);
 });
 
+test("contracts drop the hints the API defaults to false, and nothing else", () => {
+  const snap = (annotations: Record<string, unknown>) => ({
+    url: "u",
+    capturedAt: "",
+    frames: [],
+    tools: [
+      {
+        name: "t",
+        description: "A description long enough for the rules.",
+        inputSchema: null,
+        origin: "o",
+        frame: 0,
+        source: "imperative" as const,
+        annotations,
+      },
+    ],
+  });
+  assert.deepEqual(toContract(snap({ readOnlyHint: true, consequentialHint: false, untrustedContentHint: false, debugging: false })).tools[0].annotations, {
+    readOnlyHint: true,
+  });
+  assert.deepEqual(toContract(snap({ readOnlyHint: false, featureEnabled: false })).tools[0].annotations, { featureEnabled: false });
+  assert.equal(toContract(snap({ readOnlyHint: false })).tools[0].annotations, undefined);
+});
+
 test("declarative autosubmit becomes an annotation in the contract", () => {
   const snap = {
     url: "u",

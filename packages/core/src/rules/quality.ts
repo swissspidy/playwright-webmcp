@@ -85,7 +85,7 @@ export const exposedToOriginOnly = defineRule({
         try {
           url = new URL(entry);
         } catch {
-          return []; // not a URL at all: exposed-to-secure-origins reports it
+          return []; // does not parse: exposed-to-secure-origins reports it
         }
         const extras: string[] = [];
         if (url.username || url.password) extras.push("credentials");

@@ -112,16 +112,18 @@ test("exposed-to-secure-origins rejects what the API rejects, the wildcard inclu
     snap([
       { name: "public_quote", exposedTo: ["*"], annotations: { readOnlyHint: true } },
       { name: "place_order", exposedTo: ["http://partner.test"] },
-      { name: "partner_only", exposedTo: ["https://partner.test", "http://localhost:3000", "http://app.localhost"] },
+      { name: "malformed", exposedTo: ["https://[invalid", "https://"] },
+      { name: "partner_only", exposedTo: ["https://partner.test", "http://localhost:3000", "http://app.localhost", "wss://live.partner.test"] },
     ]),
   );
   const found = r.findings.filter((f) => f.ruleId === "exposed-to-secure-origins");
   assert.deepEqual(
     found.map((f) => f.tool),
-    ["public_quote", "place_order"],
+    ["public_quote", "place_order", "malformed", "malformed"],
   );
   assert.match(found[0].message, /"\*", which is not an origin/);
   assert.match(found[1].message, /not a potentially trustworthy origin/);
+  assert.match(found[2].message, /does not parse as a URL/);
   assert.equal(
     r.findings.some((f) => f.ruleId === "exposed-to-wildcard"),
     false,

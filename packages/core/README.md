@@ -47,7 +47,7 @@ Exit code 1 when a finding at or above `--fail-on` exists (default `error`), 2 o
 import puppeteer from "puppeteer";
 import { collectFrame, snapshotFromFrames, lint, formatFindings } from "webmcp-lint";
 
-const browser = await puppeteer.launch();
+const browser = await puppeteer.launch({ args: ["--enable-features=WebMCP"] });
 const page = await browser.newPage();
 await page.goto("https://shop.example/");
 const frames = await Promise.all(page.frames().map((frame) => frame.evaluate(collectFrame)));

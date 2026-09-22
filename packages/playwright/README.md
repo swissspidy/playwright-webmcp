@@ -10,6 +10,8 @@ The tests run against the browser's own WebMCP implementation. Playwright's Chro
 
 ```ts
 // playwright.config.ts
+import { defineConfig } from "@playwright/test";
+
 export default defineConfig({
   use: { launchOptions: { args: ["--enable-features=WebMCP"] } },
 });

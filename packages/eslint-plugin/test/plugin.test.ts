@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ESLint, RuleTester } from "eslint";
+import { ESLint, Linter, RuleTester } from "eslint";
 import plugin, { staticRules } from "../src/index.js";
 
 const tester = new RuleTester({ languageOptions: { ecmaVersion: 2024, sourceType: "module", parserOptions: { ecmaFeatures: { jsx: true } } } });
@@ -503,14 +503,46 @@ test("the opt-in rules are in `all` but not in `recommended`", () => {
 
 test("valid-event-name", () => {
   tester.run("valid-event-name", plugin.rules["valid-event-name"], {
-    valid: [`mc.addEventListener("toolchange", f)`, `mc.addEventListener("toolcancel", f)`, `mc.ontoolactivated = f`, `el.addEventListener("click", f)`],
+    valid: [
+      `document.modelContext.addEventListener("toolchange", f)`,
+      `const mc = document.modelContext; mc.addEventListener("toolcancel", f); mc.ontoolactivated = f;`,
+      `el.addEventListener("click", f)`,
+      // Any other receiver may fire its own tool* events.
+      `widget.addEventListener("toolupdate", f)`,
+      `widget.ontoolupdate = f`,
+    ],
     invalid: [
       {
-        code: `mc.addEventListener("toolchanged", f)`,
+        code: `document.modelContext.addEventListener("toolchanged", f)`,
         errors: [{ messageId: "unknown", data: { name: "toolchanged", events: "toolchange, toolactivated, toolcancel" } }],
       },
-      { code: `mc.removeEventListener("toolcanceled", f)`, errors: [{ messageId: "unknown" }] },
-      { code: `mc.ontoolsChanged = f`, errors: [{ messageId: "unknown" }] },
+      { code: `const mc = document.modelContext; mc.removeEventListener("toolcanceled", f)`, errors: [{ messageId: "unknown" }] },
+      { code: `const mc = document.modelContext; mc.ontoolsChanged = f`, errors: [{ messageId: "unknown" }] },
     ],
   });
+});
+
+test("JSX label text reaches the derived schema the way the browser derives it", () => {
+  const { formTool } = plugin as unknown as { formTool: never };
+  void formTool;
+  const source = `
+    <form toolname="signup" tooldescription="Sign a person up for the newsletter with their details.">
+      <label htmlFor="email"><span>Email</span> address</label>
+      <input id="email" name="email" />
+      <span id="city-label">City</span> <span id="city-hint">of residence</span>
+      <input name="city" aria-labelledby="city-label city-hint" />
+      <input name="card" autocomplete={token} />
+    </form>`;
+  const linter = new Linter();
+  const messages = linter.verify(source, {
+    languageOptions: { ecmaVersion: 2024, sourceType: "module", parserOptions: { ecmaFeatures: { jsx: true } } },
+    plugins: { webmcp: plugin },
+    rules: { "webmcp/param-description-missing": "warn", "webmcp/declarative-field-description": "warn" },
+  });
+  // email and city get their descriptions from nested label text and aria-labelledby; card has no label and a computed
+  // autocomplete, which is not a label and so does not hide the finding.
+  assert.deepEqual(messages.map((m) => [m.ruleId, m.message]).sort(), [
+    ["webmcp/declarative-field-description", 'Field "card" of form tool "signup" has neither a label nor toolparamdescription.'],
+    ["webmcp/param-description-missing", 'Parameter "card" of "signup" has no description.'],
+  ]);
 });
