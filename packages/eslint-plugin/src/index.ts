@@ -15,10 +15,12 @@ import type { ESLint, Linter, Rule as ESLintRule } from "eslint";
 
 import { builtinRules, type Rule as LintRule } from "webmcp-lint";
 import { noInterpolatedText } from "./interpolation.js";
+import { noLegacyApi, noUnboundMethod, noUnknownOptions, noUnknownToolProperties, requireExecute, validEventName } from "./api-usage.js";
 import { createRule } from "./rule.js";
 
 export { createRule } from "./rule.js";
 export { noInterpolatedText, interpolationOf } from "./interpolation.js";
+export { noLegacyApi, noUnboundMethod, noUnknownOptions, noUnknownToolProperties, requireExecute, validEventName } from "./api-usage.js";
 export { toolsFromCall, toolObjectsFromCall, staticValue, DYNAMIC, type ExtractedTool, type ToolObject, type Resolver } from "./extract.js";
 export { formTool, type ExtractedForm } from "./jsx.js";
 export { DEFAULT_DEFINITION_SITES, definitionSites, type DefinitionSite, type DefinitionSiteSetting, type WebMCPSettings } from "./settings.js";
@@ -45,13 +47,23 @@ export const staticRules: LintRule[] = builtinRules.filter((r) => r.scope === "t
 /**
  * Rules with no `webmcp-lint` counterpart, because they judge the source that
  * built a definition rather than the definition. By the time the engine sees a
- * tool, an interpolated description is just a string.
+ * tool, an interpolated description is just a string, a misspelt dictionary
+ * member has been dropped, and an unbound method has already thrown.
  */
-const sourceOnlyRules: Record<string, ESLintRule.RuleModule> = { "no-interpolated-text": noInterpolatedText };
+const sourceOnlyRules: Record<string, { rule: ESLintRule.RuleModule; recommended: Linter.RuleSeverity }> = {
+  // Interpolation is not by itself a bug; it is a question about provenance.
+  "no-interpolated-text": { rule: noInterpolatedText, recommended: "warn" },
+  "no-legacy-api": { rule: noLegacyApi, recommended: "error" },
+  "no-unknown-tool-properties": { rule: noUnknownToolProperties, recommended: "error" },
+  "no-unknown-options": { rule: noUnknownOptions, recommended: "error" },
+  "require-execute": { rule: requireExecute, recommended: "error" },
+  "valid-event-name": { rule: validEventName, recommended: "error" },
+  "no-unbound-method": { rule: noUnboundMethod, recommended: "error" },
+};
 
 const rules: Record<string, ESLintRule.RuleModule> = {
   ...Object.fromEntries(staticRules.map((r) => [r.id, createRule(r)])),
-  ...sourceOnlyRules,
+  ...Object.fromEntries(Object.entries(sourceOnlyRules).map(([id, entry]) => [id, entry.rule])),
 };
 
 const level = (r: LintRule): Linter.RuleSeverity => (r.severity === "error" ? "error" : "warn");
@@ -62,18 +74,17 @@ const plugin = {
   configs: {} as { recommended: Linter.Config; all: Linter.Config },
 } satisfies ESLint.Plugin;
 
-/** Every rule at the severity webmcp-lint gives it: errors as errors, warnings as warnings. */
+/** Every rule that is on by default, at the severity webmcp-lint gives it: errors as errors, warnings as warnings. */
 plugin.configs.recommended = {
   name: "webmcp/recommended",
   plugins: { webmcp: plugin },
   rules: {
-    ...Object.fromEntries(staticRules.map((r) => [`webmcp/${r.id}`, level(r)])),
-    // Interpolation is not by itself a bug; it is a question about provenance.
-    ...Object.fromEntries(Object.keys(sourceOnlyRules).map((id) => [`webmcp/${id}`, "warn" as const])),
+    ...Object.fromEntries(staticRules.filter((r) => r.enabled).map((r) => [`webmcp/${r.id}`, level(r)])),
+    ...Object.fromEntries(Object.entries(sourceOnlyRules).map(([id, entry]) => [`webmcp/${id}`, entry.recommended])),
   },
 };
 
-/** Every rule as an error. */
+/** Every rule, the opt-in ones included, as an error. */
 plugin.configs.all = {
   name: "webmcp/all",
   plugins: { webmcp: plugin },

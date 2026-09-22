@@ -378,7 +378,10 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | Rule                               | Severity | Scope | Checks                                                                                                |
 | ---------------------------------- | -------- | ----- | ----------------------------------------------------------------------------------------------------- |
 | `tool-name-valid`                  | error    | tool  | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                              |
+| `tool-name-style`                  | off      | tool  | Name follows the project's `style` (`snake_case`) and `prefix`. Opt in per project.                   |
+| `tool-title-missing`               | off      | tool  | The tool has a `title` for clients to show people. Opt in.                                            |
 | `description-missing`              | error    | tool  | Imperative tools have a description.                                                                  |
+| `description-placeholder`          | error    | tool  | The description, title or a parameter description is not `TODO`, `lorem ipsum`, `...`.                |
 | `description-length`               | warning  | tool  | Between `min` (20) and `max` (600) characters.                                                        |
 | `param-description-missing`        | warning  | tool  | Every input property has a description.                                                               |
 | `schema-shape`                     | error    | tool  | Object schema; `required` entries exist in `properties`.                                              |
@@ -398,6 +401,9 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 | `description-injection`            | error    | tool  | Instructions to the agent, role markers, or hidden characters in any tool text.                       |
 | `naming-consistency`               | warning  | page  | Mixed naming styles across tool or parameter names.                                                   |
 | `exposed-to-secure-origins`        | error    | tool  | `exposedTo` lists something the API rejects: an insecure origin, or `"*"`.                            |
+| `exposed-to-origin-only`           | warning  | tool  | An `exposedTo` entry carries a path, query, fragment or credentials, which the API ignores.           |
+| `annotations-valid`                | error    | tool  | Hints are the specification's four, with boolean values; MCP hints and CDP spellings are named.       |
+| `annotations-explicit`             | off      | tool  | The hints in `fields` are declared on every tool. Opt in.                                             |
 | `capability-trifecta`              | warning  | page  | An undeclared source of third-party content sits on a page whose other tools act.                     |
 
 The declarative rules read `<form>` markup: from the page at runtime, or statically from JSX (`<form toolname="...">` in a React component) through the ESLint plugin.
@@ -408,7 +414,7 @@ Annotations are read under both spellings (`readOnlyHint`, `consequentialHint`, 
 
 A project that runs the ESLint plugin can keep its Playwright assertion to the page-level rules, so a finding is reported once, where it is fixed: `await expect(webmcp).toPassLint({ scope: "page" })`. Without `scope` the assertion runs everything, which is the right default when there is no static lint.
 
-Configure per rule: `false` disables, a severity string re-levels, an object overrides options.
+Configure per rule: `false` disables, a severity string re-levels, an object overrides options. Rules marked `off` run only when configured (`true`, a severity, or options).
 
 ```ts
 await expect(webmcp).toPassLint({
@@ -425,7 +431,7 @@ The same engine runs wherever tool definitions are available.
 
 **In ESLint or oxlint.** `@swissspidy/eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed.
 
-It also carries one rule with no `webmcp-lint` counterpart, because only the source shows it. `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
+It also carries rules with no `webmcp-lint` counterpart, because only the source shows what they catch and nothing survives to runtime: `webmcp/no-legacy-api` (`navigator.modelContext`, `window.agent`, `provideContext()`, `clearContext()`, `unregisterTool()`), `webmcp/no-unknown-tool-properties` and `webmcp/no-unknown-options` (a key the dictionaries do not have, which the API silently drops), `webmcp/require-execute`, `webmcp/valid-event-name` (`toolchange`, `toolactivated`, `toolcancel` and nothing else) and `webmcp/no-unbound-method` (a destructured `registerTool` throws). And `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js

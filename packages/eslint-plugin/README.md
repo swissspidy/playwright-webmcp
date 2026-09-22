@@ -38,25 +38,44 @@ document.modelContext.registerTool({
 
 ## Rules
 
-| Rule                                      | Recommended | Checks                                                                                             |
-| ----------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- |
-| `webmcp/tool-name-valid`                  | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                           |
-| `webmcp/description-missing`              | error       | The tool has a description.                                                                        |
-| `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                                     |
-| `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                            |
-| `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                           |
-| `webmcp/schema-no-null-literals`          | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                 |
-| `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                                         |
-| `webmcp/schema-unsupported-keywords`      | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.           |
-| `webmcp/sensitive-params`                 | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).                  |
-| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in any tool text.                    |
-| `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists something the API rejects: an insecure origin, or `"*"`. |
-| `webmcp/no-interpolated-text`             | warning     | Tool text assembled at runtime from values the author cannot name the source of.                   |
-| `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                                  |
-| `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.              |
-| `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field or a payment/one-time-code `autocomplete`.        |
+Definition rules judge what a tool declares. They are the tool-scoped rules of `webmcp-lint`, so a finding here is the same finding `playwright-webmcp` and `webmcp-audit` report from a live page.
 
-Rule options are the same objects `webmcp-lint` accepts. `webmcp.configs.all` turns every rule into an error.
+| Rule                                      | Recommended | Checks                                                                                                                                          |
+| ----------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webmcp/tool-name-valid`                  | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                                                                        |
+| `webmcp/tool-name-style`                  | off         | Name follows the project's `style` (`snake_case` by default) and `prefix`.                                                                      |
+| `webmcp/tool-title-missing`               | off         | The tool has a `title` for clients to show people.                                                                                              |
+| `webmcp/description-missing`              | error       | The tool has a description.                                                                                                                     |
+| `webmcp/description-placeholder`          | error       | The description, title or a parameter description is not `TODO`, `lorem ipsum`, `...` and the like.                                             |
+| `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                                                                                  |
+| `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                                                                         |
+| `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                                                                        |
+| `webmcp/schema-no-null-literals`          | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                                                              |
+| `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                                                                                      |
+| `webmcp/schema-unsupported-keywords`      | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.                                                        |
+| `webmcp/sensitive-params`                 | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).                                                               |
+| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in any tool text.                                                                 |
+| `webmcp/annotations-valid`                | error       | Hints are `readOnlyHint`, `untrustedContentHint`, `consequentialHint`, `debugging`, with boolean values; MCP hints and CDP spellings are named. |
+| `webmcp/annotations-explicit`             | off         | The hints listed in `fields` (`readOnlyHint`, `consequentialHint`) are declared on every tool.                                                  |
+| `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists something the API rejects: an insecure origin, or `"*"`.                                              |
+| `webmcp/exposed-to-origin-only`           | warn        | An `exposedTo` entry carries a path, query, fragment or credentials, which the API ignores.                                                     |
+| `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                                                                               |
+| `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.                                                           |
+| `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field or a payment/one-time-code `autocomplete`.                                                     |
+
+Source rules judge the code that calls the API. They have no `webmcp-lint` counterpart because nothing they catch survives to runtime: a misspelt dictionary member is silently dropped, an unbound method throws before any tool exists.
+
+| Rule                                | Recommended | Checks                                                                                                                        |
+| ----------------------------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| `webmcp/no-legacy-api`              | error       | `navigator.modelContext`, `window.agent`, `provideContext()`, `clearContext()`, `unregisterTool()`: not in the specification. |
+| `webmcp/no-unknown-tool-properties` | error       | A key the tool dictionary does not have (`parameters`, `handler`, `exposedTo` in the tool, ...); `allow` lists your own.      |
+| `webmcp/no-unknown-options`         | error       | An option `registerTool()`, `getTools()` or `executeTool()` does not take.                                                    |
+| `webmcp/require-execute`            | error       | `registerTool()` gets an `execute` callback, and not a string or object.                                                      |
+| `webmcp/valid-event-name`           | error       | Listeners for `tool*` events name `toolchange`, `toolactivated` or `toolcancel`.                                              |
+| `webmcp/no-unbound-method`          | error       | `registerTool` and friends are called on their `ModelContext`, not destructured or detached.                                  |
+| `webmcp/no-interpolated-text`       | warn        | Tool text assembled at runtime from values the author cannot name the source of.                                              |
+
+Rule options are the same objects `webmcp-lint` accepts. `webmcp.configs.recommended` turns on every rule marked above except the `off` ones; `webmcp.configs.all` turns every rule, the opt-in ones included, into an error.
 
 ## Where definitions are found
 
@@ -117,6 +136,14 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-shape": "error",
     "webmcp/schema-no-null-literals": "error",
     "webmcp/exposed-to-secure-origins": "error",
+    "webmcp/annotations-valid": "error",
+    "webmcp/description-placeholder": "error",
+    "webmcp/no-legacy-api": "error",
+    "webmcp/no-unknown-tool-properties": "error",
+    "webmcp/no-unknown-options": "error",
+    "webmcp/require-execute": "error",
+    "webmcp/valid-event-name": "error",
+    "webmcp/no-unbound-method": "error",
     "webmcp/no-interpolated-text": "warn",
     "webmcp/description-length": "warn",
     "webmcp/param-description-missing": "warn",

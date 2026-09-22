@@ -9,10 +9,14 @@ import { namingConsistency } from "./naming.js";
 import { exposedToInsecure } from "./exposure.js";
 import { capabilityTrifecta } from "./capability.js";
 import { thirdPartyRegistration, toolShadowing } from "./shadowing.js";
+import { annotationsExplicit, annotationsValid, descriptionPlaceholder, exposedToOriginOnly, toolNameStyle, toolTitleMissing } from "./quality.js";
 
 export const builtinRules: Rule[] = [
   toolNameValid,
+  toolNameStyle,
+  toolTitleMissing,
   descriptionMissing,
+  descriptionPlaceholder,
   descriptionLength,
   paramDescriptionMissing,
   schemaShape,
@@ -30,6 +34,9 @@ export const builtinRules: Rule[] = [
   descriptionInjection,
   namingConsistency,
   exposedToInsecure,
+  exposedToOriginOnly,
+  annotationsValid,
+  annotationsExplicit,
   capabilityTrifecta,
   toolShadowing,
   thirdPartyRegistration,

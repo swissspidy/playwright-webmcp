@@ -102,9 +102,9 @@ test("description-injection covers title and annotations, not just descriptions"
       },
     ]),
   );
-  const paths = r.findings.filter((f) => f.ruleId === "description-injection").map((f) => f.path);
-  assert.deepEqual(paths.sort(), ["/annotations/note", "/title"]);
-  assert.equal(r.counts.error, 2);
+  const injections = r.findings.filter((f) => f.ruleId === "description-injection");
+  assert.deepEqual(injections.map((f) => f.path).sort(), ["/annotations/note", "/title"]);
+  assert.ok(injections.every((f) => f.severity === "error"));
 });
 
 test("exposed-to-secure-origins rejects what the API rejects, the wildcard included", () => {
@@ -285,4 +285,90 @@ test("tool-shadowing treats missing provenance as unknown, not as a second scrip
   const found = lint(snap(both)).findings.filter((f) => f.ruleId === "tool-shadowing");
   assert.equal(found.length, 1);
   assert.match(found[0].message, /registered from https:\/\/widget\.test/);
+});
+
+test("description-placeholder flags text that only stands in for a description", () => {
+  const r = lint(
+    snap([
+      { name: "todo_tool", description: "TODO" },
+      { name: "lorem_tool", description: "Lorem ipsum dolor sit amet, consectetur adipiscing elit." },
+      { name: "dots", description: "..." },
+      { name: "param_tool", inputSchema: { type: "object", properties: { q: { type: "string", description: "tbd" } } } },
+      { name: "titled", title: "TODO", description: "Search the catalogue for products by keyword and return matches." },
+      { name: "fine", description: "Search the catalogue for products by keyword and return matches." },
+    ]),
+  );
+  const found = r.findings.filter((f) => f.ruleId === "description-placeholder");
+  assert.deepEqual(
+    found.map((f) => [f.tool, f.path]),
+    [
+      ["todo_tool", undefined],
+      ["lorem_tool", undefined],
+      ["dots", undefined],
+      ["param_tool", "/properties/q/description"],
+      ["titled", "/title"],
+    ],
+  );
+});
+
+test("annotations-valid knows the specification's hints and points at the rest", () => {
+  const r = lint(
+    snap([
+      { name: "ok", annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: false, debugging: true } },
+      { name: "cdp_spelling", annotations: { readOnly: true } },
+      { name: "mcp_hint", annotations: { destructiveHint: true, openWorldHint: false } },
+      { name: "stringy", annotations: { readOnlyHint: "false" } },
+      { name: "form", source: "declarative", annotations: { autosubmit: true } },
+    ]),
+  );
+  const found = r.findings.filter((f) => f.ruleId === "annotations-valid");
+  assert.deepEqual(
+    found.map((f) => [f.tool, f.path]),
+    [
+      ["cdp_spelling", "/annotations/readOnly"],
+      ["mcp_hint", "/annotations/destructiveHint"],
+      ["mcp_hint", "/annotations/openWorldHint"],
+      ["stringy", "/annotations/readOnlyHint"],
+    ],
+  );
+  assert.match(found[0].help ?? "", /Write "readOnlyHint"/);
+  assert.match(found[1].help ?? "", /Write "consequentialHint"/);
+  assert.match(found[2].help ?? "", /MCP hint/);
+  assert.match(found[3].message, /hints are booleans/);
+});
+
+test("opt-in rules: annotations-explicit, tool-title-missing and tool-name-style stay off until configured", () => {
+  const s = snap([
+    { name: "searchProducts", annotations: { readOnlyHint: true } },
+    { name: "shop.add_item", title: "Add" },
+  ]);
+  const off = ids(lint(s));
+  for (const id of ["annotations-explicit", "tool-title-missing", "tool-name-style"]) assert.ok(!off.includes(id), `${id} is off by default`);
+  const on = lint(s, {
+    rules: { "annotations-explicit": { fields: ["readOnlyHint"] }, "tool-title-missing": true, "tool-name-style": { style: "snake_case", prefix: "shop." } },
+  });
+  assert.deepEqual(
+    on.findings.filter((f) => f.ruleId === "annotations-explicit").map((f) => f.tool),
+    ["shop.add_item"],
+  );
+  assert.deepEqual(
+    on.findings.filter((f) => f.ruleId === "tool-title-missing").map((f) => f.tool),
+    ["searchProducts"],
+  );
+  assert.deepEqual(
+    on.findings.filter((f) => f.ruleId === "tool-name-style").map((f) => f.message),
+    ['Tool name "searchProducts" does not start with "shop.".', 'Tool name "searchProducts" is camelCase; the project uses snake_case.'],
+  );
+});
+
+test("exposed-to-origin-only reports entries that are URLs rather than origins", () => {
+  const r = lint(
+    snap([
+      { name: "pathy", exposedTo: ["https://partner.test/widget?x=1#top", "https://user:pw@partner.test", "https://partner.test/", "https://other.test"] },
+    ]),
+  );
+  const found = r.findings.filter((f) => f.ruleId === "exposed-to-origin-only");
+  assert.equal(found.length, 2);
+  assert.match(found[0].message, /the path \/widget, a query, a fragment; only the origin https:\/\/partner\.test counts/);
+  assert.match(found[1].message, /credentials/);
 });
