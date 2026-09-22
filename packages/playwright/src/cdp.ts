@@ -6,7 +6,7 @@
  * The session is abstracted to the two methods Playwright's CDPSession has,
  * so the collector can be unit tested with a scripted session.
  */
-import type { RecordedCall } from "webmcp-lint";
+import type { RecordedCall } from "@swissspidy/webmcp-lint";
 
 const debug = process.env.WEBMCP_DEBUG ? (...args: unknown[]) => console.error(`[webmcp cdp ${new Date().toISOString().slice(11, 23)}]`, ...args) : () => {};
 

@@ -2,7 +2,7 @@ import { defineConfig } from "@playwright/test";
 
 export default defineConfig({
   testDir: "./tests",
-  reporter: [["list"], ["playwright-webmcp/reporter", { outputDir: ".webmcp-report" }]],
+  reporter: [["list"], ["@swissspidy/playwright-webmcp/reporter", { outputDir: ".webmcp-report" }]],
   webServer: {
     command: "vite build && vite preview --port 4174 --strictPort",
     port: 4174,

@@ -12,8 +12,8 @@ import {
   type ReconcileOptions,
   type Severity,
   type ToolSource,
-} from "webmcp-lint";
-import { formatScore, type TimelineBudgets } from "webmcp-lint";
+} from "@swissspidy/webmcp-lint";
+import { formatScore, type TimelineBudgets } from "@swissspidy/webmcp-lint";
 import { WebMCP } from "./fixture.js";
 import { evaluateAgent, isEvalAgent, type EvalAgent, type EvalRunOptions } from "./agent.js";
 import type { SmokeOptions } from "./smoke.js";

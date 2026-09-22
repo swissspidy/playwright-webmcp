@@ -1,4 +1,4 @@
-# playwright-webmcp
+# @swissspidy/playwright-webmcp
 
 Testing tools for [WebMCP](https://github.com/webmachinelearning/webmcp) tool surfaces: a lint engine that understands the whole page, a Playwright fixture with matchers and call recording, an ESLint plugin, a site audit CLI, and a runner for Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) cases that applies the CLI's own semantics inside Playwright.
 
@@ -6,19 +6,19 @@ The shape is deliberately the same as axe-core: one engine that judges tool defi
 
 | Package                                                      | What it is                                                                                                                                                                                                                                                                                                   |
 | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| [`webmcp-lint`](packages/core)                               | The engine: snapshot model, rules, `lint()` and `lintTools()`, a `webmcp-lint` CLI for `tools.json` files, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. No dependencies, no browser.                                                    |
+| [`@swissspidy/webmcp-lint`](packages/core)                   | The engine: snapshot model, rules, `lint()` and `lintTools()`, a `webmcp-lint` CLI for `tools.json` files, the `webmcp-evals` argument matcher, and a trajectory matcher with the CLI's exact semantics plus a lenient mode. No dependencies, no browser.                                                    |
 | [`@swissspidy/eslint-plugin-webmcp`](packages/eslint-plugin) | The tool-scoped rules as ESLint rules, run statically against `registerTool()`, `useWebMCP()` and your own wrappers, and against `<form toolname>` in JSX. Loads in oxlint too. `webmcp.configs.recommended` and done.                                                                                       |
-| [`playwright-webmcp`](packages/playwright)                   | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, mock, drive the on-device model, and run evals cases. Runs against the browser's own WebMCP implementation, and ships a reporter that writes suite-wide `tools.json`, `coverage.json` and `TOOLS.md`. |
-| [`webmcp-audit`](packages/audit)                             | CLI and library that crawls a site, lints every page, calls read-only tools with schema-derived inputs, detects cross-page drift, and scores agent readiness. Point it at a URL.                                                                                                                             |
+| [`@swissspidy/playwright-webmcp`](packages/playwright)       | `test`/`expect` with a `webmcp` fixture: discover tools in every frame, call them, record calls, lint, mock, drive the on-device model, and run evals cases. Runs against the browser's own WebMCP implementation, and ships a reporter that writes suite-wide `tools.json`, `coverage.json` and `TOOLS.md`. |
+| [`@swissspidy/webmcp-audit`](packages/audit)                 | CLI and library that crawls a site, lints every page, calls read-only tools with schema-derived inputs, detects cross-page drift, and scores agent readiness. Point it at a URL.                                                                                                                             |
 
 ## Which one do I need?
 
-| You want to                                                                   | Use                                                                                                                                                |
-| ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| See problems in the editor and fail `eslint` on CI                            | `@swissspidy/eslint-plugin-webmcp`. Catches per-tool problems (names, descriptions, schemas, injection) in source, before a browser runs anything. |
-| Test tools end to end: shapes, behaviour, agent trajectories, contracts       | `playwright-webmcp`. The whole page, every frame, real executions, the on-device model, `webmcp-evals` cases.                                      |
-| Check a site you do not have the source or tests for                          | `webmcp-audit https://...`. Crawls, lints, optionally calls read-only tools, reports drift and a score.                                            |
-| Lint a `tools.json`, a snapshot, or definitions from your own driver or tests | `webmcp-lint`: `lintTools()`, the `webmcp-lint` CLI, or `collectFrame` + `snapshotFromFrames()` with Puppeteer, WebDriver or jsdom.                |
+| You want to                                                                   | Use                                                                                                                                                         |
+| ----------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| See problems in the editor and fail `eslint` on CI                            | `@swissspidy/eslint-plugin-webmcp`. Catches per-tool problems (names, descriptions, schemas, injection) in source, before a browser runs anything.          |
+| Test tools end to end: shapes, behaviour, agent trajectories, contracts       | `@swissspidy/playwright-webmcp`. The whole page, every frame, real executions, the on-device model, `webmcp-evals` cases.                                   |
+| Check a site you do not have the source or tests for                          | `@swissspidy/webmcp-audit https://...`. Crawls, lints, optionally calls read-only tools, reports drift and a score.                                         |
+| Lint a `tools.json`, a snapshot, or definitions from your own driver or tests | `@swissspidy/webmcp-lint`: `lintTools()`, the `@swissspidy/webmcp-lint` CLI, or `collectFrame` + `snapshotFromFrames()` with Puppeteer, WebDriver or jsdom. |
 
 The rule engine is the same in all four; only what feeds it differs. Page-level rules (duplicate names, similar descriptions, tool count, cross-origin frames) need a live page and are therefore not in the ESLint plugin. [`examples/react-shop`](examples/react-shop) shows the whole chain on a Vite + React app with [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool).
 
@@ -27,7 +27,7 @@ Everything here runs against the browser's own WebMCP implementation: Playwright
 ## Quick start
 
 ```ts
-import { test, expect } from "playwright-webmcp";
+import { test, expect } from "@swissspidy/playwright-webmcp";
 
 test("shop exposes usable tools", async ({ page, webmcp }) => {
   await page.goto("/");
@@ -91,7 +91,7 @@ The `tools.json` for `local` mode, plus coverage and a Markdown tool reference, 
 ```ts
 // playwright.config.ts
 export default defineConfig({
-  reporter: [["list"], ["playwright-webmcp/reporter", { outputDir: ".webmcp-report" }]],
+  reporter: [["list"], ["@swissspidy/playwright-webmcp/reporter", { outputDir: ".webmcp-report" }]],
 });
 ```
 
@@ -124,7 +124,7 @@ When the browser has the CDP `WebMCP` domain (Chromium builds with WebMCP do), t
 
 - recorded calls carry `source: "cdp"`, and calls not initiated by the fixture are recorded with `via: "agent"`;
 - `call()` invokes tools through `WebMCP.invokeTool` instead of page script;
-- snapshots gain `location` (the registration site) and the browser's own annotations. The CDP domain spells them `readOnly`, `consequential`, `untrustedContent`, `debugging` and `autosubmit`, while the specification uses `readOnlyHint`, `consequentialHint`, `untrustedContentHint` and `debugging`; `toolHints()` from `webmcp-lint` reads both, and everything here goes through it.
+- snapshots gain `location` (the registration site) and the browser's own annotations. The CDP domain spells them `readOnly`, `consequential`, `untrustedContent`, `debugging` and `autosubmit`, while the specification uses `readOnlyHint`, `consequentialHint`, `untrustedContentHint` and `debugging`; `toolHints()` from `@swissspidy/webmcp-lint` reads both, and everything here goes through it.
 
 On browsers without the domain the collector stays off and everything falls back to the page-side hooks. Nothing in the API changes.
 
@@ -196,7 +196,7 @@ The fixture is the discovery and execution half: `webmcp.tools()` lists what the
 ```ts
 import { ToolLoopAgent, jsonSchema, stepCountIs, tool, type JSONSchema7 } from "ai";
 import { anthropic } from "@ai-sdk/anthropic";
-import { test, expect, toolsForAgent } from "playwright-webmcp";
+import { test, expect, toolsForAgent } from "@swissspidy/playwright-webmcp";
 
 test("a capable model completes the purchase", async ({ page, webmcp }) => {
   await page.goto("/");
@@ -225,7 +225,7 @@ test("a capable model completes the purchase", async ({ page, webmcp }) => {
 });
 ```
 
-The cast and the type argument are what make that line compile: `webmcp-lint` types schemas loosely, and `jsonSchema()` infers `unknown` for the input unless told otherwise, which `tool()` cannot reconcile with `execute`. `toPassEval` sends each user message of the case as a turn and reconciles the calls the fixture recorded meanwhile. The `agent` can be:
+The cast and the type argument are what make that line compile: `@swissspidy/webmcp-lint` types schemas loosely, and `jsonSchema()` infers `unknown` for the input unless told otherwise, which `tool()` cannot reconcile with `execute`. `toPassEval` sends each user message of the case as a turn and reconciles the calls the fixture recorded meanwhile. The `agent` can be:
 
 - an object with `generate()`, like `ToolLoopAgent`: the first turn is sent as `{ prompt }`, later turns as `{ messages }` carrying the earlier turns and whatever `response.messages` came back, which is how the AI SDK continues a conversation;
 - an object with `run()`, like the `promptApi` fixture (`expect(promptApi).toPassEval(evalCase)` is the same thing without the option);
@@ -235,13 +235,13 @@ The cast and the type argument are what make that line compile: `webmcp-lint` ty
 
 ### Browsers
 
-WebMCP is behind a feature flag in Chromium, so the suites launch Playwright's Chromium with `--enable-features=WebMCP` (the flag is in every `playwright.config.ts` in this repository and in `webmcp-audit`). Any other Chromium build works the same way; `PW_CHROMIUM` picks the binary and `PW_ARGS` adds flags:
+WebMCP is behind a feature flag in Chromium, so the suites launch Playwright's Chromium with `--enable-features=WebMCP` (the flag is in every `playwright.config.ts` in this repository and in `@swissspidy/webmcp-audit`). Any other Chromium build works the same way; `PW_CHROMIUM` picks the binary and `PW_ARGS` adds flags:
 
 ```sh
 npx playwright install chromium                  # Playwright's Chromium, with the flag from the config
 npx playwright install chrome-beta
 PW_CHROMIUM=/opt/google/chrome-beta/chrome pnpm run test:e2e   # or: pnpm run test:beta
-npx webmcp-audit https://shop.example --executable /opt/google/chrome-beta/chrome
+npx @swissspidy/webmcp-audit https://shop.example --executable /opt/google/chrome-beta/chrome
 ```
 
 CI runs the suites on Playwright's Chromium on every push, and on Chrome Beta as an informational job, because the API is still an origin trial and the beta channel is where changes land first. Things the fixture accounts for, because tests written against one build must behave the same on the next:
@@ -327,12 +327,12 @@ The composition is a page-level question, and `capability-trifecta` (warning) as
 ## Site audit
 
 ```sh
-npx webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
+npx @swissspidy/webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
 ```
 
 Crawls same-origin links, lints every page, detects tools whose description or schema differ between pages (`cross-page-drift`), and writes `report.json` plus a Markdown report with a per-page and overall agent-readiness score. With `--smoke` it also calls tools with inputs derived from their schemas, as described under [Smoke](#smoke-runtime-checks-from-schemas): only tools annotated read-only by default, every tool with `--all-tools`. The report lists each input that ran with its arguments and outcome, and says so when a page had no read-only tool to call. Exit code 1 when any page failed to load or a finding at or above `--fail-on` (default `error`) exists, 2 on usage errors.
 
-`--header "Authorization: Bearer …"` sends a header with every request to the audited origin (third-party frames and resources do not get it), for a protected staging site; anything beyond headers (logins, cookies, storage state) is a job for the Playwright fixture. `--baseline report.json` compares each page's tools with a previous run and reports `contract-changed` and `baseline-page-missing`, so a site without a test suite still learns when its tool surface moves. `--format github` prints one workflow-command annotation per finding and appends the Markdown report to the job summary. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses stdout, and `--help` lists everything. The same is available as `audit()` from the `webmcp-audit` package.
+`--header "Authorization: Bearer …"` sends a header with every request to the audited origin (third-party frames and resources do not get it), for a protected staging site; anything beyond headers (logins, cookies, storage state) is a job for the Playwright fixture. `--baseline report.json` compares each page's tools with a previous run and reports `contract-changed` and `baseline-page-missing`, so a site without a test suite still learns when its tool surface moves. `--format github` prints one workflow-command annotation per finding and appends the Markdown report to the job summary. `--settle <ms>` waits longer for late registrations, `--executable` and repeatable `--arg` control the browser, `--quiet` suppresses stdout, and `--help` lists everything. The same is available as `audit()` from the `@swissspidy/webmcp-audit` package.
 
 ## Smoke: runtime checks from schemas
 
@@ -351,7 +351,7 @@ Crawls same-origin links, lints every page, detects tools whose description or s
 | `untrusted-content-unmarked`   | error    | Result text reads as an instruction and the tool declares no `untrustedContentHint`. |
 | `result-suspicious-content`    | warning  | The same, on a tool that did declare it: the boundary is marked.                     |
 
-Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it. Every run is recorded as a `SmokeRun` (tool, input kind and label, arguments, result or error, duration); `formatSmokeRuns()` renders them as a Markdown table, which is what `webmcp-audit` puts in its report.
+Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it. Every run is recorded as a `SmokeRun` (tool, input kind and label, arguments, result or error, duration); `formatSmokeRuns()` renders them as a Markdown table, which is what `@swissspidy/webmcp-audit` puts in its report.
 
 Results in the MCP shape, `{ content: [{ type: "text", text }], isError? }`, which `use-webmcp-tool` and MCP servers produce, are understood: `isError: true` counts as an error on valid input, an empty `content` array as no result, and text blocks are scanned like any other string.
 
@@ -421,7 +421,7 @@ await expect(webmcp).toPassLint({
 });
 ```
 
-Custom rules use `defineRule` from `webmcp-lint` and are passed through `extraRules`; give them `scope: "tool"` when they only read one tool.
+Custom rules use `defineRule` from `@swissspidy/webmcp-lint` and are passed through `extraRules`; give them `scope: "tool"` when they only read one tool.
 
 ## The rules outside Playwright
 
@@ -429,7 +429,7 @@ The same engine runs wherever tool definitions are available.
 
 **In ESLint or oxlint.** `@swissspidy/eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed.
 
-It also carries rules with no `webmcp-lint` counterpart, because only the source shows what they catch and nothing survives to runtime. `webmcp/valid-event-name` flags a listener for a `tool*` event other than `toolchange`, `toolactivated` and `toolcancel`, which the typings let through and which never fires. And `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
+It also carries rules with no `@swissspidy/webmcp-lint` counterpart, because only the source shows what they catch and nothing survives to runtime. `webmcp/valid-event-name` flags a listener for a `tool*` event other than `toolchange`, `toolactivated` and `toolcancel`, which the typings let through and which never fires. And `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js
@@ -443,21 +443,21 @@ export default [
 **On definitions you already have**, in a unit test of the module that builds your tools, or on the `tools.json` the reporter writes:
 
 ```ts
-import { lintTools } from "webmcp-lint";
+import { lintTools } from "@swissspidy/webmcp-lint";
 
 const result = lintTools(myTools, { rules: { "too-many-tools": { max: 40 } } });
 expect(result.counts.error).toBe(0);
 ```
 
 ```sh
-npx webmcp-lint .webmcp-report/tools.json --fail-on warning
-npx webmcp-lint .webmcp-report/tools.json --format github   # one annotation per finding in a GitHub Actions job
+npx @swissspidy/webmcp-lint .webmcp-report/tools.json --fail-on warning
+npx @swissspidy/webmcp-lint .webmcp-report/tools.json --format github   # one annotation per finding in a GitHub Actions job
 ```
 
 **With another driver.** `collectFrame` is self-contained and runs in any frame; `snapshotFromFrames()` assembles what the Playwright fixture would have built:
 
 ```ts
-import { collectFrame, snapshotFromFrames, lint } from "webmcp-lint";
+import { collectFrame, snapshotFromFrames, lint } from "@swissspidy/webmcp-lint";
 
 const frames = await Promise.all(page.frames().map((f) => f.evaluate(collectFrame))); // Puppeteer
 const result = lint(snapshotFromFrames(frames, { url: page.url() }));
@@ -469,7 +469,7 @@ const result = lint(snapshotFromFrames(frames, { url: page.url() }));
 pnpm install
 pnpm run build           # typecheck resolves workspace packages through their built declarations, so build first
 pnpm run typecheck
-pnpm run test:unit       # webmcp-lint and @swissspidy/eslint-plugin-webmcp, node --test
+pnpm run test:unit       # @swissspidy/webmcp-lint and @swissspidy/eslint-plugin-webmcp, node --test
 pnpm run test:e2e        # Playwright's Chromium with --enable-features=WebMCP; PW_CHROMIUM picks another binary, PW_ARGS adds flags
 pnpm run test:beta       # the same on Google Chrome Beta (npx playwright install chrome-beta)
 pnpm run lint            # @swissspidy/eslint-plugin-webmcp on examples/react-shop
@@ -477,7 +477,7 @@ pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
 ```
 
-`examples/demo-site` is the page the Playwright suite runs against. The four packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance. Types for the API itself come from the [`webmcp-types`](https://www.npmjs.com/package/webmcp-types) package, which `playwright-webmcp` depends on and re-exports as `WebMCPTypes`.
+`examples/demo-site` is the page the Playwright suite runs against. The four packages share one version and are released together with [changesets](.changeset/README.md): add a changeset to your pull request, and the release workflow opens a version pull request whose merge publishes to npm with provenance. Types for the API itself come from the [`webmcp-types`](https://www.npmjs.com/package/webmcp-types) package, which `@swissspidy/playwright-webmcp` depends on and re-exports as `WebMCPTypes`.
 
 ## Recordings and evals
 
@@ -485,11 +485,11 @@ Every recording the fixture makes, whether from `call()`, `smoke()`, the CDP col
 
 A recording is not an eval, though, and this repository deliberately does not export recordings as eval cases. An eval's value is in an expectation someone chose: `$contains` instead of a literal, `optional: true` on a lookup, an unordered group where order does not matter. Recording `webmcp.call()` invocations only transcribes what the test author typed, and recording one model run only snapshots one nondeterministic trajectory. Write cases by hand and treat them as the source of truth that both Playwright and the CLI consume.
 
-When a recording is a convenient starting point, `toEvalCase()` from `webmcp-lint` turns one into a draft to edit:
+When a recording is a convenient starting point, `toEvalCase()` from `@swissspidy/webmcp-lint` turns one into a draft to edit:
 
 ```ts
 import { writeFileSync } from "node:fs";
-import { toEvalCase } from "webmcp-lint";
+import { toEvalCase } from "@swissspidy/webmcp-lint";
 
 await promptApi.run("Add two red shirts to my cart"); // or agent.run(...)
 const draft = toEvalCase(webmcp.calls(), {

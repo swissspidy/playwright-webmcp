@@ -1,4 +1,4 @@
-import { test, expect } from "playwright-webmcp";
+import { test, expect } from "@swissspidy/playwright-webmcp";
 
 test.describe("react shop", () => {
   test("exposes the tools the components register", async ({ page, webmcp }) => {

@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { formatChanges } from "webmcp-lint";
+import { formatChanges } from "@swissspidy/webmcp-lint";
 import { test, expect } from "../src/index.js";
 
 test.describe("tool contract", () => {

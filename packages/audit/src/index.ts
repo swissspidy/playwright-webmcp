@@ -2,7 +2,7 @@
  * Crawl a site with Playwright and audit every page's WebMCP surface.
  */
 import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { WebMCP, runSmoke, type SmokeOptions } from "playwright-webmcp";
+import { WebMCP, runSmoke, type SmokeOptions } from "@swissspidy/playwright-webmcp";
 import {
   computeCoverage,
   computeScore,
@@ -21,7 +21,7 @@ import {
   type Score,
   type SmokeReport,
   type ToolContract,
-} from "webmcp-lint";
+} from "@swissspidy/webmcp-lint";
 
 export interface AuditOptions {
   /** Start URL. Only same-origin pages are followed. */

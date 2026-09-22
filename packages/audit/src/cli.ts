@@ -2,7 +2,7 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { toGitHubAnnotations, type Severity } from "webmcp-lint";
+import { toGitHubAnnotations, type Severity } from "@swissspidy/webmcp-lint";
 import { audit, renderMarkdown, type AuditReport } from "./index.js";
 
 const SEVERITY_RANK: Record<Severity, number> = { error: 3, warning: 2, info: 1 };

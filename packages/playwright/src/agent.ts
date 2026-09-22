@@ -7,7 +7,7 @@
  * fixture is an agent too. Calls are read back from the fixture, so nothing
  * has to report them.
  */
-import { reconcileCalls, toolHints, type EvalCase, type JsonSchema, type ReconcileOptions, type RecordedCall } from "webmcp-lint";
+import { reconcileCalls, toolHints, type EvalCase, type JsonSchema, type ReconcileOptions, type RecordedCall } from "@swissspidy/webmcp-lint";
 import type { WebMCP } from "./fixture.js";
 
 export interface AgentCall {

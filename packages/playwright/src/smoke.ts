@@ -7,7 +7,7 @@ import {
   type SmokeReport,
   type SmokeRun,
   type ToolSnapshot,
-} from "webmcp-lint";
+} from "@swissspidy/webmcp-lint";
 
 export interface SmokeOptions extends GenerateOptions, SmokeBudgets {
   /** Tools to exercise, by name or predicate. */

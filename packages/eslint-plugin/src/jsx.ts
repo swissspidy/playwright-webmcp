@@ -5,7 +5,7 @@
  * produces, so the `declarative-*` rules judge it statically.
  */
 import type * as ESTree from "estree";
-import type { DeclarativeField, DeclarativeInfo, JsonSchema, ToolDefinitionLike } from "webmcp-lint";
+import type { DeclarativeField, DeclarativeInfo, JsonSchema, ToolDefinitionLike } from "@swissspidy/webmcp-lint";
 import { DYNAMIC, staticValue, type Resolver } from "./extract.js";
 
 // ESTree has no JSX node types; these are the parts read here (espree, @typescript-eslint and oxc agree on them).

@@ -1,15 +1,15 @@
-# webmcp-lint
+# @swissspidy/webmcp-lint
 
-The rule engine behind [`playwright-webmcp`](https://www.npmjs.com/package/playwright-webmcp), [`webmcp-audit`](https://www.npmjs.com/package/webmcp-audit) and [`@swissspidy/eslint-plugin-webmcp`](https://www.npmjs.com/package/@swissspidy/eslint-plugin-webmcp): a plain-JSON snapshot model for a page's [WebMCP](https://github.com/webmachinelearning/webmcp) tools, lint rules that see the whole page, schema-driven smoke checks, tool contracts, coverage and scoring, and the argument matcher and trajectory matcher of Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) CLI. No dependencies, no browser required.
+The rule engine behind [`@swissspidy/playwright-webmcp`](https://www.npmjs.com/package/@swissspidy/playwright-webmcp), [`@swissspidy/webmcp-audit`](https://www.npmjs.com/package/@swissspidy/webmcp-audit) and [`@swissspidy/eslint-plugin-webmcp`](https://www.npmjs.com/package/@swissspidy/eslint-plugin-webmcp): a plain-JSON snapshot model for a page's [WebMCP](https://github.com/webmachinelearning/webmcp) tools, lint rules that see the whole page, schema-driven smoke checks, tool contracts, coverage and scoring, and the argument matcher and trajectory matcher of Google's [`webmcp-evals`](https://github.com/GoogleChromeLabs/webmcp-tools/tree/main/webmcp-evals) CLI. No dependencies, no browser required.
 
 ```sh
-npm install --save-dev webmcp-lint
+npm install --save-dev @swissspidy/webmcp-lint
 ```
 
 ## Lint tool definitions you already have
 
 ```ts
-import { lintTools, formatFindings } from "webmcp-lint";
+import { lintTools, formatFindings } from "@swissspidy/webmcp-lint";
 
 const result = lintTools([
   {
@@ -32,9 +32,9 @@ if (result.counts.error) process.exitCode = 1;
 ## Lint from the command line
 
 ```sh
-npx webmcp-lint .webmcp-report/tools.json
-npx webmcp-lint tools.json --fail-on warning --rule no-tools=off --rule 'too-many-tools={"max":40}'
-cat snapshot.json | npx webmcp-lint - --format json
+npx @swissspidy/webmcp-lint .webmcp-report/tools.json
+npx @swissspidy/webmcp-lint tools.json --fail-on warning --rule no-tools=off --rule 'too-many-tools={"max":40}'
+cat snapshot.json | npx @swissspidy/webmcp-lint - --format json
 ```
 
 Exit code 1 when a finding at or above `--fail-on` exists (default `error`), 2 on usage errors. `--scope tool` skips page-level rules, `--url` labels the findings, and `--format github` prints one workflow-command annotation per finding for GitHub Actions.
@@ -45,7 +45,7 @@ Exit code 1 when a finding at or above `--fail-on` exists (default `error`), 2 o
 
 ```ts
 import puppeteer from "puppeteer";
-import { collectFrame, snapshotFromFrames, lint, formatFindings } from "webmcp-lint";
+import { collectFrame, snapshotFromFrames, lint, formatFindings } from "@swissspidy/webmcp-lint";
 
 const browser = await puppeteer.launch({ args: ["--enable-features=WebMCP"] });
 const page = await browser.newPage();
@@ -55,7 +55,7 @@ const snapshot = snapshotFromFrames(frames, { url: page.url() });
 console.log(formatFindings(lint(snapshot)));
 ```
 
-`webmcp-lint/collect` exports `collectFrame` alone for bundling into a page. The browser has to implement WebMCP (`document.modelContext`); see the repository README for how to enable it in Chrome.
+`@swissspidy/webmcp-lint/collect` exports `collectFrame` alone for bundling into a page. The browser has to implement WebMCP (`document.modelContext`); see the repository README for how to enable it in Chrome.
 
 ## Everything else
 
@@ -70,7 +70,7 @@ console.log(formatFindings(lint(snapshot)));
 | Quality signals    | `computeCoverage`, `computeScore`, `judgeTimeline`, `detectInjection`, `toolHints`        |
 
 ```ts
-import { reconcileCalls } from "webmcp-lint";
+import { reconcileCalls } from "@swissspidy/webmcp-lint";
 
 // Same semantics as the webmcp-evals CLI:
 reconcileCalls(evalCase.expectedCall, calls, { mode: "evals" });

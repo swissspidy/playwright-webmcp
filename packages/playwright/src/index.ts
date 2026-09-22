@@ -42,5 +42,5 @@ export { fakeLanguageModelSource, type FakeLanguageModelPlan, type FakeTurn } fr
 export { expect, type ToolExpectation, type LintExpectation, type SmokeExpectation } from "./matchers.js";
 export { RECORDER_SOURCE } from "./recorder.js";
 export { executeToolInputShape, chromiumMajor, type ExecuteToolInputShape } from "./input-shape.js";
-export type * from "webmcp-lint";
+export type * from "@swissspidy/webmcp-lint";
 export type { WebMCP as WebMCPTypes } from "webmcp-types";

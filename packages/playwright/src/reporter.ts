@@ -7,12 +7,12 @@
  *   TOOLS.md       a Markdown reference of the tools with example calls
  *
  *   // playwright.config.ts
- *   reporter: [["list"], ["playwright-webmcp/reporter", { outputDir: ".webmcp-report" }]]
+ *   reporter: [["list"], ["@swissspidy/playwright-webmcp/reporter", { outputDir: ".webmcp-report" }]]
  */
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import type { FullConfig, Reporter, TestCase, TestResult } from "@playwright/test/reporter";
-import { ATTACHMENTS, computeCoverage, renderToolDocs, toContract, toToolsSchema, type RecordedCall, type ToolSnapshot } from "webmcp-lint";
+import { ATTACHMENTS, computeCoverage, renderToolDocs, toContract, toToolsSchema, type RecordedCall, type ToolSnapshot } from "@swissspidy/webmcp-lint";
 
 export interface WebMCPReporterOptions {
   /** Directory to write into, relative to the Playwright config. Default `.webmcp-report`. */

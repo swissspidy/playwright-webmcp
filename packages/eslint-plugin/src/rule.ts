@@ -8,7 +8,7 @@
  */
 import type { Rule as ESLintRule, Scope } from "eslint";
 import type * as ESTree from "estree";
-import { builtinRules, lintTools, type Finding, type Rule as LintRule } from "webmcp-lint";
+import { builtinRules, lintTools, type Finding, type Rule as LintRule } from "@swissspidy/webmcp-lint";
 import { findProperty, nodeAtPath, toolsFromCall, unwrap, type ExtractedTool, type Resolver } from "./extract.js";
 import { formTool, type ExtractedForm, type JSXElementNode } from "./jsx.js";
 import { definitionSites } from "./settings.js";

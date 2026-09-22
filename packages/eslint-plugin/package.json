@@ -55,7 +55,7 @@
     "eslint": ">=9.0.0"
   },
   "dependencies": {
-    "webmcp-lint": "workspace:*"
+    "@swissspidy/webmcp-lint": "workspace:*"
   },
   "devDependencies": {
     "@types/estree": "^1.0.9",
