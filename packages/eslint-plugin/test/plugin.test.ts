@@ -33,7 +33,7 @@ test("exposes every tool-scoped imperative rule and a recommended config", () =>
   assert.ok(!ids.includes("duplicate-tool-name"), "page rules are not exposed");
   assert.ok(ids.includes("declarative-description"), "form rules are exposed for JSX");
   assert.ok(ids.includes("no-interpolated-text"), "source-only rules are exposed too");
-  assert.equal(ids.length, staticRules.length + 6);
+  assert.equal(ids.length, staticRules.length + 2);
   assert.equal(plugin.meta.name, "@swissspidy/eslint-plugin-webmcp");
   assert.match(plugin.meta.version, /^\d+\.\d+\.\d+/);
   assert.equal(plugin.configs.recommended.rules?.["webmcp/tool-name-valid"], "error");
@@ -468,21 +468,6 @@ test("no-interpolated-text reads JSX form attributes", () => {
   });
 });
 
-test("annotations-valid runs statically and points at the field", () => {
-  tester.run("annotations-valid", plugin.rules["annotations-valid"], {
-    valid: [
-      good,
-      `mc.registerTool({ name: "ok", annotations: hints })`,
-      `mc.registerTool({ name: "ok", annotations: { readOnlyHint: true, debugging: false } })`,
-    ],
-    invalid: [
-      { code: `mc.registerTool({ name: "ok", annotations: { readOnly: true } });`, errors: [{ messageId: "finding", column: 56 }] },
-      { code: `mc.registerTool({ name: "ok", annotations: { destructiveHint: true } });`, errors: [{ messageId: "finding" }] },
-      { code: `mc.registerTool({ name: "ok", annotations: { readOnlyHint: "true" } });`, errors: [{ messageId: "finding", column: 60 }] },
-    ],
-  });
-});
-
 test("the opt-in rules are in `all` but not in `recommended`", () => {
   for (const id of ["annotations-explicit", "tool-title-missing", "tool-name-style"]) {
     assert.ok(id in plugin.rules, `${id} is exposed`);
@@ -516,54 +501,7 @@ test("the opt-in rules are in `all` but not in `recommended`", () => {
   });
 });
 
-test("no-unknown-tool-properties and no-unknown-options catch what the dictionaries drop", () => {
-  tester.run("no-unknown-tool-properties", plugin.rules["no-unknown-tool-properties"], {
-    valid: [good, `mc.registerTool({ ...base })`, { code: `mc.registerTool({ name: "ok", execute() {}, meta: 1 })`, options: [{ allow: ["meta"] }] }],
-    invalid: [
-      {
-        code: `mc.registerTool({ name: "ok", parameters: {}, execute() {} });`,
-        errors: [{ messageId: "unknown", data: { name: "parameters", hint: '; write "inputSchema"' } }],
-      },
-      {
-        code: `mc.registerTool({ name: "ok", exposedTo: ["https://a.example"], execute() {} });`,
-        errors: [{ messageId: "unknown", data: { name: "exposedTo", hint: "; it belongs in the options argument: registerTool(tool, { exposedTo })" } }],
-      },
-      { code: `useWebMCP({ name: "ok", readOnlyHint: true, execute() {} });`, errors: [{ messageId: "unknown" }] },
-    ],
-  });
-  tester.run("no-unknown-options", plugin.rules["no-unknown-options"], {
-    valid: [
-      `mc.registerTool(tool, { signal, exposedTo: [] });`,
-      `mc.getTools({ fromOrigins: [] });`,
-      `mc.executeTool(tool, {}, { signal });`,
-      `other.registerTool(tool, { anything: 1 })`.replace("other.registerTool", "register"),
-    ],
-    invalid: [
-      {
-        code: `mc.registerTool(tool, { origins: [] });`,
-        errors: [{ messageId: "unknown", data: { method: "registerTool", name: "origins", keys: "signal and exposedTo" } }],
-      },
-      { code: `const opts = { from: [] }; mc.getTools(opts);`, errors: [{ messageId: "unknown" }] },
-      { code: `mc.executeTool(tool, {}, { timeout: 1 });`, errors: [{ messageId: "unknown" }] },
-    ],
-  });
-});
-
-test("require-execute, valid-event-name and no-unbound-method", () => {
-  tester.run("require-execute", plugin.rules["require-execute"], {
-    valid: [
-      good,
-      `mc.registerTool({ name: "ok", execute: handler })`,
-      `mc.registerTool({ ...base })`,
-      `useWebMCP({ name: "ok" })`,
-      `defineTool({ name: "ok" })`,
-    ],
-    invalid: [
-      { code: `mc.registerTool({ name: "ok", description: "Search the catalogue by keyword." });`, errors: [{ messageId: "missing", data: { name: "ok" } }] },
-      { code: `mc.registerTool({ name: "ok", execute: "handler" });`, errors: [{ messageId: "notCallable" }] },
-      { code: `const run = { go: 1 }; mc.registerTool({ name: "ok", execute: run });`, errors: [{ messageId: "notCallable" }] },
-    ],
-  });
+test("valid-event-name", () => {
   tester.run("valid-event-name", plugin.rules["valid-event-name"], {
     valid: [`mc.addEventListener("toolchange", f)`, `mc.addEventListener("toolcancel", f)`, `mc.ontoolactivated = f`, `el.addEventListener("click", f)`],
     invalid: [
@@ -573,19 +511,6 @@ test("require-execute, valid-event-name and no-unbound-method", () => {
       },
       { code: `mc.removeEventListener("toolcanceled", f)`, errors: [{ messageId: "unknown" }] },
       { code: `mc.ontoolsChanged = f`, errors: [{ messageId: "unknown" }] },
-    ],
-  });
-  tester.run("no-unbound-method", plugin.rules["no-unbound-method"], {
-    valid: [
-      good,
-      `const mc = document.modelContext; mc.registerTool(tool);`,
-      `const register = document.modelContext.registerTool.bind(document.modelContext);`,
-      `const { registerTool } = somethingElse;`,
-    ],
-    invalid: [
-      { code: `const { registerTool } = document.modelContext;`, errors: [{ messageId: "unbound", data: { method: "registerTool" } }] },
-      { code: `const mc = document.modelContext; const { getTools, executeTool } = mc;`, errors: [{ messageId: "unbound" }, { messageId: "unbound" }] },
-      { code: `const register = document.modelContext.registerTool; register(tool);`, errors: [{ messageId: "unbound" }] },
     ],
   });
 });

@@ -15,12 +15,12 @@ import type { ESLint, Linter, Rule as ESLintRule } from "eslint";
 
 import { builtinRules, type Rule as LintRule } from "webmcp-lint";
 import { noInterpolatedText } from "./interpolation.js";
-import { noUnboundMethod, noUnknownOptions, noUnknownToolProperties, requireExecute, validEventName } from "./api-usage.js";
+import { validEventName } from "./api-usage.js";
 import { createRule } from "./rule.js";
 
 export { createRule } from "./rule.js";
 export { noInterpolatedText, interpolationOf } from "./interpolation.js";
-export { noUnboundMethod, noUnknownOptions, noUnknownToolProperties, requireExecute, validEventName } from "./api-usage.js";
+export { validEventName } from "./api-usage.js";
 export { toolsFromCall, toolObjectsFromCall, staticValue, DYNAMIC, type ExtractedTool, type ToolObject, type Resolver } from "./extract.js";
 export { formTool, type ExtractedForm } from "./jsx.js";
 export { DEFAULT_DEFINITION_SITES, definitionSites, type DefinitionSite, type DefinitionSiteSetting, type WebMCPSettings } from "./settings.js";
@@ -47,17 +47,13 @@ export const staticRules: LintRule[] = builtinRules.filter((r) => r.scope === "t
 /**
  * Rules with no `webmcp-lint` counterpart, because they judge the source that
  * built a definition rather than the definition. By the time the engine sees a
- * tool, an interpolated description is just a string, a misspelt dictionary
- * member has been dropped, and an unbound method has already thrown.
+ * tool, an interpolated description is just a string, and a listener for an
+ * event nothing fires has simply never run.
  */
 const sourceOnlyRules: Record<string, { rule: ESLintRule.RuleModule; recommended: Linter.RuleSeverity }> = {
   // Interpolation is not by itself a bug; it is a question about provenance.
   "no-interpolated-text": { rule: noInterpolatedText, recommended: "warn" },
-  "no-unknown-tool-properties": { rule: noUnknownToolProperties, recommended: "error" },
-  "no-unknown-options": { rule: noUnknownOptions, recommended: "error" },
-  "require-execute": { rule: requireExecute, recommended: "error" },
   "valid-event-name": { rule: validEventName, recommended: "error" },
-  "no-unbound-method": { rule: noUnboundMethod, recommended: "error" },
 };
 
 const rules: Record<string, ESLintRule.RuleModule> = {

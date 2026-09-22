@@ -287,32 +287,6 @@ test("tool-shadowing treats missing provenance as unknown, not as a second scrip
   assert.match(found[0].message, /registered from https:\/\/widget\.test/);
 });
 
-test("annotations-valid knows the specification's hints and points at the rest", () => {
-  const r = lint(
-    snap([
-      { name: "ok", annotations: { readOnlyHint: true, untrustedContentHint: false, consequentialHint: false, debugging: true } },
-      { name: "cdp_spelling", annotations: { readOnly: true } },
-      { name: "mcp_hint", annotations: { destructiveHint: true, openWorldHint: false } },
-      { name: "stringy", annotations: { readOnlyHint: "false" } },
-      { name: "form", source: "declarative", annotations: { autosubmit: true } },
-    ]),
-  );
-  const found = r.findings.filter((f) => f.ruleId === "annotations-valid");
-  assert.deepEqual(
-    found.map((f) => [f.tool, f.path]),
-    [
-      ["cdp_spelling", "/annotations/readOnly"],
-      ["mcp_hint", "/annotations/destructiveHint"],
-      ["mcp_hint", "/annotations/openWorldHint"],
-      ["stringy", "/annotations/readOnlyHint"],
-    ],
-  );
-  assert.match(found[0].help ?? "", /Write "readOnlyHint"/);
-  assert.match(found[1].help ?? "", /Write "consequentialHint"/);
-  assert.match(found[2].help ?? "", /MCP hint/);
-  assert.match(found[3].message, /hints are booleans/);
-});
-
 test("opt-in rules: annotations-explicit, tool-title-missing and tool-name-style stay off until configured", () => {
   const s = snap([
     { name: "searchProducts", annotations: { readOnlyHint: true } },

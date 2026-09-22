@@ -1,74 +1,12 @@
 /**
- * Declarations that are syntactically fine and still say it in a way the API
- * will not read: annotation keys the specification does not know (an MCP
- * hint, or the CDP domain's spelling), a missing title, a name that does not
- * follow the project's convention, and `exposedTo` entries written as URLs
- * rather than origins.
+ * Declarations the API accepts and a project may still want to tighten: a
+ * missing title, a name that does not follow the project's convention, hints
+ * left to their defaults, and `exposedTo` entries written as URLs rather than
+ * origins.
  */
 import { namingStyle, type NamingStyle } from "./naming.js";
 import type { Finding } from "../types.js";
 import { defineRule, finding, forEachTool, opt } from "./helpers.js";
-
-/** The hints the specification's ToolAnnotations dictionary knows. */
-export const KNOWN_ANNOTATIONS = ["readOnlyHint", "untrustedContentHint", "consequentialHint", "debugging"] as const;
-
-/** Spellings that mean something elsewhere, with what to write instead. */
-const ANNOTATION_ALIASES: Record<string, string> = {
-  readOnly: "readOnlyHint",
-  readonly: "readOnlyHint",
-  readonlyHint: "readOnlyHint",
-  consequential: "consequentialHint",
-  untrustedContent: "untrustedContentHint",
-  destructiveHint: "consequentialHint",
-  idempotentHint: "",
-  openWorldHint: "",
-  title: "",
-};
-
-export const annotationsValid = defineRule({
-  id: "annotations-valid",
-  scope: "tool",
-  description:
-    "Annotations must use the specification's hint names (readOnlyHint, untrustedContentHint, consequentialHint, debugging) with boolean values; anything else is ignored by the API.",
-  severity: "error",
-  check: (ctx) =>
-    forEachTool(ctx, (tool) => {
-      const annotations = tool.annotations;
-      if (!annotations || typeof annotations !== "object") return [];
-      const known = new Set<string>(KNOWN_ANNOTATIONS);
-      if (tool.source === "declarative") known.add("autosubmit");
-      const out: Finding[] = [];
-      for (const [key, value] of Object.entries(annotations)) {
-        if (!known.has(key)) {
-          const alias = ANNOTATION_ALIASES[key];
-          const help =
-            alias === undefined
-              ? `The API knows ${KNOWN_ANNOTATIONS.join(", ")}; anything else is dropped.`
-              : alias
-                ? `Write "${alias}"; "${key}" is dropped by the API.`
-                : `"${key}" is an MCP hint that WebMCP does not have; the API drops it.`;
-          out.push(
-            finding(annotationsValid, `Annotation "${key}" of "${tool.name}" is not a WebMCP hint.`, {
-              tool: tool.name,
-              frame: tool.frame,
-              path: `/annotations/${key}`,
-              help,
-            }),
-          );
-        } else if (typeof value !== "boolean") {
-          out.push(
-            finding(annotationsValid, `Annotation "${key}" of "${tool.name}" is ${JSON.stringify(value)}; hints are booleans.`, {
-              tool: tool.name,
-              frame: tool.frame,
-              path: `/annotations/${key}`,
-              help: 'A non-boolean value is coerced, so a string like "false" reads as true.',
-            }),
-          );
-        }
-      }
-      return out;
-    }),
-});
 
 export const annotationsExplicit = defineRule({
   id: "annotations-explicit",
