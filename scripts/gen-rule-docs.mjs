@@ -210,9 +210,7 @@ for (const [name, body] of raw) {
 // Every `meta.docs.url` an editor might open has to land on a page that exists.
 // This catches an ESLint rule added without a counterpart page, which no amount
 // of comparing file contents would notice.
-const dangling = eslintRules
-  .map(([id, rule]) => [id, rule.meta?.docs?.url])
-  .filter(([, url]) => !url || !pages.has(url.split("/").pop()));
+const dangling = eslintRules.map(([id, rule]) => [id, rule.meta?.docs?.url]).filter(([, url]) => !url || !pages.has(url.split("/").pop()));
 if (dangling.length) {
   console.error("These ESLint rules point at a documentation page that is not generated:");
   for (const [id, url] of dangling) console.error(`  ${id} -> ${url ?? "(no url)"}`);
