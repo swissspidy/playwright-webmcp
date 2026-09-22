@@ -6,6 +6,12 @@ This repository uses [changesets](https://github.com/changesets/changesets) to v
 - When changesets land on `main`, the release workflow opens a "Version Packages" pull request that bumps versions and updates `CHANGELOG.md` files.
 - Merging that pull request publishes to npm with provenance.
 
+## Before the first release
+
+The four packages sit at `0.0.0` in the repository. Nothing is published yet, and changesets computes the next version from the one it finds in the manifest, so the placeholder decides what the first release is called: the `minor` in `initial-release.md` takes `0.0.0` to `0.1.0`, where it would have taken a declared `0.1.0` to `0.2.0` and skipped the number entirely. `0.0.0` is never published — it only exists so the first "Version Packages" pull request lands on `0.1.0`.
+
+Once that release is out, this stops mattering: every version after it is computed from the last published one, and the manifests hold real versions.
+
 ## What the release workflow needs
 
 - An `NPM_TOKEN` repository secret: a granular npm access token with read and write permission for the four packages (or, before the first publish, for new packages under the account and the `@swissspidy` scope), with two-factor bypass enabled so it can publish unattended. The workflow exposes it only to the publish step, through `pnpm_config__auth`, which carries the registry URL and the token together.
