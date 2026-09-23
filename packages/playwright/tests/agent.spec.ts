@@ -108,6 +108,17 @@ test.describe("bring your own agent", () => {
     const broken = { tools: async () => Promise.reject(new Error("getTools exploded")), calls: () => [] } as unknown as typeof webmcp;
     expect(await runAgent(broken, async () => {}, "x")).toMatchObject({ status: "error", reason: "getTools exploded" });
 
+    // Discovery does not spend the agent's budget: a snapshot slower than timeoutMs leaves the agent all of it.
+    const sluggish = { tools: () => new Promise((resolve) => setTimeout(() => resolve([]), 300)), calls: () => [] } as unknown as typeof webmcp;
+    expect(await runAgent(sluggish, async () => "done", { prompts: ["x"], timeoutMs: 100 })).toMatchObject({ status: "ok", responses: ["done"] });
+    // It has a deadline of its own instead, so a snapshot that never finishes still ends the run.
+    const stuck = { tools: () => new Promise(() => {}), calls: () => [] } as unknown as typeof webmcp;
+    expect(await runAgent(stuck, async () => "done", { prompts: ["x"], discoveryTimeoutMs: 100 })).toMatchObject({
+      status: "timeout",
+      reason: "Tool discovery did not finish within 100 ms",
+      responses: [],
+    });
+
     const tools = await toolsForAgent(webmcp, { toolNames: ["add_to_cart"] });
     await expect(tools[0].execute({ productId: 999 })).rejects.toThrow(/Unknown product 999/);
     expect(webmcp.calls().at(-1)).toMatchObject({ name: "add_to_cart", via: "agent", error: expect.stringMatching(/Unknown product/) });

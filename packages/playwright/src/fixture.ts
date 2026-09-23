@@ -347,8 +347,9 @@ export class WebMCP {
 
   /** Registration timeline for the current navigation, with late-registration and churn findings. */
   async timeline(budgets: TimelineBudgets = {}): Promise<TimelineReport> {
-    // Registrations complete asynchronously and report afterwards; wait for the tool list to stop
-    // changing, then let this evaluate's round trip flush the reports that travel on the same channel.
+    // Registrations report as the page makes them, and a rejection takes one back once the browser
+    // answers; wait for the tool list to stop changing, then let this evaluate's round trip flush the
+    // reports that travel on the same channel.
     await this.settle();
     const marks = await this.page.evaluate(() => {
       const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;

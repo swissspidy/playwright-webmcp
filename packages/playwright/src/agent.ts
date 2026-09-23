@@ -54,6 +54,8 @@ export interface AgentRunOptions {
   toolNames?: string[];
   /** Give up after this long. For a function agent, the clock starts once its tools have been discovered. Default 60 s. */
   timeoutMs?: number;
+  /** How long a function agent's tool discovery may take, apart from `timeoutMs`; past it the run is a timeout. Default 10 s. */
+  discoveryTimeoutMs?: number;
 }
 
 export interface AgentRunResult {
@@ -132,14 +134,15 @@ export async function runAgent(webmcp: WebMCP, agent: EvalAgent, options: AgentR
   const before = new Set(webmcp.calls());
   const controller = new AbortController();
   const timeoutMs = opts.timeoutMs ?? 60_000;
+  const discoveryTimeoutMs = opts.discoveryTimeoutMs ?? 10_000;
   // The clock bounds the agent's own work, so it starts once the agent has what it needs. Tool
   // discovery is the fixture's part: a child frame whose getTools() is slow to settle under load can
   // hold it up for a second or more, which would spend a short budget before the agent ran at all.
-  // What stalls discovery, a frame's getTools() that does not settle, has its own bound: the
-  // page-side getTools() timeout.
+  // Discovery has a deadline of its own instead, so a snapshot that never finishes still ends the run.
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const startClock = () => {
-    timer = setTimeout(() => controller.abort(new Error(`Agent run exceeded ${timeoutMs} ms`)), timeoutMs);
+  const startClock = (ms = timeoutMs, message = `Agent run exceeded ${timeoutMs} ms`) => {
+    clearTimeout(timer);
+    timer = setTimeout(() => controller.abort(new Error(message)), ms);
   };
   const aborted = new Promise<never>((_resolve, reject) => controller.signal.addEventListener("abort", () => reject(controller.signal.reason), { once: true }));
   const result: AgentRunResult = { status: "ok", responses: [], calls: [], toolsOffered: [] };
@@ -157,7 +160,8 @@ export async function runAgent(webmcp: WebMCP, agent: EvalAgent, options: AgentR
       // natively the CDP collector sees those executions too, so reading the fixture back would count them twice.
       if (Array.isArray(ran.calls)) ownCalls = ran.calls;
     } else if (typeof agent === "function") {
-      const discovered = await toolsForAgent(webmcp, { toolNames: opts.toolNames });
+      startClock(discoveryTimeoutMs, `Tool discovery did not finish within ${discoveryTimeoutMs} ms`);
+      const discovered = await race(toolsForAgent(webmcp, { toolNames: opts.toolNames }));
       startClock();
       // A driver that ignores the signal must not still be able to act on the page after the run
       // returned: a late call would mutate it and be counted against whichever run comes next.
