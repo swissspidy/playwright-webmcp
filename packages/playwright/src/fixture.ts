@@ -86,6 +86,8 @@ export class WebMCP {
   private installed = false;
   private cdpSession: CDPSession | undefined;
   private timelineEvents: RegistrationEvent[] = [];
+  /** The page's id for each timeline event, so a rejection can take back the report it follows. */
+  private readonly registrationIds = new WeakMap<RegistrationEvent, string>();
   private readonly mocks = new Map<string, (args: Record<string, unknown>) => unknown | Promise<unknown>>();
   private lastSnapshot: PageSnapshot | undefined;
   /** CDP collector; `enabled` is true only when the browser implements the WebMCP domain. */
@@ -115,12 +117,20 @@ export class WebMCP {
           // A report from a document that has since been navigated away can arrive after the
           // navigation reset the timeline; it belongs to the old page, not this one.
           if (typeof entry.frameUrl === "string" && source.frame.url() !== entry.frameUrl) return;
-          this.timelineEvents.push({
+          const id = typeof entry.id === "string" ? entry.id : undefined;
+          if (entry.type === "rejected") {
+            // The page reports a registration as it makes it; the browser refused this one.
+            if (id !== undefined) this.timelineEvents = this.timelineEvents.filter((e) => this.registrationIds.get(e) !== id);
+            return;
+          }
+          const event: RegistrationEvent = {
             type: entry.type as RegistrationEvent["type"],
             name: String(entry.name),
             at: Number(entry.at),
             frameUrl: String(entry.frameUrl),
-          });
+          };
+          if (id !== undefined) this.registrationIds.set(event, id);
+          this.timelineEvents.push(event);
         } else {
           const { kind: _kind, ...call } = entry;
           this.recordObserved(call as unknown as RecordedCall);
@@ -337,8 +347,9 @@ export class WebMCP {
 
   /** Registration timeline for the current navigation, with late-registration and churn findings. */
   async timeline(budgets: TimelineBudgets = {}): Promise<TimelineReport> {
-    // Registrations complete asynchronously and report afterwards; wait for the tool list to stop
-    // changing, then let this evaluate's round trip flush the reports that travel on the same channel.
+    // Registrations report as the page makes them, and a rejection takes one back once the browser
+    // answers; wait for the tool list to stop changing, then let this evaluate's round trip flush the
+    // reports that travel on the same channel.
     await this.settle();
     const marks = await this.page.evaluate(() => {
       const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;

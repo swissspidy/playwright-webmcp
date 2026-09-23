@@ -16,6 +16,51 @@ test.describe("registration timeline", () => {
     await expect(webmcp).not.toRegisterToolsWithin(0);
   });
 
+  test("a registration is dated when the page makes it, not when registerTool() settles", async ({ page, webmcp }) => {
+    await page.goto("/");
+    // registerTool() can settle seconds after the browser registered the tool (in a child frame under
+    // load). Keep the page busy from the call until the earliest the promise can settle: the timeline
+    // must date the registration before that.
+    const busyUntil = await page.evaluate(async () => {
+      const registering = document.modelContext!.registerTool({
+        name: "dated_tool",
+        description: "Registered while the page stays busy.",
+        inputSchema: { type: "object", properties: {} },
+        execute: async () => ({}),
+      });
+      const until = performance.now() + 50;
+      while (performance.now() < until) {}
+      await registering;
+      return until;
+    });
+    const report = await webmcp.timeline();
+    expect(report.events.find((e) => e.name === "dated_tool")?.at).toBeLessThanOrEqual(busyUntil - 50);
+  });
+
+  test("a registration the browser rejects is taken back", async ({ page, webmcp }) => {
+    await page.goto("/");
+    await expect(webmcp).toHaveTool("search_products");
+    // Registrations are reported as the page makes them, before the browser answers. A duplicate
+    // name is refused, and that must not leave a second registration in the timeline.
+    const rejected = await page.evaluate(async () => {
+      try {
+        await document.modelContext!.registerTool({
+          name: "search_products",
+          description: "A second tool under a name that is already registered.",
+          inputSchema: { type: "object", properties: {} },
+          execute: async () => ({}),
+        });
+        return false;
+      } catch {
+        return true;
+      }
+    });
+    // The API rejects a name that is already registered; without that, the rest proves nothing.
+    expect(rejected).toBe(true);
+    const report = await webmcp.timeline();
+    expect(report.events.filter((e) => e.name === "search_products")).toHaveLength(1);
+  });
+
   test("timeline resets on navigation", async ({ page, webmcp }) => {
     await page.goto("/late.html");
     await page.goto("/");

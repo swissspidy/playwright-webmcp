@@ -52,8 +52,11 @@ export const RECORDER_SOURCE = String.raw`(() => {
   function nowMs() {
     return typeof performance !== "undefined" && performance.now ? performance.now() : Date.now();
   }
-  function reportRegistration(type, name) {
-    report({ kind: "registration", type, name, at: nowMs(), frameUrl: location.href });
+  // Registrations are numbered per document, so a rejection can take back exactly the report it follows.
+  const documentId = Math.random().toString(36).slice(2);
+  let registrations = 0;
+  function reportRegistration(type, name, id) {
+    report({ kind: "registration", type, name, id, at: nowMs(), frameUrl: location.href });
   }
   function wrapTool(tool) {
     if (tool && typeof tool.execute === "function" && !tool.execute.__webmcpWrapped) {
@@ -71,15 +74,29 @@ export const RECORDER_SOURCE = String.raw`(() => {
     const origExecuteTool = typeof mc.executeTool === "function" ? mc.executeTool.bind(mc) : null;
     if (origRegister) mc.registerTool = async (tool, options) => {
       const name = tool && tool.name;
+      // The timeline hears about a registration when the page makes it, not when registerTool()
+      // settles. The browser accepts it at once, but in a child frame under load the promise can take
+      // seconds to resolve: reporting then would date the tool seconds late, flagging it as registered
+      // after load, or leave it out of a timeline read in between. A rejection, such as a duplicate
+      // name, takes the report back.
+      const id = documentId + ":" + ++registrations;
+      reportRegistration("registered", name, id);
+      let rejected = false;
+      if (options && options.signal) options.signal.addEventListener("abort", () => {
+        if (!rejected) reportRegistration("unregistered", name, id);
+      }, { once: true });
+      let r;
+      try {
+        r = await origRegister(wrapTool(tool), options);
+      } catch (err) {
+        rejected = true;
+        reportRegistration("rejected", name, id);
+        throw err;
+      }
       // Only a registration the browser accepted is mockable, and only its own abort signal removes it:
       // a rejected duplicate must neither mark the original nor unmark it later.
-      const r = await origRegister(wrapTool(tool), options);
       if (isWrapped(tool)) wrappedNames.add(name);
-      reportRegistration("registered", name);
-      if (options && options.signal) options.signal.addEventListener("abort", () => {
-        wrappedNames.delete(name);
-        reportRegistration("unregistered", name);
-      }, { once: true });
+      if (options && options.signal) options.signal.addEventListener("abort", () => wrappedNames.delete(name), { once: true });
       return r;
     };
     if (origExecuteTool) {
