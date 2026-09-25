@@ -61,7 +61,7 @@
     "@types/estree": "^1.0.9",
     "@types/node": "^26.6.2",
     "eslint": "^10.10.0",
-    "oxlint": "^1.83.0",
+    "oxlint": "^1.85.0",
     "typescript": "^7.0.2"
   }
 }
