@@ -20,10 +20,10 @@
  */
 import type { Rule as ESLintRule } from "eslint";
 import type * as ESTree from "estree";
-import { findProperty, staticValue, toolObjectsFromCall, unwrap, type Resolver } from "./extract.js";
+import { DYNAMIC, findProperty, staticValue, unwrap, type Resolver } from "./extract.js";
+import { discoverTools } from "./discover.js";
 import { elementsWithin, type JSXAttributeNode, type JSXElementNode, type JSXOpeningElementNode } from "./jsx.js";
 import { makeResolver } from "./rule.js";
-import { definitionSites } from "./settings.js";
 import { ruleDocsUrl } from "./docs-url.js";
 
 type Shape = "template" | "concatenation";
@@ -52,7 +52,9 @@ function assemblesText(node: ESTree.Node, resolve: Resolver): boolean {
 export function interpolationOf(node: ESTree.Node, resolve: Resolver): { shape: Shape; node: ESTree.Node } | undefined {
   const n = unwrap(resolve(node));
   if (n.type === "TemplateLiteral" && n.expressions.length > 0) return { shape: "template", node: n };
-  if (n.type === "BinaryExpression" && n.operator === "+" && assemblesText(n, resolve)) return { shape: "concatenation", node: n };
+  // Literals joined with `+` to wrap a long line are written out, not assembled.
+  if (n.type === "BinaryExpression" && n.operator === "+" && assemblesText(n, resolve) && staticValue(n, resolve) === DYNAMIC)
+    return { shape: "concatenation", node: n };
   return undefined;
 }
 
@@ -100,7 +102,6 @@ export const noInterpolatedText: ESLintRule.RuleModule = {
   create(context) {
     const options = (context.options[0] ?? {}) as { fields?: string[] };
     const fields = new Set(options.fields ?? ["name", "title", "description", "parameters"]);
-    const sites = definitionSites(context.settings);
     const resolve = makeResolver(context.sourceCode);
 
     const report = (node: ESTree.Node, shape: Shape, what: string, subject: string) => {
@@ -145,16 +146,14 @@ export const noInterpolatedText: ESLintRule.RuleModule = {
     };
 
     return {
-      CallExpression(node) {
-        // Definition objects, not extracted tools: a tool whose name is computed
-        // has no definition to lint, and that computation is this rule's subject.
-        for (const { node: obj } of toolObjectsFromCall(node as ESTree.CallExpression, sites, resolve)) {
-          const nameProp = findProperty(obj, "name");
-          const name = nameProp && nameProp.value.type !== "AssignmentPattern" ? staticValue(nameProp.value as ESTree.Node, resolve) : undefined;
-          const named = typeof name === "string" && name ? ` of "${name}"` : "";
-          checkObject(obj, (field) => (field === "name" ? "This tool's name" : `The ${field}${named}`));
-        }
-      },
+      // Definition objects, not extracted tools: a tool whose name is computed
+      // has no definition to lint, and that computation is this rule's subject.
+      ...discoverTools(context, resolve, ({ node: obj }) => {
+        const nameProp = findProperty(obj, "name");
+        const name = nameProp && nameProp.value.type !== "AssignmentPattern" ? staticValue(nameProp.value as ESTree.Node, resolve) : undefined;
+        const named = typeof name === "string" && name ? ` of "${name}"` : "";
+        checkObject(obj, (field) => (field === "name" ? "This tool's name" : `The ${field}${named}`));
+      }),
       // `<form toolname={...} tooldescription={...}>` and its fields.
       JSXElement(node: unknown) {
         const el = node as JSXElementNode;
