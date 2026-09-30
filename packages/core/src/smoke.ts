@@ -23,6 +23,8 @@ export interface SmokeRun {
    * from a missing one.
    */
   annotations?: Record<string, unknown> | null;
+  /** The page URL after the call, when the runner saw it change during the call. */
+  navigatedTo?: string;
 }
 
 export interface SmokeBudgets {
@@ -60,6 +62,11 @@ export const SMOKE_RULES = {
     severity: "warning" as Severity,
     description:
       "Result text of a tool declared untrustedContent looks like an instruction to the agent; the declaration is there, so this is for the client to contain.",
+  },
+  "result-navigates": {
+    severity: "warning" as Severity,
+    description:
+      "The call changed the page URL, but the tool does not declare consequentialHint, or declares readOnlyHint; a client cannot tell the view will change under the user.",
   },
   "untrusted-content-unmarked": {
     severity: "error" as Severity,
@@ -108,6 +115,28 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
   const maxMs = budgets.maxDurationMs ?? 5_000;
   const out: Finding[] = [];
   const where = `${run.tool} (${run.label})`;
+
+  if (run.navigatedTo !== undefined) {
+    const hints = toolHints(run.annotations);
+    if (hints.readOnly === true)
+      out.push(
+        make(
+          "result-navigates",
+          run,
+          `${where} navigated to ${run.navigatedTo} but declares readOnlyHint.`,
+          "A tool that changes the page is not read-only; drop readOnlyHint and declare consequentialHint.",
+        ),
+      );
+    else if (hints.consequential === undefined)
+      out.push(
+        make(
+          "result-navigates",
+          run,
+          `${where} navigated to ${run.navigatedTo} but does not declare consequentialHint.`,
+          "Set consequentialHint to true so clients can confirm before the view changes, or to false if you decided it is not.",
+        ),
+      );
+  }
 
   if (run.kind === "invalid") {
     if (run.ok) {

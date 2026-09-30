@@ -338,18 +338,19 @@ Crawls same-origin links, lints every page, detects tools whose description or s
 
 `smoke()` derives inputs from each tool's `inputSchema` and runs them: the required parameters only, all parameters, boundary values (minimum, maximum, maxLength, empty strings and arrays, each enum value), and invalid inputs (missing required, wrong type, out of range, outside enum). Every result is judged:
 
-| Rule                           | Severity | Checks                                                                               |
-| ------------------------------ | -------- | ------------------------------------------------------------------------------------ |
-| `result-error-on-valid-input`  | error    | A schema-valid call threw or reported an error.                                      |
-| `result-contains-null`         | error    | Result contains `null` anywhere; Chrome's Prompt API rejects it.                     |
-| `result-not-serializable`      | error    | Result cannot be JSON serialized.                                                    |
-| `result-undefined`             | warning  | Tool returned nothing.                                                               |
-| `result-too-large`             | warning  | Serialized result above `maxResultChars` (1,500 characters).                         |
-| `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                              |
-| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error, or the error came back as a result.     |
-| `result-string-json`           | info     | Returned JSON as a string rather than an object.                                     |
-| `untrusted-content-unmarked`   | error    | Result text reads as an instruction and the tool declares no `untrustedContentHint`. |
-| `result-suspicious-content`    | warning  | The same, on a tool that did declare it: the boundary is marked.                     |
+| Rule                           | Severity | Checks                                                                                        |
+| ------------------------------ | -------- | --------------------------------------------------------------------------------------------- |
+| `result-error-on-valid-input`  | error    | A schema-valid call threw or reported an error.                                               |
+| `result-contains-null`         | error    | Result contains `null` anywhere; Chrome's Prompt API rejects it.                              |
+| `result-not-serializable`      | error    | Result cannot be JSON serialized.                                                             |
+| `result-undefined`             | warning  | Tool returned nothing.                                                                        |
+| `result-too-large`             | warning  | Serialized result above `maxResultChars` (1,500 characters).                                  |
+| `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                                       |
+| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error, or the error came back as a result.              |
+| `result-string-json`           | info     | Returned JSON as a string rather than an object.                                              |
+| `result-navigates`             | warning  | The call changed the page URL and the tool declares `readOnlyHint` or no `consequentialHint`. |
+| `untrusted-content-unmarked`   | error    | Result text reads as an instruction and the tool declares no `untrustedContentHint`.          |
+| `result-suspicious-content`    | warning  | The same, on a tool that did declare it: the boundary is marked.                              |
 
 Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it. Every run is recorded as a `SmokeRun` (tool, input kind and label, arguments, result or error, duration); `formatSmokeRuns()` renders them as a Markdown table, which is what `@swissspidy/webmcp-audit` puts in its report.
 
@@ -433,7 +434,7 @@ The same engine runs wherever tool definitions are available.
 
 **In ESLint or oxlint.** `@swissspidy/eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed.
 
-It also carries rules with no `@swissspidy/webmcp-lint` counterpart, because only the source shows what they catch and nothing survives to runtime. `webmcp/valid-event-name` flags a listener for a `tool*` event other than `toolchange`, `toolactivated` and `toolcancel`, which the typings let through and which never fires. And `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
+It also carries rules with no `@swissspidy/webmcp-lint` counterpart, because only the source shows what they catch and nothing survives to runtime. `webmcp/valid-event-name` flags a listener for a `tool*` event other than `toolchange`, `toolactivated` and `toolcancel`, which the typings let through and which never fires. And `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. `webmcp/navigation-consequential` (warning) reads a tool's `execute`, and functions it calls in the same file, for navigation: `location` assignments and methods, the History and Navigation APIs, router objects and a bare `navigate()`. A tool that navigates should declare `consequentialHint` (`false` counts as a decision) and never `readOnlyHint`. A handler reached through an event or another module is out of its sight; smoke's `result-navigates` catches those at runtime by watching the URL. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js

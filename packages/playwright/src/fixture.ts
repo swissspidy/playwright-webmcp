@@ -267,7 +267,12 @@ export class WebMCP {
    */
   async smoke(options: SmokeOptions = {}): Promise<SmokeReport & { skipped: string[] }> {
     const tools = await this.tools();
-    const report = await runSmoke(tools, (name, args) => this.call(name, args), options);
+    const report = await runSmoke(
+      tools,
+      (name, args) => this.call(name, args),
+      options,
+      () => this.page.url(),
+    );
     await this.attach(ATTACHMENTS.smoke, { url: this.page.url(), ...report });
     return report;
   }

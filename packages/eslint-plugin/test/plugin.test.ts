@@ -33,7 +33,7 @@ test("exposes every tool-scoped imperative rule and a recommended config", () =>
   assert.ok(!ids.includes("duplicate-tool-name"), "page rules are not exposed");
   assert.ok(ids.includes("declarative-description"), "form rules are exposed for JSX");
   assert.ok(ids.includes("no-interpolated-text"), "source-only rules are exposed too");
-  assert.equal(ids.length, staticRules.length + 2);
+  assert.equal(ids.length, staticRules.length + 3);
   assert.equal(plugin.meta.name, "@swissspidy/eslint-plugin-webmcp");
   assert.match(plugin.meta.version, /^\d+\.\d+\.\d+/);
   assert.equal(plugin.configs.recommended.rules?.["webmcp/tool-name-valid"], "error");
@@ -545,4 +545,72 @@ test("JSX label text reaches the derived schema the way the browser derives it",
     ["webmcp/declarative-field-description", 'Field "card" of form tool "signup" has neither a label nor toolparamdescription.'],
     ["webmcp/param-description-missing", 'Parameter "card" of "signup" has no description.'],
   ]);
+});
+
+test("navigation-consequential: a tool whose execute navigates declares consequentialHint", () => {
+  const tool = (annotations: string, execute: string) =>
+    `mc.registerTool({ name: "search_flights", description: "Search flights.", ${annotations} ${execute} });`;
+  tester.run("navigation-consequential", plugin.rules["navigation-consequential"], {
+    valid: [
+      good,
+      tool("annotations: { consequentialHint: true },", `execute() { location.href = "/results"; }`),
+      // An explicit false is a decision, not an omission.
+      tool("annotations: { consequentialHint: false },", `execute: () => navigate("/results"),`),
+      // The CDP spelling counts too.
+      tool("annotations: { consequential: true },", `execute: () => history.pushState({}, "", "/results"),`),
+      // Unknown annotations or execute: nothing to judge.
+      tool("annotations: hints,", `execute: () => navigate("/results"),`),
+      tool("", `execute: handlerFromElsewhere,`),
+      // Hash changes and new windows do not replace the view.
+      tool("", `execute() { location.hash = "#results"; window.open("/results"); }`),
+      // Unrelated methods with the same names.
+      tool("", `execute() { list.push(1); text.replace("a", "b"); }`),
+    ],
+    invalid: [
+      {
+        code: tool("", `execute({ from, to }) { navigate(\`/results?from=\${from}&to=\${to}\`); return "ok"; }`),
+        errors: [{ messageId: "undeclared", data: { name: "search_flights", how: "calls navigate()" }, line: 1, column: 100 }],
+      },
+      {
+        code: tool("", `execute: () => { window.location.href = "/results"; },`),
+        errors: [{ messageId: "undeclared", data: { name: "search_flights", how: "sets location.href" } }],
+      },
+      {
+        code: tool("", `execute: () => { document.location = "/results"; },`),
+        errors: [{ messageId: "undeclared", data: { name: "search_flights", how: "assigns location" } }],
+      },
+      {
+        code: tool("", `execute: () => location.assign("/results"),`),
+        errors: [{ messageId: "undeclared", data: { name: "search_flights", how: "calls location.assign()" } }],
+      },
+      {
+        code: tool("", `execute: () => router.push("/results"),`),
+        errors: [{ messageId: "undeclared", data: { name: "search_flights", how: "calls router.push()" } }],
+      },
+      {
+        code: tool("", `async execute() { await this.router.navigate(["/results"]); },`),
+        errors: [{ messageId: "undeclared", data: { name: "search_flights", how: "calls router.navigate()" } }],
+      },
+      {
+        code: tool("", `execute: () => navigation.navigate("/results"),`),
+        errors: [{ messageId: "undeclared", data: { name: "search_flights", how: "calls navigation.navigate()" } }],
+      },
+      {
+        code: tool("annotations: { readOnlyHint: true, consequentialHint: false },", `execute: () => history.pushState({}, "", "/results"),`),
+        errors: [{ messageId: "readOnly", data: { name: "search_flights", how: "calls history.pushState()" } }],
+      },
+      {
+        // The handler is defined elsewhere in the file, and navigates from a callback.
+        code: `
+function goToResults(query) { setTimeout(() => navigate("/results?" + query)); }
+const handleSearch = (args) => { validate(args); goToResults(new URLSearchParams(args)); return "ok"; };
+mc.registerTool({ name: "search_flights", description: "Search flights.", execute: handleSearch });`,
+        errors: [{ messageId: "undeclared", line: 2 }],
+      },
+      {
+        code: `useWebMCP({ name: "open_cart", description: "Open the cart.", annotations: { readOnlyHint: false }, execute: async () => { router.replace("/cart"); } });`,
+        errors: [{ messageId: "undeclared", data: { name: "open_cart", how: "calls router.replace()" } }],
+      },
+    ],
+  });
 });

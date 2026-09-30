@@ -119,7 +119,13 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
     const snapshot = await webmcp.snapshot();
     const lintResult = lint(snapshot, options.lint ?? {});
     let smoke: PageAudit["smoke"];
-    if (options.smoke) smoke = await runSmoke(snapshot.tools, (name, args) => webmcp.call(name, args), options.smokeOptions ?? {});
+    if (options.smoke)
+      smoke = await runSmoke(
+        snapshot.tools,
+        (name, args) => webmcp.call(name, args),
+        options.smokeOptions ?? {},
+        () => page.url(),
+      );
     const coverage = smoke ? computeCoverage(snapshot.tools, webmcp.calls()) : undefined;
     const score = computeScore({ lint: lintResult, smoke, coverage });
     return {

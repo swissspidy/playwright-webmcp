@@ -138,3 +138,16 @@ test("result-too-large counts characters against a 1,500 default", () => {
   assert.deepEqual(ids("航".repeat(1_000)), []);
   assert.deepEqual(ids("x".repeat(1_499), { maxResultChars: 5_000 }), []);
 });
+
+test("result-navigates: a call that changed the URL declares consequentialHint", () => {
+  const base = { tool: "search_flights", kind: "valid-minimal" as const, label: "x", args: {}, ok: true, result: "ok", durationMs: 1 };
+  const judge = (run: Partial<typeof base> & { annotations?: Record<string, unknown>; navigatedTo?: string }) => judgeRuns([{ ...base, ...run }]).findings;
+  assert.deepEqual(judge({ annotations: {} }), []);
+  const [undeclared] = judge({ annotations: { readOnlyHint: false }, navigatedTo: "https://example.test/results?from=SFO" });
+  assert.equal(undeclared.ruleId, "result-navigates");
+  assert.match(undeclared.message, /navigated to https:\/\/example.test\/results\?from=SFO but does not declare consequentialHint/);
+  assert.deepEqual(judge({ annotations: { consequentialHint: true }, navigatedTo: "/r" }), []);
+  assert.deepEqual(judge({ annotations: { consequential: false }, navigatedTo: "/r" }), []);
+  const [readOnly] = judge({ annotations: { readOnlyHint: true, consequentialHint: false }, navigatedTo: "/r" });
+  assert.match(readOnly.message, /declares readOnlyHint/);
+});

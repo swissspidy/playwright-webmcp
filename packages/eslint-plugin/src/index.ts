@@ -16,11 +16,13 @@ import type { ESLint, Linter, Rule as ESLintRule } from "eslint";
 import { builtinRules, type Rule as LintRule } from "@swissspidy/webmcp-lint";
 import { noInterpolatedText } from "./interpolation.js";
 import { validEventName } from "./api-usage.js";
+import { navigationConsequential } from "./navigation.js";
 import { createRule } from "./rule.js";
 
 export { createRule } from "./rule.js";
 export { noInterpolatedText, interpolationOf } from "./interpolation.js";
 export { validEventName } from "./api-usage.js";
+export { navigationConsequential } from "./navigation.js";
 export { toolsFromCall, toolObjectsFromCall, staticValue, DYNAMIC, type ExtractedTool, type ToolObject, type Resolver } from "./extract.js";
 export { formTool, type ExtractedForm } from "./jsx.js";
 export { DEFAULT_DEFINITION_SITES, definitionSites, type DefinitionSite, type DefinitionSiteSetting, type WebMCPSettings } from "./settings.js";
@@ -47,13 +49,16 @@ export const staticRules: LintRule[] = builtinRules.filter((r) => r.scope === "t
 /**
  * Rules with no `webmcp-lint` counterpart, because they judge the source that
  * built a definition rather than the definition. By the time the engine sees a
- * tool, an interpolated description is just a string, and a listener for an
- * event nothing fires has simply never run.
+ * tool, an interpolated description is just a string, a listener for an event
+ * nothing fires has simply never run, and what `execute` does is not part of
+ * the declaration at all.
  */
 const sourceOnlyRules: Record<string, { rule: ESLintRule.RuleModule; recommended: Linter.RuleSeverity }> = {
   // Interpolation is not by itself a bug; it is a question about provenance.
   "no-interpolated-text": { rule: noInterpolatedText, recommended: "warn" },
   "valid-event-name": { rule: validEventName, recommended: "error" },
+  // Detection is a heuristic over the source, and false is a legitimate answer: a warning.
+  "navigation-consequential": { rule: navigationConsequential, recommended: "warn" },
 };
 
 const rules: Record<string, ESLintRule.RuleModule> = {

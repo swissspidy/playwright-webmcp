@@ -2,7 +2,7 @@
 
 # Rules
 
-30 rules: 28 from the `@swissspidy/webmcp-lint` engine and 2 that exist only as ESLint rules.
+31 rules: 28 from the `@swissspidy/webmcp-lint` engine and 3 that exist only as ESLint rules.
 
 Every page here is generated from the rule itself, so the severities, defaults and options on them are the ones the code actually uses.
 
@@ -48,11 +48,12 @@ Judge the tool surface as a whole, so they need a full snapshot and have no ESLi
 | [`too-many-tools`](./too-many-tools.md)                     | `warning` | on      | Large tool lists overflow small on-device model contexts and degrade tool selection.                                                                                                                 |
 | [`tool-shadowing`](./tool-shadowing.md)                     | `error`   | on      | Two tools whose names read alike, registered from different frames, origins or scripts: an agent choosing between them is choosing by a difference it cannot see.                                    |
 
-## ESLint-only rules (2)
+## ESLint-only rules (3)
 
 Read the source rather than a tool definition, so they have no engine counterpart.
 
-| Rule                                                       | Type         | In `recommended` | What it catches                                                                                                                        |
-| ---------------------------------------------------------- | ------------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| [`webmcp/no-interpolated-text`](./no-interpolated-text.md) | `suggestion` | yes              | Tool names, titles and descriptions should be written out, not assembled at runtime from values the author cannot name the source of.  |
-| [`webmcp/valid-event-name`](./valid-event-name.md)         | `problem`    | yes              | ModelContext fires toolchange, toolactivated and toolcancel; a listener on document.modelContext for any other tool* event never runs. |
+| Rule                                                               | Type         | In `recommended` | What it catches                                                                                                                                                                         |
+| ------------------------------------------------------------------ | ------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`webmcp/navigation-consequential`](./navigation-consequential.md) | `suggestion` | yes              | A tool whose execute navigates changes what the user sees and, across documents, unregisters the page's tools; it should say so with consequentialHint and must not claim readOnlyHint. |
+| [`webmcp/no-interpolated-text`](./no-interpolated-text.md)         | `suggestion` | yes              | Tool names, titles and descriptions should be written out, not assembled at runtime from values the author cannot name the source of.                                                   |
+| [`webmcp/valid-event-name`](./valid-event-name.md)                 | `problem`    | yes              | ModelContext fires toolchange, toolactivated and toolcancel; a listener on document.modelContext for any other tool* event never runs.                                                  |

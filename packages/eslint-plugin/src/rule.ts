@@ -22,7 +22,7 @@ import { ruleDocsUrl } from "./docs-url.js";
 const EXPOSED_TO_RULES = new Set(["exposed-to-secure-origins", "exposed-to-origin-only"]);
 
 const NEEDS: Record<string, string[]> = {
-  description: ["description-missing", "description-length", "description-injection", "declarative-description"],
+  description: ["description-missing", "description-length", "description-when-to-use", "description-injection", "declarative-description"],
   inputSchema: ["param-description-missing", "schema-shape", "schema-no-null-literals", "schema-depth", "schema-unsupported-keywords", "sensitive-params"],
   exposedTo: ["exposed-to-secure-origins", "exposed-to-origin-only"],
   annotations: ["annotations-explicit"],
