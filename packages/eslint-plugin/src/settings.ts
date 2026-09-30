@@ -30,6 +30,13 @@ export type DefinitionSiteSetting = string | DefinitionSite;
 export interface WebMCPSettings {
   /** Extra definition sites, added to the defaults. */
   definitions?: DefinitionSiteSetting[];
+  /**
+   * Also lint object literals shaped like a tool (a literal `name`, `execute`
+   * and `inputSchema`, or typed `ModelContextTool`) wherever they are written,
+   * such as a tool exported from one module and registered in another.
+   * Default true.
+   */
+  toolObjects?: boolean;
 }
 
 export const DEFAULT_DEFINITION_SITES: DefinitionSite[] = [
@@ -65,4 +72,9 @@ export function definitionSites(settings: unknown): DefinitionSite[] {
     else if (existing.options === undefined) existing.options = site.options;
   }
   return [...byLocation.values()];
+}
+
+/** Whether tool-shaped object literals outside definition sites are linted. */
+export function toolObjectsEnabled(settings: unknown): boolean {
+  return (settings as { webmcp?: WebMCPSettings } | undefined)?.webmcp?.toolObjects !== false;
 }

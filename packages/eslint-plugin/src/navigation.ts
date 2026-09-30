@@ -16,9 +16,9 @@
 import type { Rule as ESLintRule, Scope } from "eslint";
 import type * as ESTree from "estree";
 import { toolHints } from "@swissspidy/webmcp-lint";
-import { DYNAMIC, findProperty, staticValue, toolObjectsFromCall, unwrap, type Resolver } from "./extract.js";
+import { DYNAMIC, findProperty, staticValue, unwrap, type Resolver } from "./extract.js";
+import { discoverTools } from "./discover.js";
 import { makeResolver } from "./rule.js";
-import { definitionSites } from "./settings.js";
 import { ruleDocsUrl } from "./docs-url.js";
 
 type Node = ESTree.Node;
@@ -152,33 +152,28 @@ export const navigationConsequential: ESLintRule.RuleModule = {
     },
   },
   create(context) {
-    const sites = definitionSites(context.settings);
     const resolve = makeResolver(context.sourceCode);
-    return {
-      CallExpression(call) {
-        for (const { node: obj } of toolObjectsFromCall(call as ESTree.CallExpression, sites, resolve)) {
-          // A spread may carry annotations or execute this rule cannot see.
-          if (obj.properties.some((p) => p.type !== "Property")) continue;
-          const execute = findProperty(obj, "execute");
-          if (!execute) continue;
-          const fn = functionOf(execute.value as Node, resolve, context.sourceCode);
-          if (!fn) continue;
-          const annotationsProp = findProperty(obj, "annotations");
-          const annotations = annotationsProp ? staticValue(annotationsProp.value as Node, resolve) : undefined;
-          if (annotations === DYNAMIC) continue;
-          const hints = toolHints(annotations as Record<string, unknown> | undefined);
-          if (hints.readOnly !== true && hints.consequential !== undefined) continue;
-          const hit = findNavigation(fn, resolve, context.sourceCode);
-          if (!hit) continue;
-          const nameProp = findProperty(obj, "name");
-          const name = nameProp ? staticValue(nameProp.value as Node, resolve) : undefined;
-          context.report({
-            node: hit.node as ESLintRule.Node,
-            messageId: hints.readOnly === true ? "readOnly" : "undeclared",
-            data: { name: typeof name === "string" ? name : "(computed)", how: hit.how },
-          });
-        }
-      },
-    };
+    return discoverTools(context, resolve, ({ node: obj }) => {
+      // A spread may carry annotations or execute this rule cannot see.
+      if (obj.properties.some((p) => p.type !== "Property")) return;
+      const execute = findProperty(obj, "execute");
+      if (!execute) return;
+      const fn = functionOf(execute.value as Node, resolve, context.sourceCode);
+      if (!fn) return;
+      const annotationsProp = findProperty(obj, "annotations");
+      const annotations = annotationsProp ? staticValue(annotationsProp.value as Node, resolve) : undefined;
+      if (annotations === DYNAMIC) return;
+      const hints = toolHints(annotations as Record<string, unknown> | undefined);
+      if (hints.readOnly !== true && hints.consequential !== undefined) return;
+      const hit = findNavigation(fn, resolve, context.sourceCode);
+      if (!hit) return;
+      const nameProp = findProperty(obj, "name");
+      const name = nameProp ? staticValue(nameProp.value as Node, resolve) : undefined;
+      context.report({
+        node: hit.node as ESLintRule.Node,
+        messageId: hints.readOnly === true ? "readOnly" : "undeclared",
+        data: { name: typeof name === "string" ? name : "(computed)", how: hit.how },
+      });
+    });
   },
 };

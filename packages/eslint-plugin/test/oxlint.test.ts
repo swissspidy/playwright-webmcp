@@ -152,3 +152,25 @@ export const Form = () => <form toolname="subscribe" tooldescription={\`Join \${
   assert.equal(found[0].line, 2);
   assert.equal(found[1].line, 4);
 });
+
+test("oxlint finds tool objects outside a definition site, by shape or by type", () => {
+  const { status, stdout, stderr } = runOxlint(
+    {
+      "tools.ts": `import type { ModelContextTool } from "webmcp-types";
+export const shaped = { name: "bad name!", inputSchema: {}, execute: () => "ok" };
+export const typed = { name: "also bad!" } satisfies ModelContextTool;
+export const annotated: ModelContextTool = { name: "bad too!", description: "x" } as never;
+export const declared: ModelContextTool = { name: "still bad!", description: "x" };
+export const command = { name: "not a tool!", execute: () => "ok" };
+`,
+    },
+    { jsPlugins: [{ name: "webmcp", specifier: pluginPath }], rules: { "webmcp/tool-name-valid": "error" } },
+  );
+  assert.equal(status, 1, stderr);
+  assert.deepEqual(
+    diagnostics(stdout)
+      .map((d) => d.line)
+      .sort(),
+    [2, 3, 5],
+  );
+});

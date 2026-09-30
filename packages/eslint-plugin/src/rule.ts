@@ -1,6 +1,6 @@
 /**
  * Turns one tool-scoped webmcp-lint rule into an ESLint rule. Each rule
- * extracts the tool definitions passed to the calls named in the settings,
+ * extracts the tool definitions in the file (see ./discover.ts),
  * runs only its own webmcp-lint rule against each, and maps the findings back
  * to source locations. Nothing beyond the ESLint rule contract is used
  * (CallExpression visitor, `context.sourceCode.getScope`, `context.settings`,
@@ -9,9 +9,9 @@
 import type { Rule as ESLintRule, Scope } from "eslint";
 import type * as ESTree from "estree";
 import { builtinRules, lintTools, type Finding, type Rule as LintRule } from "@swissspidy/webmcp-lint";
-import { findProperty, nodeAtPath, toolsFromCall, unwrap, type ExtractedTool, type Resolver } from "./extract.js";
+import { findProperty, nodeAtPath, toolFromObject, unwrap, type ExtractedTool, type Resolver } from "./extract.js";
+import { discoverTools } from "./discover.js";
 import { formTool, type ExtractedForm, type JSXElementNode } from "./jsx.js";
-import { definitionSites } from "./settings.js";
 import { ruleDocsUrl } from "./docs-url.js";
 
 /**
@@ -184,7 +184,6 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
     },
     create(context) {
       const options = (context.options[0] ?? {}) as Record<string, unknown>;
-      const sites = definitionSites(context.settings);
       const resolve = makeResolver(context.sourceCode);
       const rules = Object.fromEntries(builtinRules.map((r) => [r.id, r.id === rule.id ? options : false]));
       const report = (definition: ExtractedTool["definition"], dynamic: Set<string>, locateFinding: (finding: Finding) => ESTree.Node) => {
@@ -200,11 +199,10 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
         }
       };
       return {
-        CallExpression(node) {
-          for (const tool of toolsFromCall(node as ESTree.CallExpression, sites, resolve)) {
-            report(tool.definition, tool.dynamic, (finding) => locate(tool, finding, resolve));
-          }
-        },
+        ...discoverTools(context, resolve, ({ node, exposedTo }) => {
+          const tool = toolFromObject(node, exposedTo, resolve);
+          if (tool) report(tool.definition, tool.dynamic, (finding) => locate(tool, finding, resolve));
+        }),
         // `<form toolname="...">` in JSX: the declarative tool the browser would derive from it.
         JSXElement(node: unknown) {
           const form = formTool(node as JSXElementNode, resolve);

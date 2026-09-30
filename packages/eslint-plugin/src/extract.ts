@@ -71,6 +71,14 @@ export function staticValue(input: Node, resolve: Resolver = identity): Static {
       return node.expressions.length === 0 ? (node.quasis[0]?.value.cooked ?? "") : DYNAMIC;
     case "Identifier":
       return node.name === "undefined" ? undefined : DYNAMIC;
+    case "BinaryExpression": {
+      // Text split over lines with `+` is still a literal: "Move the player. " + "Returns ...".
+      if (node.operator !== "+") return DYNAMIC;
+      const left = staticValue(node.left as Node, resolve);
+      const right = staticValue(node.right, resolve);
+      if (typeof left !== "string" || typeof right !== "string") return DYNAMIC;
+      return left + right;
+    }
     case "UnaryExpression": {
       const v = staticValue(node.argument, resolve);
       if (v === DYNAMIC) return DYNAMIC;
@@ -149,7 +157,8 @@ export interface ToolObject {
   exposedTo: ExposedTo;
 }
 
-function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: ExposedTo, resolve: Resolver): ExtractedTool | undefined {
+/** Reads one definition literal into data the lint rules can judge; undefined when its name is not static. */
+export function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: ExposedTo, resolve: Resolver): ExtractedTool | undefined {
   const definition: ToolDefinitionLike = Object.assign(Object.create(null), { name: "" });
   const record = definition as Record<string, unknown>;
   const dynamic = new Set<string>();

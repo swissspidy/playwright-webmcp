@@ -614,3 +614,71 @@ mc.registerTool({ name: "search_flights", description: "Search flights.", execut
     ],
   });
 });
+
+test("tool-shaped objects outside a definition site are linted once", () => {
+  const long = "x".repeat(190);
+  // Defined in one module, registered in another, as the flightsearch demo does.
+  const exported = `
+export async function searchFlights(p) { return dispatchAndWait("searchFlights", p); }
+export const searchFlightsTool = {
+  execute: searchFlights,
+  name: "searchFlights",
+  description: "Searches for flights with the given parameters.",
+  inputSchema: { type: "object", properties: { departureTime: { type: "string", description: "${long}" } } },
+};`;
+  tester.run("param-description-length", plugin.rules["param-description-length"], {
+    valid: [
+      // Opted out.
+      { code: exported, settings: { webmcp: { toolObjects: false } } },
+      // No inputSchema: a CLI command reads the same, so it is not a tool.
+      `export const deploy = { name: "deploy", description: "${long}", execute() {} };`,
+    ],
+    invalid: [
+      { code: exported, errors: [{ messageId: "finding", line: 7 }] },
+      // Registered in the same file too: one report, not two.
+      { code: `${exported}\nmc.registerTool(searchFlightsTool);`, errors: [{ messageId: "finding" }] },
+    ],
+  });
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [`const cmd = { name: "not a tool!", execute() {} };`],
+    invalid: [{ code: `export const t = { name: "bad name!", inputSchema: {}, execute() {} };`, errors: [{ messageId: "finding" }] }],
+  });
+  tester.run("navigation-consequential", plugin.rules["navigation-consequential"], {
+    valid: [],
+    invalid: [
+      {
+        code: `
+function openResults() { navigate("/results"); }
+export const openResultsTool = { name: "openResults", description: "Opens results.", inputSchema: {}, execute: openResults };`,
+        errors: [{ messageId: "undeclared", data: { name: "openResults", how: "calls navigate()" } }],
+      },
+    ],
+  });
+  tester.run("no-interpolated-text", plugin.rules["no-interpolated-text"], {
+    valid: [],
+    invalid: [{ code: "export const t = { name: 'search', description: `Search ${site}`, inputSchema: {}, execute() {} };", errors: 1 }],
+  });
+});
+
+test("literals joined with + are static text", () => {
+  const wrapped = `mc.registerTool({ name: "move", description: "Move the player one cell. " + "Returns success or failure.", inputSchema: {} });`;
+  tester.run("no-interpolated-text", plugin.rules["no-interpolated-text"], {
+    valid: [wrapped, `const intro = "Move the player. "; mc.registerTool({ name: "move", description: intro + "Returns success." });`],
+    invalid: [{ code: `mc.registerTool({ name: "move", description: "Move the " + unit + ".", inputSchema: {} });`, errors: 1 }],
+  });
+  // Read as the joined string, so the description rules judge it rather than skip it.
+  tester.run("description-length", plugin.rules["description-length"], {
+    valid: [wrapped],
+    invalid: [
+      {
+        code: `mc.registerTool({ name: "move", description: "Move. " + "Now.", inputSchema: {} });`,
+        errors: [
+          {
+            messageId: "finding",
+            data: { message: 'Description of "move" is 10 characters; aim for at least 20. Say what the tool does, when to use it, and what it returns.' },
+          },
+        ],
+      },
+    ],
+  });
+});
