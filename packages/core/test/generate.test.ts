@@ -115,3 +115,41 @@ test("MCP content results: isError is an error, empty content is a warning, text
     assert.equal(marked.counts.warning, 1);
   }
 });
+
+test("an error written as a result for invalid input is called out as one", () => {
+  const base = { tool: "t", kind: "invalid" as const, label: "missing required", args: {}, ok: true, durationMs: 1 };
+  for (const result of ["Error: origin is required", { error: "origin is required" }, { content: [{ type: "text", text: "Missing origin" }] }]) {
+    const [f] = judgeRuns([{ ...base, result }]).findings;
+    assert.equal(f.ruleId, "result-accepts-invalid-input");
+    assert.match(f.message, /returned the error ".*" as a normal result/);
+    assert.match(f.help ?? "", /Throw an Error/);
+  }
+  // An MCP-style rejection is the behaviour the rule asks for.
+  assert.deepEqual(judgeRuns([{ ...base, result: { content: [{ type: "text", text: "Error: origin is required" }], isError: true } }]).findings, []);
+  const [plain] = judgeRuns([{ ...base, result: { flights: [] } }]).findings;
+  assert.match(plain.message, /returned normally/);
+});
+
+test("result-too-large counts characters against a 1,500 default", () => {
+  const base = { tool: "t", kind: "valid-minimal" as const, label: "x", args: {}, ok: true, durationMs: 1 };
+  const ids = (result: unknown, budgets = {}) => judgeRuns([{ ...base, result }], budgets).findings.map((f) => f.ruleId);
+  // JSON.stringify adds two quotes around a string.
+  assert.deepEqual(ids("x".repeat(1_498)), []);
+  assert.deepEqual(ids("x".repeat(1_499)), ["result-too-large"]);
+  // 1,000 CJK characters are 3,000 UTF-8 bytes but well inside the budget.
+  assert.deepEqual(ids("航".repeat(1_000)), []);
+  assert.deepEqual(ids("x".repeat(1_499), { maxResultChars: 5_000 }), []);
+});
+
+test("result-navigates: a call that changed the URL declares consequentialHint", () => {
+  const base = { tool: "search_flights", kind: "valid-minimal" as const, label: "x", args: {}, ok: true, result: "ok", durationMs: 1 };
+  const judge = (run: Partial<typeof base> & { annotations?: Record<string, unknown>; navigatedTo?: string }) => judgeRuns([{ ...base, ...run }]).findings;
+  assert.deepEqual(judge({ annotations: {} }), []);
+  const [undeclared] = judge({ annotations: { readOnlyHint: false }, navigatedTo: "https://example.test/results?from=SFO" });
+  assert.equal(undeclared.ruleId, "result-navigates");
+  assert.match(undeclared.message, /navigated to https:\/\/example.test\/results\?from=SFO but does not declare consequentialHint/);
+  assert.deepEqual(judge({ annotations: { consequentialHint: true }, navigatedTo: "/r" }), []);
+  assert.deepEqual(judge({ annotations: { consequential: false }, navigatedTo: "/r" }), []);
+  const [readOnly] = judge({ annotations: { readOnlyHint: true, consequentialHint: false }, navigatedTo: "/r" });
+  assert.match(readOnly.message, /declares readOnlyHint/);
+});

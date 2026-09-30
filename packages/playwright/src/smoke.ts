@@ -37,7 +37,17 @@ export function selectSmokeTools(tools: ToolSnapshot[], options: SmokeOptions): 
 
 export type ToolCaller = (name: string, args: Record<string, unknown>) => Promise<unknown>;
 
-export async function runSmoke(tools: ToolSnapshot[], call: ToolCaller, options: SmokeOptions = {}): Promise<SmokeReport & { skipped: string[] }> {
+/**
+ * Runs generated inputs against the selected tools. Pass `currentUrl` (for
+ * example `() => page.url()`) to have calls that change the page URL reported
+ * as `result-navigates`; a same-document route change counts.
+ */
+export async function runSmoke(
+  tools: ToolSnapshot[],
+  call: ToolCaller,
+  options: SmokeOptions = {},
+  currentUrl?: () => string,
+): Promise<SmokeReport & { skipped: string[] }> {
   const { selected, skipped } = selectSmokeTools(tools, options);
   const kinds = new Set(options.kinds ?? ["valid-minimal", "valid-full", "boundary", "invalid"]);
   const runs: SmokeRun[] = [];
@@ -45,6 +55,11 @@ export async function runSmoke(tools: ToolSnapshot[], call: ToolCaller, options:
     for (const generated of generateArguments(tool.inputSchema, options)) {
       if (!kinds.has(generated.kind)) continue;
       const startedAt = Date.now();
+      const before = currentUrl?.();
+      const navigated = () => {
+        const after = currentUrl?.();
+        return after !== undefined && after !== before ? { navigatedTo: after } : {};
+      };
       try {
         const result = await call(tool.name, generated.args);
         runs.push({
@@ -56,6 +71,7 @@ export async function runSmoke(tools: ToolSnapshot[], call: ToolCaller, options:
           ok: true,
           result,
           durationMs: Date.now() - startedAt,
+          ...navigated(),
         });
       } catch (err) {
         runs.push({
@@ -67,6 +83,7 @@ export async function runSmoke(tools: ToolSnapshot[], call: ToolCaller, options:
           ok: false,
           error: String((err as Error)?.message ?? err),
           durationMs: Date.now() - startedAt,
+          ...navigated(),
         });
       }
     }

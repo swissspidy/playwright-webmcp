@@ -23,11 +23,13 @@ export interface SmokeRun {
    * from a missing one.
    */
   annotations?: Record<string, unknown> | null;
+  /** The page URL after the call, when the runner saw it change during the call. */
+  navigatedTo?: string;
 }
 
 export interface SmokeBudgets {
-  /** Serialized result size that triggers result-too-large. Default 16384 bytes. */
-  maxResultBytes?: number;
+  /** Serialized result length, in characters, that triggers result-too-large. Default 1500. */
+  maxResultChars?: number;
   /** Duration that triggers result-slow. Default 5000 ms. */
   maxDurationMs?: number;
 }
@@ -61,6 +63,11 @@ export const SMOKE_RULES = {
     description:
       "Result text of a tool declared untrustedContent looks like an instruction to the agent; the declaration is there, so this is for the client to contain.",
   },
+  "result-navigates": {
+    severity: "warning" as Severity,
+    description:
+      "The call changed the page URL, but the tool does not declare consequentialHint, or declares readOnlyHint; a client cannot tell the view will change under the user.",
+  },
   "untrusted-content-unmarked": {
     severity: "error" as Severity,
     description:
@@ -85,26 +92,72 @@ export function isContentResult(value: unknown): value is ContentResult {
   return Array.isArray(content) && content.every((item) => item && typeof item === "object" && typeof (item as { type?: unknown }).type === "string");
 }
 
+const ERROR_TEXT = /^\s*(?:error\b|invalid\b|failed\b|missing\b|cannot\b|can't\b|could not\b|unable to\b)/i;
+
+/** The message of a result that is an error written as data: a string, a text block, or `{ error: "..." }`. */
+function errorText(result: unknown): string | undefined {
+  const texts: unknown[] = [];
+  if (typeof result === "string") texts.push(result);
+  else if (isContentResult(result)) texts.push(...result.content.map((c) => c.text));
+  else if (result && typeof result === "object" && !Array.isArray(result)) {
+    const error = (result as { error?: unknown }).error;
+    if (typeof error === "string" && error.trim()) return error;
+  }
+  return texts.find((t): t is string => typeof t === "string" && ERROR_TEXT.test(t));
+}
+
 function make(id: SmokeRuleId, run: SmokeRun, message: string, help?: string): Finding {
   return { ruleId: id, severity: SMOKE_RULES[id].severity, message, tool: run.tool, help };
 }
 
 export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
-  const maxBytes = budgets.maxResultBytes ?? 16_384;
+  const maxChars = budgets.maxResultChars ?? 1_500;
   const maxMs = budgets.maxDurationMs ?? 5_000;
   const out: Finding[] = [];
   const where = `${run.tool} (${run.label})`;
 
-  if (run.kind === "invalid") {
-    if (run.ok)
+  if (run.navigatedTo !== undefined) {
+    const hints = toolHints(run.annotations);
+    if (hints.readOnly === true)
       out.push(
         make(
-          "result-accepts-invalid-input",
+          "result-navigates",
           run,
-          `${where} returned normally for invalid input ${JSON.stringify(run.args)}.`,
-          SMOKE_RULES["result-accepts-invalid-input"].description,
+          `${where} navigated to ${run.navigatedTo} but declares readOnlyHint.`,
+          "A tool that changes the page is not read-only; drop readOnlyHint and declare consequentialHint.",
         ),
       );
+    else if (hints.consequential === undefined)
+      out.push(
+        make(
+          "result-navigates",
+          run,
+          `${where} navigated to ${run.navigatedTo} but does not declare consequentialHint.`,
+          "Set consequentialHint to true so clients can confirm before the view changes, or to false if you decided it is not.",
+        ),
+      );
+  }
+
+  if (run.kind === "invalid") {
+    // isError: true is how an MCP-style result rejects input; that is the behaviour we want.
+    if (run.ok && !(isContentResult(run.result) && run.result.isError === true)) {
+      const message = errorText(run.result);
+      out.push(
+        message
+          ? make(
+              "result-accepts-invalid-input",
+              run,
+              `${where} returned the error ${JSON.stringify(message)} as a normal result for invalid input ${JSON.stringify(run.args)}.`,
+              "Throw an Error (or return isError: true) so the agent sees the call failed rather than reading the message as success.",
+            )
+          : make(
+              "result-accepts-invalid-input",
+              run,
+              `${where} returned normally for invalid input ${JSON.stringify(run.args)}.`,
+              SMOKE_RULES["result-accepts-invalid-input"].description,
+            ),
+      );
+    }
     return out;
   }
 
@@ -180,9 +233,15 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
     );
   }
 
-  const bytes = new TextEncoder().encode(serialized).length;
-  if (bytes > maxBytes)
-    out.push(make("result-too-large", run, `${where} returned ${bytes} bytes; budget is ${maxBytes}.`, "Paginate or return ids plus a summary."));
+  if (serialized.length > maxChars)
+    out.push(
+      make(
+        "result-too-large",
+        run,
+        `${where} returned ${serialized.length} characters; budget is ${maxChars}.`,
+        "Paginate, or return ids plus a summary and let the agent ask for details.",
+      ),
+    );
 
   return out;
 }

@@ -2,11 +2,11 @@
 
 # Rules
 
-28 rules: 26 from the `@swissspidy/webmcp-lint` engine and 2 that exist only as ESLint rules.
+31 rules: 28 from the `@swissspidy/webmcp-lint` engine and 3 that exist only as ESLint rules.
 
 Every page here is generated from the rule itself, so the severities, defaults and options on them are the ones the code actually uses.
 
-## Tool rules (18)
+## Tool rules (20)
 
 Judge one tool from its own definition. They run in the engine, the CLI, the Playwright fixture, the audit crawler, and — as `webmcp/<id>` — in the ESLint plugin.
 
@@ -19,8 +19,10 @@ Judge one tool from its own definition. They run in the engine, the CLI, the Pla
 | [`description-injection`](./description-injection.md)                       | `error`   | on      | Tool text -- description, title, parameter descriptions, annotations -- must not contain instructions aimed at the agent, role markers, or hidden characters. |
 | [`description-length`](./description-length.md)                             | `warning` | on      | Descriptions should be long enough to disambiguate and short enough to fit small model contexts.                                                              |
 | [`description-missing`](./description-missing.md)                           | `error`   | on      | Every tool needs a non-empty description; agents select tools by it.                                                                                          |
+| [`description-when-to-use`](./description-when-to-use.md)                   | `info`    | off     | Descriptions say when to call the tool, not only what it does, so a model can choose between it and its neighbours.                                           |
 | [`exposed-to-origin-only`](./exposed-to-origin-only.md)                     | `warning` | on      | exposedTo entries are origins; a path, query, fragment or credentials in the entry is ignored by the API, so it does not narrow anything.                     |
 | [`exposed-to-secure-origins`](./exposed-to-secure-origins.md)               | `error`   | on      | exposedTo entries must parse as potentially trustworthy origins; anything else, "*" included, makes registerTool() reject with SecurityError.                 |
+| [`param-description-length`](./param-description-length.md)                 | `warning` | on      | A parameter description says what the value is and its format in one sentence; long ones cost tokens on every call and bury the constraint.                   |
 | [`param-description-missing`](./param-description-missing.md)               | `warning` | on      | Each input property should carry a description so the model fills it correctly.                                                                               |
 | [`schema-depth`](./schema-depth.md)                                         | `warning` | on      | Deeply nested input schemas are hard for small models to fill.                                                                                                |
 | [`schema-no-null-literals`](./schema-no-null-literals.md)                   | `error`   | on      | Chrome's Prompt API rejects JSON null at any depth; avoid null literals in schemas.                                                                           |
@@ -46,11 +48,12 @@ Judge the tool surface as a whole, so they need a full snapshot and have no ESLi
 | [`too-many-tools`](./too-many-tools.md)                     | `warning` | on      | Large tool lists overflow small on-device model contexts and degrade tool selection.                                                                                                                 |
 | [`tool-shadowing`](./tool-shadowing.md)                     | `error`   | on      | Two tools whose names read alike, registered from different frames, origins or scripts: an agent choosing between them is choosing by a difference it cannot see.                                    |
 
-## ESLint-only rules (2)
+## ESLint-only rules (3)
 
 Read the source rather than a tool definition, so they have no engine counterpart.
 
-| Rule                                                       | Type         | In `recommended` | What it catches                                                                                                                        |
-| ---------------------------------------------------------- | ------------ | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
-| [`webmcp/no-interpolated-text`](./no-interpolated-text.md) | `suggestion` | yes              | Tool names, titles and descriptions should be written out, not assembled at runtime from values the author cannot name the source of.  |
-| [`webmcp/valid-event-name`](./valid-event-name.md)         | `problem`    | yes              | ModelContext fires toolchange, toolactivated and toolcancel; a listener on document.modelContext for any other tool* event never runs. |
+| Rule                                                               | Type         | In `recommended` | What it catches                                                                                                                                                                         |
+| ------------------------------------------------------------------ | ------------ | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`webmcp/navigation-consequential`](./navigation-consequential.md) | `suggestion` | yes              | A tool whose execute navigates changes what the user sees and, across documents, unregisters the page's tools; it should say so with consequentialHint and must not claim readOnlyHint. |
+| [`webmcp/no-interpolated-text`](./no-interpolated-text.md)         | `suggestion` | yes              | Tool names, titles and descriptions should be written out, not assembled at runtime from values the author cannot name the source of.                                                   |
+| [`webmcp/valid-event-name`](./valid-event-name.md)                 | `problem`    | yes              | ModelContext fires toolchange, toolactivated and toolcancel; a listener on document.modelContext for any other tool* event never runs.                                                  |

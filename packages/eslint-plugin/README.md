@@ -49,7 +49,9 @@ Each rule has a page under [`docs/rules/`](https://github.com/swissspidy/playwri
 | `webmcp/tool-title-missing`               | off         | The tool has a `title` for clients to show people.                                                 |
 | `webmcp/description-missing`              | error       | The tool has a description.                                                                        |
 | `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                                     |
+| `webmcp/description-when-to-use`          | off         | The description says when to call the tool, not only what it does. Heuristic; opt in.              |
 | `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                            |
+| `webmcp/param-description-length`         | warn        | Each parameter description, at any depth, is at most `max` (150) characters.                       |
 | `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                           |
 | `webmcp/schema-no-null-literals`          | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                 |
 | `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                                         |
@@ -65,10 +67,11 @@ Each rule has a page under [`docs/rules/`](https://github.com/swissspidy/playwri
 
 Source rules judge the code that calls the API. They have no `@swissspidy/webmcp-lint` counterpart because nothing they catch survives to runtime. Shape mistakes in the dictionaries themselves (an unknown property, a missing `execute`, a misspelt hint) are TypeScript's job, with the [`webmcp-types`](https://www.npmjs.com/package/webmcp-types) package installed.
 
-| Rule                          | Recommended | Checks                                                                           |
-| ----------------------------- | ----------- | -------------------------------------------------------------------------------- |
-| `webmcp/valid-event-name`     | error       | Listeners for `tool*` events name `toolchange`, `toolactivated` or `toolcancel`. |
-| `webmcp/no-interpolated-text` | warn        | Tool text assembled at runtime from values the author cannot name the source of. |
+| Rule                              | Recommended | Checks                                                                                                                                                 |
+| --------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `webmcp/valid-event-name`         | error       | Listeners for `tool*` events name `toolchange`, `toolactivated` or `toolcancel`.                                                                       |
+| `webmcp/no-interpolated-text`     | warn        | Tool text assembled at runtime from values the author cannot name the source of.                                                                       |
+| `webmcp/navigation-consequential` | warn        | A tool whose `execute` navigates (`location`, History and Navigation APIs, routers, `navigate()`) declares `consequentialHint` and not `readOnlyHint`. |
 
 Rule options are the same objects `@swissspidy/webmcp-lint` accepts. `webmcp.configs.recommended` turns on every rule marked above except the `off` ones; `webmcp.configs.all` turns every rule, the opt-in ones included, into an error.
 
@@ -133,8 +136,10 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/exposed-to-secure-origins": "error",
     "webmcp/valid-event-name": "error",
     "webmcp/no-interpolated-text": "warn",
+    "webmcp/navigation-consequential": "warn",
     "webmcp/description-length": "warn",
     "webmcp/param-description-missing": "warn",
+    "webmcp/param-description-length": "warn",
     "webmcp/schema-depth": "warn",
     "webmcp/schema-unsupported-keywords": "warn",
     "webmcp/sensitive-params": "warn",

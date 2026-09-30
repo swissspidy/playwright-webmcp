@@ -55,4 +55,27 @@ test.describe("smoke", () => {
     });
     await expect(webmcp).not.toPassSmoke({ tools: ["flaky"] });
   });
+
+  test("a call that changes the URL is reported against its hints", async ({ page, webmcp }) => {
+    await page.goto("/");
+    await page.evaluate(async () => {
+      const mc = document.modelContext!;
+      await mc.registerTool({
+        name: "show_results",
+        description: "Shows the results view. Use after a search to display matches.",
+        inputSchema: { type: "object", properties: {} },
+        annotations: { readOnlyHint: true },
+        execute: async () => {
+          history.pushState({}, "", `/results?n=${Math.random()}`);
+          return { shown: true };
+        },
+      });
+    });
+    const report = await webmcp.smoke({ tools: ["show_results"] });
+    const run = report.runs.find((r) => r.tool === "show_results");
+    expect(run?.navigatedTo).toMatch(/\/results\?n=/);
+    const navigates = report.findings.filter((f) => f.ruleId === "result-navigates");
+    expect(navigates.length).toBeGreaterThan(0);
+    expect(navigates[0].message).toContain("declares readOnlyHint");
+  });
 });

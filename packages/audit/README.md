@@ -84,4 +84,4 @@ console.log(renderMarkdown(report));
 for (const page of report.pages) console.log(page.url, page.score?.score, page.smoke?.runs.length);
 ```
 
-`smokeOptions` accepts everything `webmcp.smoke()` does: `tools` (names or a predicate), `all`, `kinds`, `maxBoundary`, `maxInvalid`, `maxResultBytes`, `maxDurationMs`. See the [repository README](https://github.com/swissspidy/playwright-webmcp#readme) for the rules and the score.
+`smokeOptions` accepts everything `webmcp.smoke()` does: `tools` (names or a predicate), `all`, `kinds`, `maxBoundary`, `maxInvalid`, `maxResultChars`, `maxDurationMs`. See the [repository README](https://github.com/swissspidy/playwright-webmcp#readme) for the rules and the score.
