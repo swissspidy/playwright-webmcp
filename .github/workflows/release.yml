@@ -27,6 +27,10 @@ jobs:
           cache: true
           require-lockfile: true
       - run: pnpm run build
+      # Publishing uses npm trusted publishing: pnpm exchanges the job's OIDC
+      # token (id-token: write above) for a short-lived npm credential, so no
+      # npm secret is involved. Provenance comes from publishConfig.provenance
+      # in each package.
       - name: Create release pull request or publish
         uses: changesets/action@v2
         with:
@@ -34,17 +38,3 @@ jobs:
           publish-script: pnpm exec changeset publish
           commit-message: "Version packages"
           pr-title: "Version packages"
-        env:
-          # Registry and token together, on the publish step alone. Trusted
-          # publishing replaces this once the packages exist on npm: pnpm does
-          # the OIDC exchange itself, so the whole block goes away rather than
-          # being swapped for another secret. Provenance comes from
-          # publishConfig.provenance in each package, not from here.
-          pnpm_config__auth: |
-            {
-              "https://registry.npmjs.org": {
-                "@": {
-                  "authToken": ${{ toJSON(secrets.NPM_TOKEN) }}
-                }
-              }
-            }
