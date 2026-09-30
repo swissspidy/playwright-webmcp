@@ -139,7 +139,8 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
   }
 
   if (run.kind === "invalid") {
-    if (run.ok) {
+    // isError: true is how an MCP-style result rejects input; that is the behaviour we want.
+    if (run.ok && !(isContentResult(run.result) && run.result.isError === true)) {
       const message = errorText(run.result);
       out.push(
         message

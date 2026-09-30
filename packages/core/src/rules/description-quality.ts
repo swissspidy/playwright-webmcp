@@ -75,9 +75,10 @@ function* propertySchemas(schema: JsonSchema | null, base = ""): Generator<[stri
     const path = `${base}/properties/${name}`;
     yield [name, path, prop];
     yield* propertySchemas(prop, path);
-    const items = prop.items;
-    if (items && typeof items === "object" && !Array.isArray(items)) yield* propertySchemas(items as JsonSchema, `${path}/items`);
   }
+  // Read from the schema itself, so an array of arrays reaches the innermost items.
+  const items = schema?.items;
+  if (items && typeof items === "object" && !Array.isArray(items)) yield* propertySchemas(items as JsonSchema, `${base}/items`);
 }
 
 export const paramDescriptionLength = defineRule({

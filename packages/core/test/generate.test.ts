@@ -124,6 +124,8 @@ test("an error written as a result for invalid input is called out as one", () =
     assert.match(f.message, /returned the error ".*" as a normal result/);
     assert.match(f.help ?? "", /Throw an Error/);
   }
+  // An MCP-style rejection is the behaviour the rule asks for.
+  assert.deepEqual(judgeRuns([{ ...base, result: { content: [{ type: "text", text: "Error: origin is required" }], isError: true } }]).findings, []);
   const [plain] = judgeRuns([{ ...base, result: { flights: [] } }]).findings;
   assert.match(plain.message, /returned normally/);
 });

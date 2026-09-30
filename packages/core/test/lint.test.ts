@@ -337,6 +337,7 @@ test("param-description-length flags long parameter descriptions at any depth", 
             departureTime: { type: "string", description: long },
             origin: { type: "string", description: "IATA code of the departure airport, for example SFO." },
             legs: { type: "array", items: { type: "object", properties: { at: { type: "string", description: long } } } },
+            grid: { type: "array", items: { type: "array", items: { type: "object", properties: { cell: { type: "string", description: long } } } } },
           },
         },
       },
@@ -345,7 +346,7 @@ test("param-description-length flags long parameter descriptions at any depth", 
   const found = r.findings.filter((f) => f.ruleId === "param-description-length");
   assert.deepEqual(
     found.map((f) => f.path),
-    ["/properties/departureTime", "/properties/legs/items/properties/at"],
+    ["/properties/departureTime", "/properties/legs/items/properties/at", "/properties/grid/items/items/properties/cell"],
   );
   assert.match(found[0].message, /190 characters; keep it under 150/);
   assert.ok(
