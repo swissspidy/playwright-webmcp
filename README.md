@@ -344,7 +344,7 @@ Crawls same-origin links, lints every page, detects tools whose description or s
 | `result-contains-null`         | error    | Result contains `null` anywhere; Chrome's Prompt API rejects it.                     |
 | `result-not-serializable`      | error    | Result cannot be JSON serialized.                                                    |
 | `result-undefined`             | warning  | Tool returned nothing.                                                               |
-| `result-too-large`             | warning  | Serialized result above `maxResultBytes` (16 KB).                                    |
+| `result-too-large`             | warning  | Serialized result above `maxResultChars` (1,500 characters).                         |
 | `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                              |
 | `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error, or the error came back as a result.     |
 | `result-string-json`           | info     | Returned JSON as a string rather than an object.                                     |

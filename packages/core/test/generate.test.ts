@@ -127,3 +127,14 @@ test("an error written as a result for invalid input is called out as one", () =
   const [plain] = judgeRuns([{ ...base, result: { flights: [] } }]).findings;
   assert.match(plain.message, /returned normally/);
 });
+
+test("result-too-large counts characters against a 1,500 default", () => {
+  const base = { tool: "t", kind: "valid-minimal" as const, label: "x", args: {}, ok: true, durationMs: 1 };
+  const ids = (result: unknown, budgets = {}) => judgeRuns([{ ...base, result }], budgets).findings.map((f) => f.ruleId);
+  // JSON.stringify adds two quotes around a string.
+  assert.deepEqual(ids("x".repeat(1_498)), []);
+  assert.deepEqual(ids("x".repeat(1_499)), ["result-too-large"]);
+  // 1,000 CJK characters are 3,000 UTF-8 bytes but well inside the budget.
+  assert.deepEqual(ids("航".repeat(1_000)), []);
+  assert.deepEqual(ids("x".repeat(1_499), { maxResultChars: 5_000 }), []);
+});

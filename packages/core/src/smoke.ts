@@ -26,8 +26,8 @@ export interface SmokeRun {
 }
 
 export interface SmokeBudgets {
-  /** Serialized result size that triggers result-too-large. Default 16384 bytes. */
-  maxResultBytes?: number;
+  /** Serialized result length, in characters, that triggers result-too-large. Default 1500. */
+  maxResultChars?: number;
   /** Duration that triggers result-slow. Default 5000 ms. */
   maxDurationMs?: number;
 }
@@ -104,7 +104,7 @@ function make(id: SmokeRuleId, run: SmokeRun, message: string, help?: string): F
 }
 
 export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
-  const maxBytes = budgets.maxResultBytes ?? 16_384;
+  const maxChars = budgets.maxResultChars ?? 1_500;
   const maxMs = budgets.maxDurationMs ?? 5_000;
   const out: Finding[] = [];
   const where = `${run.tool} (${run.label})`;
@@ -203,9 +203,15 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
     );
   }
 
-  const bytes = new TextEncoder().encode(serialized).length;
-  if (bytes > maxBytes)
-    out.push(make("result-too-large", run, `${where} returned ${bytes} bytes; budget is ${maxBytes}.`, "Paginate or return ids plus a summary."));
+  if (serialized.length > maxChars)
+    out.push(
+      make(
+        "result-too-large",
+        run,
+        `${where} returned ${serialized.length} characters; budget is ${maxChars}.`,
+        "Paginate, or return ids plus a summary and let the agent ask for details.",
+      ),
+    );
 
   return out;
 }
