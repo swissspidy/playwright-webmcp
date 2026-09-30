@@ -4,31 +4,37 @@ on:
   push:
     branches: [main]
 
-permissions:
-  contents: write
-  pull-requests: write
-  id-token: write
+permissions: {}
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+# Queue rather than cancel: interrupting a run halfway through publishing
+# would leave some packages on npm and others not.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
     name: Version or publish
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # push the version branch, tags and GitHub releases
+      pull-requests: write # open and update the "Version packages" PR
+      id-token: write # npm trusted publishing and provenance
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       # Installs pnpm from packageManager, Node from .node-version, and runs
       # the install itself. No .npmrc is written, so nothing carries registry
       # credentials into the install and build below.
-      - uses: pnpm/setup@v3
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
           cache: true
           require-lockfile: true
       - run: pnpm run build
       - name: Create release pull request or publish
-        uses: changesets/action@v2
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
           version-script: pnpm run version-packages
           publish-script: pnpm exec changeset publish
