@@ -32,31 +32,50 @@ function typeName(annotation: unknown): string | undefined {
   return t.typeName.type === "TSQualifiedName" ? t.typeName.right?.name : t.typeName.name;
 }
 
-/** True when the literal is written as a `ModelContextTool`: `x satisfies T`, `x as T`, or `const x: T = ...`. */
+const TS_WRAPPERS = new Set(["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"]);
+
+/**
+ * True when the literal is written as a `ModelContextTool`: `x satisfies T`,
+ * `x as T`, or `const x: T = ...`, through any other wrappers on the way
+ * (`{...} as const satisfies T`, `const x: T = {...} as const`).
+ */
 function typedAsTool(obj: ESTree.ObjectExpression): boolean {
-  const parent = (obj as WithParent).parent as (WithParent & { typeAnnotation?: unknown; id?: { typeAnnotation?: { typeAnnotation?: unknown } } }) | undefined;
-  if (!parent) return false;
-  if (parent.type === ("TSSatisfiesExpression" as string) || parent.type === ("TSAsExpression" as string))
-    return TOOL_TYPES.has(typeName(parent.typeAnnotation) ?? "");
-  if (parent.type === "VariableDeclarator") return TOOL_TYPES.has(typeName(parent.id?.typeAnnotation?.typeAnnotation) ?? "");
-  return false;
+  type Wrapper = WithParent & { typeAnnotation?: unknown; init?: unknown; id?: { typeAnnotation?: { typeAnnotation?: unknown } } };
+  let node = obj as WithParent;
+  let parent = node.parent as Wrapper | undefined;
+  while (parent && TS_WRAPPERS.has(parent.type)) {
+    if (TOOL_TYPES.has(typeName(parent.typeAnnotation) ?? "")) return true;
+    node = parent;
+    parent = node.parent as Wrapper | undefined;
+  }
+  return parent?.type === "VariableDeclarator" && parent.init === node && TOOL_TYPES.has(typeName(parent.id?.typeAnnotation?.typeAnnotation) ?? "");
 }
 
+/**
+ * A literal typed `ModelContextTool` is a tool whatever its name holds (a
+ * computed name is what no-interpolated-text is for). Otherwise it takes a
+ * literal `name`, an `execute` and an `inputSchema`.
+ */
 export function isToolShaped(obj: ESTree.ObjectExpression, resolve: Resolver): boolean {
+  if (typedAsTool(obj)) return true;
   const name = findProperty(obj, "name");
   if (!name || typeof staticValue(name.value as ESTree.Node, resolve) !== "string") return false;
-  if (typedAsTool(obj)) return true;
   return !!findProperty(obj, "execute") && !!findProperty(obj, "inputSchema");
 }
 
 /**
  * Listener entries that call `onTool` once for every tool definition literal
  * in the file. Merge them into a rule's own listener.
+ *
+ * A literal registered again, with options of its own, comes back with
+ * `repeat` set when `repeats` is on: its definition was already judged, but
+ * that call's `exposedTo` was not.
  */
 export function discoverTools(
   context: ESLintRule.RuleContext,
   resolve: Resolver,
-  onTool: (tool: ToolObject) => void,
+  onTool: (tool: ToolObject, repeat: boolean) => void,
+  { repeats = false }: { repeats?: boolean } = {},
 ): Required<Pick<ESLintRule.RuleListener, "CallExpression" | "ObjectExpression" | "Program:exit">> {
   const sites = definitionSites(context.settings);
   const shaped = toolObjectsEnabled(context.settings);
@@ -65,9 +84,12 @@ export function discoverTools(
   return {
     CallExpression(node) {
       for (const tool of toolObjectsFromCall(node as ESTree.CallExpression, sites, resolve)) {
-        if (seen.has(tool.node)) continue;
+        if (seen.has(tool.node)) {
+          if (repeats && tool.exposedTo.node) onTool(tool, true);
+          continue;
+        }
         seen.add(tool.node);
-        onTool(tool);
+        onTool(tool, false);
       }
     },
     ObjectExpression(node) {
@@ -79,7 +101,7 @@ export function discoverTools(
       for (const obj of candidates) {
         if (seen.has(obj) || !isToolShaped(obj, resolve)) continue;
         seen.add(obj);
-        onTool({ node: obj, exposedTo: { value: undefined } });
+        onTool({ node: obj, exposedTo: { value: undefined } }, false);
       }
     },
   };

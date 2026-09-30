@@ -682,3 +682,15 @@ test("literals joined with + are static text", () => {
     ],
   });
 });
+
+test("a literal registered twice is judged once, and each call's exposedTo on its own", () => {
+  const code = `
+const tool = { name: "bad name!", description: "Search the catalogue by keyword and return matches.", inputSchema: {}, execute() {} };
+mc.registerTool(tool, { exposedTo: ["https://example.com"] });
+mc.registerTool(tool, { exposedTo: ["http://example.com"] });`;
+  tester.run("exposed-to-secure-origins", plugin.rules["exposed-to-secure-origins"], {
+    valid: [],
+    invalid: [{ code, errors: [{ messageId: "finding", line: 4 }] }],
+  });
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], { valid: [], invalid: [{ code, errors: 1 }] });
+});

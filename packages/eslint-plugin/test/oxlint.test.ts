@@ -162,6 +162,8 @@ export const typed = { name: "also bad!" } satisfies ModelContextTool;
 export const annotated: ModelContextTool = { name: "bad too!", description: "x" } as never;
 export const declared: ModelContextTool = { name: "still bad!", description: "x" };
 export const command = { name: "not a tool!", execute: () => "ok" };
+export const constant = { name: "const bad!", description: "x" } as const satisfies ModelContextTool;
+export const constDeclared: ModelContextTool = { name: "const too!", description: "x" } as const;
 `,
     },
     { jsPlugins: [{ name: "webmcp", specifier: pluginPath }], rules: { "webmcp/tool-name-valid": "error" } },
@@ -170,7 +172,19 @@ export const command = { name: "not a tool!", execute: () => "ok" };
   assert.deepEqual(
     diagnostics(stdout)
       .map((d) => d.line)
-      .sort(),
-    [2, 3, 5],
+      .sort((a, b) => a - b),
+    [2, 3, 4, 5, 7, 8],
+  );
+});
+
+test("oxlint reads a typed tool whose name is computed", () => {
+  const { status, stdout, stderr } = runOxlint(
+    { "tools.ts": 'export const t = { name: `search_${site}`, description: "Search." } satisfies ModelContextTool;\n' },
+    { jsPlugins: [{ name: "webmcp", specifier: pluginPath }], rules: { "webmcp/no-interpolated-text": "error" } },
+  );
+  assert.equal(status, 1, stderr);
+  assert.deepEqual(
+    diagnostics(stdout).map((d) => d.rule),
+    ["webmcp(no-interpolated-text)"],
   );
 });

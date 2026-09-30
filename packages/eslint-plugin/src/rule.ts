@@ -199,10 +199,17 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
         }
       };
       return {
-        ...discoverTools(context, resolve, ({ node, exposedTo }) => {
-          const tool = toolFromObject(node, exposedTo, resolve);
-          if (tool) report(tool.definition, tool.dynamic, (finding) => locate(tool, finding, resolve));
-        }),
+        ...discoverTools(
+          context,
+          resolve,
+          ({ node, exposedTo }, repeat) => {
+            // A second registration of a judged literal only brings its own exposedTo.
+            if (repeat && !EXPOSED_TO_RULES.has(rule.id)) return;
+            const tool = toolFromObject(node, exposedTo, resolve);
+            if (tool) report(tool.definition, tool.dynamic, (finding) => locate(tool, finding, resolve));
+          },
+          { repeats: true },
+        ),
         // `<form toolname="...">` in JSX: the declarative tool the browser would derive from it.
         JSXElement(node: unknown) {
           const form = formTool(node as JSXElementNode, resolve);
