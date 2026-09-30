@@ -346,7 +346,7 @@ Crawls same-origin links, lints every page, detects tools whose description or s
 | `result-undefined`             | warning  | Tool returned nothing.                                                               |
 | `result-too-large`             | warning  | Serialized result above `maxResultBytes` (16 KB).                                    |
 | `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                              |
-| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error.                                         |
+| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error, or the error came back as a result.     |
 | `result-string-json`           | info     | Returned JSON as a string rather than an object.                                     |
 | `untrusted-content-unmarked`   | error    | Result text reads as an instruction and the tool declares no `untrustedContentHint`. |
 | `result-suspicious-content`    | warning  | The same, on a tool that did declare it: the boundary is marked.                     |
@@ -384,7 +384,9 @@ The table below is the tour. [`docs/rules/`](docs/rules/README.md) is the refere
 | `tool-title-missing`               | off      | tool  | The tool has a `title` for clients to show people. Opt in.                                            |
 | `description-missing`              | error    | tool  | Imperative tools have a description.                                                                  |
 | `description-length`               | warning  | tool  | Between `min` (20) and `max` (600) characters.                                                        |
+| `description-when-to-use`          | off      | tool  | The description says when to call the tool, not only what it does. Heuristic; opt in.                 |
 | `param-description-missing`        | warning  | tool  | Every input property has a description.                                                               |
+| `param-description-length`         | warning  | tool  | Each parameter description, at any depth, is at most `max` (150) characters.                          |
 | `schema-shape`                     | error    | tool  | Object schema; `required` entries exist in `properties`.                                              |
 | `schema-no-null-literals`          | error    | tool  | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                    |
 | `schema-depth`                     | warning  | tool  | Property nesting at most `max` (3) levels.                                                            |

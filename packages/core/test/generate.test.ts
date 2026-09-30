@@ -115,3 +115,15 @@ test("MCP content results: isError is an error, empty content is a warning, text
     assert.equal(marked.counts.warning, 1);
   }
 });
+
+test("an error written as a result for invalid input is called out as one", () => {
+  const base = { tool: "t", kind: "invalid" as const, label: "missing required", args: {}, ok: true, durationMs: 1 };
+  for (const result of ["Error: origin is required", { error: "origin is required" }, { content: [{ type: "text", text: "Missing origin" }] }]) {
+    const [f] = judgeRuns([{ ...base, result }]).findings;
+    assert.equal(f.ruleId, "result-accepts-invalid-input");
+    assert.match(f.message, /returned the error ".*" as a normal result/);
+    assert.match(f.help ?? "", /Throw an Error/);
+  }
+  const [plain] = judgeRuns([{ ...base, result: { flights: [] } }]).findings;
+  assert.match(plain.message, /returned normally/);
+});

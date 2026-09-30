@@ -324,3 +324,49 @@ test("exposed-to-origin-only reports entries that are URLs rather than origins",
   assert.match(found[0].message, /the path \/widget, a query, a fragment; only the origin https:\/\/partner\.test counts/);
   assert.match(found[1].message, /credentials/);
 });
+
+test("param-description-length flags long parameter descriptions at any depth", () => {
+  const long = "x".repeat(190);
+  const r = lint(
+    snap([
+      {
+        name: "search_flights",
+        inputSchema: {
+          type: "object",
+          properties: {
+            departureTime: { type: "string", description: long },
+            origin: { type: "string", description: "IATA code of the departure airport, for example SFO." },
+            legs: { type: "array", items: { type: "object", properties: { at: { type: "string", description: long } } } },
+          },
+        },
+      },
+    ]),
+  );
+  const found = r.findings.filter((f) => f.ruleId === "param-description-length");
+  assert.deepEqual(
+    found.map((f) => f.path),
+    ["/properties/departureTime", "/properties/legs/items/properties/at"],
+  );
+  assert.match(found[0].message, /190 characters; keep it under 150/);
+  assert.ok(
+    !ids(
+      lint(snap([{ inputSchema: { type: "object", properties: { a: { type: "string", description: long } } } }]), {
+        rules: { "param-description-length": { max: 200 } },
+      }),
+    ).includes("param-description-length"),
+  );
+});
+
+test("description-when-to-use asks for a trigger, not only a summary", () => {
+  const on = { rules: { "description-when-to-use": true } };
+  const what = lint(snap([{ name: "search_flights", description: "Searches for flights between two airports on the given dates." }]), on);
+  assert.ok(!ids(lint(snap([{ name: "search_flights" }]))).includes("description-when-to-use"), "off by default");
+  const f = what.findings.find((x) => x.ruleId === "description-when-to-use");
+  assert.equal(f?.severity, "info");
+  for (const description of [
+    "Searches for flights. Use when the user wants to find a flight between two airports.",
+    "Lists the flights already found. Call this after search_flights to show results.",
+    "Returns seat maps; use this instead of list_flights for seat availability.",
+  ])
+    assert.ok(!ids(lint(snap([{ description }]), on)).includes("description-when-to-use"), description);
+});

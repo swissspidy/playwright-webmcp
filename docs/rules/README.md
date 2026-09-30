@@ -2,11 +2,11 @@
 
 # Rules
 
-28 rules: 26 from the `@swissspidy/webmcp-lint` engine and 2 that exist only as ESLint rules.
+30 rules: 28 from the `@swissspidy/webmcp-lint` engine and 2 that exist only as ESLint rules.
 
 Every page here is generated from the rule itself, so the severities, defaults and options on them are the ones the code actually uses.
 
-## Tool rules (18)
+## Tool rules (20)
 
 Judge one tool from its own definition. They run in the engine, the CLI, the Playwright fixture, the audit crawler, and — as `webmcp/<id>` — in the ESLint plugin.
 
@@ -19,8 +19,10 @@ Judge one tool from its own definition. They run in the engine, the CLI, the Pla
 | [`description-injection`](./description-injection.md)                       | `error`   | on      | Tool text -- description, title, parameter descriptions, annotations -- must not contain instructions aimed at the agent, role markers, or hidden characters. |
 | [`description-length`](./description-length.md)                             | `warning` | on      | Descriptions should be long enough to disambiguate and short enough to fit small model contexts.                                                              |
 | [`description-missing`](./description-missing.md)                           | `error`   | on      | Every tool needs a non-empty description; agents select tools by it.                                                                                          |
+| [`description-when-to-use`](./description-when-to-use.md)                   | `info`    | off     | Descriptions say when to call the tool, not only what it does, so a model can choose between it and its neighbours.                                           |
 | [`exposed-to-origin-only`](./exposed-to-origin-only.md)                     | `warning` | on      | exposedTo entries are origins; a path, query, fragment or credentials in the entry is ignored by the API, so it does not narrow anything.                     |
 | [`exposed-to-secure-origins`](./exposed-to-secure-origins.md)               | `error`   | on      | exposedTo entries must parse as potentially trustworthy origins; anything else, "*" included, makes registerTool() reject with SecurityError.                 |
+| [`param-description-length`](./param-description-length.md)                 | `warning` | on      | A parameter description says what the value is and its format in one sentence; long ones cost tokens on every call and bury the constraint.                   |
 | [`param-description-missing`](./param-description-missing.md)               | `warning` | on      | Each input property should carry a description so the model fills it correctly.                                                                               |
 | [`schema-depth`](./schema-depth.md)                                         | `warning` | on      | Deeply nested input schemas are hard for small models to fill.                                                                                                |
 | [`schema-no-null-literals`](./schema-no-null-literals.md)                   | `error`   | on      | Chrome's Prompt API rejects JSON null at any depth; avoid null literals in schemas.                                                                           |
