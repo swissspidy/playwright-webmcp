@@ -4,11 +4,8 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
 import { WebMCP, runSmoke, type SmokeOptions } from "@swissspidy/playwright-webmcp";
 import {
-  computeCoverage,
-  computeScore,
   formatChanges,
   formatFindings,
-  formatScore,
   formatSmokeRuns,
   lint,
   toContract,
@@ -18,7 +15,6 @@ import {
   type LintOptions,
   type LintResult,
   type PageSnapshot,
-  type Score,
   type SmokeReport,
   type ToolContract,
 } from "@swissspidy/webmcp-lint";
@@ -62,7 +58,6 @@ export interface PageAudit {
   contract?: ToolContract;
   lint?: LintResult;
   smoke?: SmokeReport & { skipped: string[] };
-  score?: Score;
   api?: "native" | "none";
   cdp?: boolean;
 }
@@ -75,7 +70,6 @@ export interface AuditReport {
   drift: Array<{ tool: string; pages: string[]; changes: string[] }>;
   /** Union of tools across pages. */
   tools: string[];
-  score: number;
   findings: Finding[];
   /** Present when a baseline was supplied: per-page contract changes and pages the baseline had but this run did not reach. */
   baseline?: BaselineComparison;
@@ -126,8 +120,6 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
         options.smokeOptions ?? {},
         () => page.url(),
       );
-    const coverage = smoke ? computeCoverage(snapshot.tools, webmcp.calls()) : undefined;
-    const score = computeScore({ lint: lintResult, smoke, coverage });
     return {
       url,
       status: "ok",
@@ -135,7 +127,6 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
       contract: toContract(snapshot),
       lint: lintResult,
       smoke,
-      score,
       api: snapshot.frames[0]?.api,
       cdp: Boolean(webmcp.cdp?.enabled),
     };
@@ -270,8 +261,6 @@ export async function audit(options: AuditOptions): Promise<AuditReport> {
   }
   const drift = detectDrift(pages);
   const tools = [...new Set(pages.flatMap((p) => p.contract?.tools.map((t) => t.name) ?? []))].sort();
-  const scored = pages.filter((p) => p.score);
-  const score = scored.length ? Math.round(scored.reduce((n, p) => n + p.score!.score, 0) / scored.length) : 0;
   const baseline = options.baseline ? compareWithBaseline(pages, options.baseline) : undefined;
   const findings: Finding[] = [
     ...pages.flatMap((p) =>
@@ -295,7 +284,7 @@ export async function audit(options: AuditOptions): Promise<AuditReport> {
       message: `${url} was in the baseline but was not reached in this run.`,
     })),
   ];
-  return { startUrl: options.url, finishedAt: new Date().toISOString(), pages, drift, tools, score, findings, ...(baseline ? { baseline } : {}) };
+  return { startUrl: options.url, finishedAt: new Date().toISOString(), pages, drift, tools, findings, ...(baseline ? { baseline } : {}) };
 }
 
 export function renderMarkdown(report: AuditReport): string {
@@ -303,7 +292,7 @@ export function renderMarkdown(report: AuditReport): string {
   lines.push(
     `# WebMCP audit of ${report.startUrl}`,
     "",
-    `Overall agent readiness: **${report.score}/100** across ${report.pages.length} page(s). ${report.tools.length} distinct tool(s): ${report.tools.map((t) => `\`${t}\``).join(", ") || "none"}.`,
+    `${report.pages.length} page(s) audited, ${report.findings.length} finding(s). ${report.tools.length} distinct tool(s): ${report.tools.map((t) => `\`${t}\``).join(", ") || "none"}.`,
     "",
   );
   if (report.baseline) {
@@ -325,7 +314,6 @@ export function renderMarkdown(report: AuditReport): string {
       continue;
     }
     lines.push(`API: ${p.api}${p.cdp ? " (CDP collector attached)" : ""}. Tools: ${p.contract?.tools.map((t) => `\`${t.name}\``).join(", ") || "none"}.`, "");
-    if (p.score) lines.push("```", formatScore(p.score), "```", "");
     if (p.lint?.findings.length) lines.push("Lint:", "", "```", formatFindings(p.lint), "```", "");
     if (p.smoke) {
       const exercised = new Set(p.smoke.runs.map((r) => r.tool)).size;
