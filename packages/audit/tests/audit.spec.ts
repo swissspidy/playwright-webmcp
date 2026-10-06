@@ -34,11 +34,11 @@ test("audit crawls the demo site and reports drift", async ({ browser, baseURL }
   expect(drift?.changes.some((c) => c.includes('"category" added'))).toBe(true);
   expect(report.findings.some((f) => f.ruleId === "cross-page-drift")).toBe(true);
   expect(report.findings.some((f) => f.ruleId === "tool-name-valid" && f.message.includes("/bad.html"))).toBe(true);
-  expect(report.score).toBeGreaterThan(0);
+  expect(report).not.toHaveProperty("score");
   const md = renderMarkdown(report);
   expect(md).toContain("# WebMCP audit of");
   expect(md).toContain("## Cross-page drift");
-  expect(md).toContain("Agent readiness:");
+  expect(md).not.toMatch(/readiness|\/100/i);
   // The smoke section lists every generated input that ran, so "which inputs?" is answered by the report itself.
   const home = report.pages.find((p) => new URL(p.url).pathname === "/")!;
   expect(home.smoke?.runs.filter((r) => r.tool === "search_products").map((r) => r.label)).toEqual([
@@ -69,7 +69,6 @@ test("the report explains an empty smoke run", () => {
     ],
     drift: [],
     tools: ["add_to_cart"],
-    score: 50,
     findings: [],
   });
   expect(md).toContain("Smoke: 0 generated input(s) against 0 tool(s)");

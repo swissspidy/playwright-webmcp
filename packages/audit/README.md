@@ -1,6 +1,17 @@
 # @swissspidy/webmcp-audit
 
-Crawl a site and audit its [WebMCP](https://github.com/webmachinelearning/webmcp) tools from the outside: lint every page, optionally call the tools with inputs derived from their schemas, detect tools whose description or schema drift between pages, and score agent readiness. Built on [`@swissspidy/playwright-webmcp`](https://www.npmjs.com/package/@swissspidy/playwright-webmcp). No test suite or code access needed; point it at a URL.
+Crawl a site and audit its [WebMCP](https://github.com/webmachinelearning/webmcp) tools from the outside: lint every page, optionally call the tools with inputs derived from their schemas, detect tools whose description or schema drift between pages, and compare the tool surface against a previous run. Built on [`@swissspidy/playwright-webmcp`](https://www.npmjs.com/package/@swissspidy/playwright-webmcp). No test suite or code access needed; point it at a URL.
+
+## Lighthouse or this?
+
+Use both. [Lighthouse](https://github.com/GoogleChrome/lighthouse)'s Agentic Browsing category checks a single page: it lists the registered tools, flags `<form>`s without WebMCP annotations, and reports the problems Chrome itself raises for declarative tools. That is the right first look, and it is where a page's agent-readiness score belongs.
+
+This audit covers what a single-page report does not:
+
+- **Calling the tools.** `--smoke` executes read-only tools with valid, boundary and invalid inputs from their schemas and judges the results: errors on valid input, `null`s, oversized or slow results, invalid input accepted silently, instruction-like text.
+- **The whole site.** It crawls same-origin pages and reports a tool whose description or schema differs from page to page (`cross-page-drift`).
+- **Change over time.** `--baseline` turns an earlier `report.json` into a contract and reports tools that changed or pages that disappeared, so CI can fail (`--fail-on warning`) when the tool surface moves.
+- **Every frame and the full rule set.** Tools in iframes are audited too, with all [`@swissspidy/webmcp-lint` rules](https://github.com/swissspidy/playwright-webmcp/tree/main/docs/rules): descriptions, naming, schema shape, injection, sensitive parameters, and the page-level rules.
 
 ```sh
 npm install --save-dev @swissspidy/webmcp-audit @playwright/test
@@ -81,7 +92,8 @@ const report = await audit({
   smokeOptions: { tools: ["search_products", "list_reviews"] }, // or { all: true }
 });
 console.log(renderMarkdown(report));
-for (const page of report.pages) console.log(page.url, page.score?.score, page.smoke?.runs.length);
+for (const page of report.pages)
+  console.log(page.url, page.lint?.findings.length, page.smoke?.runs.length);
 ```
 
-`smokeOptions` accepts everything `webmcp.smoke()` does: `tools` (names or a predicate), `all`, `kinds`, `maxBoundary`, `maxInvalid`, `maxResultChars`, `maxDurationMs`. See the [repository README](https://github.com/swissspidy/playwright-webmcp#readme) for the rules and the score.
+`smokeOptions` accepts everything `webmcp.smoke()` does: `tools` (names or a predicate), `all`, `kinds`, `maxBoundary`, `maxInvalid`, `maxResultChars`, `maxDurationMs`. See the [repository README](https://github.com/swissspidy/playwright-webmcp#readme) for the rules.

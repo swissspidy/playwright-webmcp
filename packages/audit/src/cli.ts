@@ -158,7 +158,7 @@ async function main(): Promise<number> {
     args: values.arg,
     headers,
     baseline,
-    onPage: (p) => console.error(`${p.status === "ok" ? "audited" : "failed "} ${p.url}${p.score ? `  score ${p.score.score}` : ""}`),
+    onPage: (p) => console.error(`${p.status === "ok" ? "audited" : "failed "} ${p.url}`),
   });
 
   mkdirSync(values.out, { recursive: true });
