@@ -1,5 +1,17 @@
 # @swissspidy/webmcp-audit
 
+## 0.2.0
+
+### Minor Changes
+
+- [#34](https://github.com/swissspidy/playwright-webmcp/pull/34) [`0f5270b`](https://github.com/swissspidy/playwright-webmcp/commit/0f5270b4de551750fb1a2103fb2937eb248f37c3) Thanks [@swissspidy](https://github.com/swissspidy)! - Drop the agent-readiness score from the audit. `AuditReport.score` and `PageAudit.score` are gone, and the Markdown report and CLI progress no longer print a score. Lighthouse's Agentic Browsing category now scores a page's WebMCP setup; the audit focuses on what a single-page report does not cover: calling tools, cross-page drift, baseline comparisons, and every frame against the full rule set. `computeScore()` and `toHaveAgentReadinessScore()` in the other packages are unchanged.
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @swissspidy/webmcp-lint@0.2.0
+  - @swissspidy/playwright-webmcp@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
