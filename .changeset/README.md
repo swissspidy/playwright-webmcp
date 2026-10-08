@@ -14,11 +14,15 @@ Once that release is out, this stops mattering: every version after it is comput
 
 ## What the release workflow needs
 
-- An `NPM_TOKEN` repository secret: a granular npm access token with read and write permission for the four packages (or, before the first publish, for new packages under the account and the `@swissspidy` scope), with two-factor bypass enabled so it can publish unattended. The workflow exposes it only to the publish step, through `pnpm_config__auth`, which carries the registry URL and the token together.
+- Each of the four packages on npm lists this repository and `release.yml` as its trusted publisher. npm accepts the publishing job's OIDC token instead of a stored token, and adds provenance.
 - "Allow GitHub Actions to create and approve pull requests" enabled under Settings → Actions → General, so the action can open the "Version Packages" pull request.
 
-Publishing already runs with `id-token: write` and provenance. Once the packages exist on npm, npm's trusted publishing can replace the token: configure this repository and `release.yml` as a trusted publisher on each of the four packages, then drop the secret. A trusted publisher can only be added to a package that already exists, so the first release still has to go out under the token.
+## How the release workflow runs
 
-The npm CLI version does not come into it: `changeset publish` shells out to `pnpm publish`, and since pnpm 12 that is pnpm's own implementation with trusted publishing built in, rather than a call through to npm. Nothing writes an `.npmrc` either, so switching to trusted publishing means deleting the `pnpm_config__auth` block rather than replacing it with another secret.
+It has three jobs, so that the only job that can publish installs and runs nothing from the dependency tree:
 
-Provenance comes from `publishConfig.provenance` in each package. pnpm reads `pnpm_config_*` environment variables and ignores npm's `npm_config_*`, so an `NPM_CONFIG_PROVENANCE` on the publish step would do nothing.
+1. `version` runs on every push to `main`. Changesets opens or updates the "Version Packages" pull request; it installs with `--ignore-scripts` and has no OIDC token. When `main`'s packages carry versions npm does not have yet (that pull request was merged), the push is a release.
+2. `pack` builds the packages, runs publint and packs each one with `pnpm pack`, which rewrites `workspace:` ranges to the released versions. It has no OIDC token either.
+3. `publish` is the only job with `id-token: write`. It installs nothing: it publishes the tarballs with `npm publish` (npm 11.5.1 or later, which the job checks), then tags each `name@version` and creates its GitHub release from the package's `CHANGELOG.md`, as `changeset publish` did. Versions already on npm and existing tags are skipped, so a run that failed partway can be re-run.
+
+Provenance also comes from `publishConfig.provenance` in each package, which `npm publish` reads from the tarball's manifest.

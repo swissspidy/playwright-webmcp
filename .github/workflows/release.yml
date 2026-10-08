@@ -12,35 +12,145 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
 
+# Three jobs, so that the job that can publish (id-token: write) installs and
+# runs nothing from the dependency tree:
+# 1. version: Changesets opens or updates the "Version packages" PR. When
+#    main's packages carry versions npm does not have yet (that PR was merged),
+#    this push is a release.
+# 2. pack (a release only): installs, builds and packs every package.
+# 3. publish (a release only): publishes those tarballs, then tags each
+#    package's version and creates its GitHub release, as changeset publish did.
+
 jobs:
-  release:
-    name: Version or publish
+  version:
+    name: Version packages
     runs-on: ubuntu-latest
     permissions:
-      contents: write # push the version branch, tags and GitHub releases
+      contents: write # push the version branch
       pull-requests: write # open and update the "Version packages" PR
-      id-token: write # npm trusted publishing and provenance
+    outputs:
+      release: ${{ steps.release.outputs.release }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
-      # Installs pnpm from packageManager, Node from .node-version, and runs
-      # the install itself. No .npmrc is written, so nothing carries registry
-      # credentials into the install and build below.
+      # Installs pnpm from packageManager and Node from .node-version. No cache,
+      # and no install scripts next to the token this job holds: Changesets
+      # needs neither.
       - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
         with:
-          cache: true
-          require-lockfile: true
-      - run: pnpm run build
-      # Publishing uses npm trusted publishing: pnpm exchanges the job's OIDC
-      # token (id-token: write above) for a short-lived npm credential, so no
-      # npm secret is involved. Provenance comes from publishConfig.provenance
-      # in each package.
-      - name: Create release pull request or publish
+          cache: false
+          install: false
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - name: Create or update the "Version packages" pull request
         uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
         with:
+          # No publish-script: publishing is the publish job's, below.
           version-script: pnpm run version-packages
-          publish-script: pnpm exec changeset publish
           commit-message: "Version packages"
           pr-title: "Version packages"
+      - name: Does npm lack any package's version?
+        id: release
+        run: |
+          release=false
+          for manifest in packages/*/package.json; do
+            spec="$(node -p 'const p = require("./" + process.argv[1]); p.private ? "" : `${p.name}@${p.version}`' "$manifest")"
+            [ -z "$spec" ] && continue
+            if ! npm view "$spec" version >/dev/null 2>&1; then
+              echo "$spec is not on npm"
+              release=true
+            fi
+          done
+          echo "release=$release" >> "$GITHUB_OUTPUT"
+
+  pack:
+    name: Build and pack
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # No cache: a release builds from a clean install.
+      - uses: pnpm/setup@fbda4c85fc2e1e08721cd8763afea8f48d60f024 # v3.0.0
+        with:
+          cache: false
+          require-lockfile: true
+      - run: pnpm run build
+      - run: pnpm run lint:publish
+      # pnpm pack rewrites workspace: ranges to the versions being released.
+      - name: Pack
+        run: |
+          mkdir release
+          for manifest in packages/*/package.json; do
+            if [ "$(node -p 'require("./" + process.argv[1]).private === true' "$manifest")" = true ]; then continue; fi
+            (cd "$(dirname "$manifest")" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/release")
+          done
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: packages
+          path: release/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to npm
+    needs: pack
+    runs-on: ubuntu-latest
+    # The npm packages' trusted publisher names this workflow file.
+    permissions:
+      contents: write # each version's tag and GitHub release
+      id-token: write # npm trusted publishing and provenance
+    steps:
+      # For the CHANGELOG.md files only: nothing from the checkout is installed or run.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: packages
+          path: release
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .node-version
+          registry-url: https://registry.npmjs.org
+          package-manager-cache: false
+      - name: Check npm's version
+        run: |
+          # Trusted publishing needs npm 11.5.1 or later.
+          npm_version="$(npm --version)"
+          node -e '
+            const [a, b, c] = process.argv[1].split(".").map(Number);
+            if (a < 11 || (a === 11 && (b < 5 || (b === 5 && c < 1)))) throw new Error(`npm ${process.argv[1]} cannot use trusted publishing (11.5.1 or later)`);
+          ' "$npm_version"
+      # Tarballs: no install, no lifecycle scripts. Provenance comes from
+      # publishConfig.provenance in each package. A version already on npm is
+      # skipped, and an existing tag too, so a run that failed partway can be
+      # re-run.
+      - name: Publish, tag and create GitHub releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for tarball in release/*.tgz; do
+            name="$(tar -xOzf "$tarball" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')"
+            version="$(tar -xOzf "$tarball" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).version')"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already on npm"
+            else
+              npm publish "./$tarball"
+            fi
+            tag="$name@$version"
+            if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
+              echo "$tag is already tagged"
+              continue
+            fi
+            # The version's section of the package's CHANGELOG.md, or GitHub's generated notes.
+            dir="$(dirname "$(grep -l "\"name\": \"$name\"" packages/*/package.json)")"
+            awk -v v="$version" '$0 == "## " v { on = 1; next } on && /^## / { exit } on' "$dir/CHANGELOG.md" 2>/dev/null > notes.md || true
+            if [ -s notes.md ]; then notes=(--notes-file notes.md); else notes=(--generate-notes); fi
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "$tag" "${notes[@]}"
+          done
