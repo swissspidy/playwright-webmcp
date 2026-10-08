@@ -43,13 +43,9 @@ jobs:
           cache: false
           install: false
       - run: pnpm install --frozen-lockfile --ignore-scripts
-      - name: Create or update the "Version packages" pull request
-        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
-        with:
-          # No publish-script: publishing is the publish job's, below.
-          version-script: pnpm run version-packages
-          commit-message: "Version packages"
-          pr-title: "Version packages"
+      # Before changesets/action, which leaves the checkout on its version
+      # branch with the pending changesets applied: the check has to read
+      # main's manifests, not the next versions.
       - name: Does npm lack any package's version?
         id: release
         run: |
@@ -63,6 +59,13 @@ jobs:
             fi
           done
           echo "release=$release" >> "$GITHUB_OUTPUT"
+      - name: Create or update the "Version packages" pull request
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          # No publish-script: publishing is the publish job's, below.
+          version-script: pnpm run version-packages
+          commit-message: "Version packages"
+          pr-title: "Version packages"
 
   pack:
     name: Build and pack
