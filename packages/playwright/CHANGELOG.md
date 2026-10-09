@@ -1,5 +1,12 @@
 # @swissspidy/playwright-webmcp
 
+## 0.2.0
+
+### Patch Changes
+
+- Updated dependencies []:
+  - @swissspidy/webmcp-lint@0.2.0
+
 ## 0.1.0
 
 ### Minor Changes
