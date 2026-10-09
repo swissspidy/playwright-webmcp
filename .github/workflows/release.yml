@@ -18,8 +18,10 @@ concurrency:
 #    main's packages carry versions npm does not have yet (that PR was merged),
 #    this push is a release.
 # 2. pack (a release only): installs, builds and packs every package.
-# 3. publish (a release only): publishes those tarballs, then tags each
+# 3. publish (a release only): stages those tarballs on npm, then tags each
 #    package's version and creates its GitHub release, as changeset publish did.
+#    A staged version goes public only once a maintainer approves it with 2FA,
+#    on npmjs.com (Staged Packages) or with `npm stage approve <stage-id>`.
 
 jobs:
   version:
@@ -101,10 +103,11 @@ jobs:
           retention-days: 7
 
   publish:
-    name: Publish to npm
+    name: Stage on npm
     needs: pack
     runs-on: ubuntu-latest
-    # The npm packages' trusted publisher names this workflow file.
+    # The npm packages' trusted publisher names this workflow file, and only
+    # needs to allow staged publishes.
     permissions:
       contents: write # each version's tag and GitHub release
       id-token: write # npm trusted publishing and provenance
@@ -124,17 +127,20 @@ jobs:
           package-manager-cache: false
       - name: Check npm's version
         run: |
-          # Trusted publishing needs npm 11.5.1 or later.
+          # Staged publishing needs npm 11.15.0 or later.
           npm_version="$(npm --version)"
           node -e '
-            const [a, b, c] = process.argv[1].split(".").map(Number);
-            if (a < 11 || (a === 11 && (b < 5 || (b === 5 && c < 1)))) throw new Error(`npm ${process.argv[1]} cannot use trusted publishing (11.5.1 or later)`);
+            const [a, b] = process.argv[1].split(".").map(Number);
+            if (a < 11 || (a === 11 && b < 15)) throw new Error(`npm ${process.argv[1]} cannot stage publishes (11.15.0 or later)`);
           ' "$npm_version"
       # Tarballs: no install, no lifecycle scripts. Provenance comes from
       # publishConfig.provenance in each package. A version already on npm is
       # skipped, and an existing tag too, so a run that failed partway can be
-      # re-run.
-      - name: Publish, tag and create GitHub releases
+      # re-run. Each stage ID goes in the job summary, for approving. A staged
+      # version is not on npm yet, and this job cannot list stages (that needs
+      # a maintainer's login), so approve or reject what a failed run staged
+      # before re-running it.
+      - name: Stage, tag and create GitHub releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -144,7 +150,10 @@ jobs:
             if npm view "$name@$version" version >/dev/null 2>&1; then
               echo "$name@$version is already on npm"
             else
-              npm publish "./$tarball"
+              npm stage publish "./$tarball" > stage.log
+              cat stage.log
+              stage_id="$(sed -n 's/.*(staged with id \(.*\))$/\1/p' stage.log)"
+              echo "Staged $name@$version: approve it under Staged Packages on npmjs.com, or with \`npm stage approve ${stage_id:-<stage-id>}\`." >> "$GITHUB_STEP_SUMMARY"
             fi
             tag="$name@$version"
             if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then

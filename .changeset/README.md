@@ -4,7 +4,7 @@ This repository uses [changesets](https://github.com/changesets/changesets) to v
 
 - Run `pnpm changeset` in a pull request that changes a published package and pick a bump. The four packages are versioned together, so one changeset covers all of them.
 - When changesets land on `main`, the release workflow opens a "Version Packages" pull request that bumps versions and updates `CHANGELOG.md` files.
-- Merging that pull request publishes to npm with provenance.
+- Merging that pull request stages the new versions on npm, with provenance. A maintainer then approves each staged version with 2FA, under Staged Packages on npmjs.com or with `npm stage approve <stage-id>`; the job summary lists the stage IDs.
 
 ## Before the first release
 
@@ -14,7 +14,8 @@ Once that release is out, this stops mattering: every version after it is comput
 
 ## What the release workflow needs
 
-- Each of the four packages on npm lists this repository and `release.yml` as its trusted publisher. npm accepts the publishing job's OIDC token instead of a stored token, and adds provenance.
+- Each of the four packages on npm lists this repository and `release.yml` as its trusted publisher, allowing staged publishes only. npm accepts the publishing job's OIDC token instead of a stored token, and adds provenance.
+- A trusted publisher configuration expires if it is not used within 48 hours of being created. After creating or recreating one, run a release within that window.
 - "Allow GitHub Actions to create and approve pull requests" enabled under Settings → Actions → General, so the action can open the "Version Packages" pull request.
 
 ## How the release workflow runs
@@ -23,6 +24,6 @@ It has three jobs, so that the only job that can publish installs and runs nothi
 
 1. `version` runs on every push to `main`. Changesets opens or updates the "Version Packages" pull request; it installs with `--ignore-scripts` and has no OIDC token. When `main`'s packages carry versions npm does not have yet (that pull request was merged), the push is a release.
 2. `pack` builds the packages, runs publint and packs each one with `pnpm pack`, which rewrites `workspace:` ranges to the released versions. It has no OIDC token either.
-3. `publish` is the only job with `id-token: write`. It installs nothing: it publishes the tarballs with `npm publish` (npm 11.5.1 or later, which the job checks), then tags each `name@version` and creates its GitHub release from the package's `CHANGELOG.md`, as `changeset publish` did. Versions already on npm and existing tags are skipped, so a run that failed partway can be re-run.
+3. `publish` is the only job with `id-token: write`. It installs nothing: it stages the tarballs with `npm stage publish` (npm 11.15.0 or later, which the job checks), then tags each `name@version` and creates its GitHub release from the package's `CHANGELOG.md`, as `changeset publish` did. Versions already on npm and existing tags are skipped, so a run that failed partway can be re-run. A staged version is not on npm until it is approved, though, so approve or reject what a failed run staged before re-running it.
 
-Provenance also comes from `publishConfig.provenance` in each package, which `npm publish` reads from the tarball's manifest.
+Provenance also comes from `publishConfig.provenance` in each package, which `npm stage publish` reads from the tarball's manifest.
