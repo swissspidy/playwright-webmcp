@@ -18,8 +18,9 @@ concurrency:
 #    main's packages carry versions npm does not have yet (that PR was merged),
 #    this push is a release.
 # 2. pack (a release only): installs, builds and packs every package.
-# 3. publish (a release only): stages those tarballs on npm, then tags each
-#    package's version and creates its GitHub release, as changeset publish did.
+# 3. publish (a release only): stages those tarballs on npm and, once all of
+#    them have staged, tags each package's version and creates its GitHub
+#    release, as changeset publish did.
 #    A staged version goes public only once a maintainer approves it with 2FA,
 #    on npmjs.com (Staged Packages) or with `npm stage approve <stage-id>`.
 
@@ -135,26 +136,46 @@ jobs:
           ' "$npm_version"
       # Tarballs: no install, no lifecycle scripts. Provenance comes from
       # publishConfig.provenance in each package. A version already on npm is
-      # skipped, and an existing tag too, so a run that failed partway can be
-      # re-run. Each stage ID goes in the job summary, for approving. A staged
-      # version is not on npm yet, and this job cannot list stages (that needs
-      # a maintainer's login), so approve or reject what a failed run staged
-      # before re-running it.
-      - name: Stage, tag and create GitHub releases
+      # skipped, so a run that failed partway can be re-run. Each stage ID goes
+      # in the job summary, for approving. Every package is tried, so one run
+      # shows every package that cannot stage, and the step fails if any could
+      # not. The packages depend on each other's exact versions, so approve
+      # nothing until all of them have staged: reject what a failed run staged,
+      # fix the cause and re-run. A staged version is not on npm yet, and this
+      # job cannot list stages (that needs a maintainer's login).
+      - name: Stage on npm
+        run: |
+          failed=()
+          for tarball in release/*.tgz; do
+            name="$(tar -xOzf "$tarball" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')"
+            version="$(tar -xOzf "$tarball" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).version')"
+            if npm view "$name@$version" version >/dev/null 2>&1; then
+              echo "$name@$version is already on npm"
+              continue
+            fi
+            if ! npm stage publish "./$tarball" > stage.log; then
+              cat stage.log
+              echo "::error::Could not stage $name@$version"
+              failed+=("$name@$version")
+              continue
+            fi
+            cat stage.log
+            stage_id="$(sed -n 's/.*(staged with id \(.*\))$/\1/p' stage.log)"
+            echo "Staged $name@$version: approve it under Staged Packages on npmjs.com, or with \`npm stage approve ${stage_id:-<stage-id>}\`." >> "$GITHUB_STEP_SUMMARY"
+          done
+          if [ ${#failed[@]} -gt 0 ]; then
+            echo "**Could not stage ${failed[*]}.** Do not approve the versions above: reject them, fix the cause and re-run this job." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+      # Only once every package has staged. An existing tag is skipped, so the
+      # job can be re-run.
+      - name: Tag and create GitHub releases
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           for tarball in release/*.tgz; do
             name="$(tar -xOzf "$tarball" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).name')"
             version="$(tar -xOzf "$tarball" package/package.json | node -p 'JSON.parse(require("fs").readFileSync(0)).version')"
-            if npm view "$name@$version" version >/dev/null 2>&1; then
-              echo "$name@$version is already on npm"
-            else
-              npm stage publish "./$tarball" > stage.log
-              cat stage.log
-              stage_id="$(sed -n 's/.*(staged with id \(.*\))$/\1/p' stage.log)"
-              echo "Staged $name@$version: approve it under Staged Packages on npmjs.com, or with \`npm stage approve ${stage_id:-<stage-id>}\`." >> "$GITHUB_STEP_SUMMARY"
-            fi
             tag="$name@$version"
             if git ls-remote --exit-code --tags origin "refs/tags/$tag" >/dev/null; then
               echo "$tag is already tagged"
