@@ -60,7 +60,7 @@
   },
   "dependencies": {
     "@swissspidy/webmcp-lint": "workspace:*",
-    "webmcp-types": "^0.1.9"
+    "webmcp-types": "^0.1.10"
   },
   "devDependencies": {
     "@playwright/test": "1.63.0",
