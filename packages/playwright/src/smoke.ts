@@ -128,8 +128,10 @@ export async function runSmoke(
       const before = currentUrl?.();
       const stopRequests = requests?.();
       const observed = async () => {
+        // Stop recording first, so the listener comes off even if reading the URL throws.
+        const seen = await stopRequests?.();
         const after = currentUrl?.();
-        const writes = (await stopRequests?.())?.filter((r) => !SAFE_METHODS.has(r.method.toUpperCase()) && !ignored?.(r));
+        const writes = seen?.filter((r) => !SAFE_METHODS.has(r.method.toUpperCase()) && !ignored?.(r));
         return {
           ...(after !== undefined && after !== before ? { navigatedTo: after } : {}),
           ...(writes?.length ? { writes } : {}),
