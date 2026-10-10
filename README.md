@@ -340,21 +340,30 @@ It complements Lighthouse rather than repeating it. Lighthouse's Agentic Browsin
 
 `smoke()` derives inputs from each tool's `inputSchema` and runs them: the required parameters only, all parameters, boundary values (minimum, maximum, maxLength, empty strings and arrays, each enum value), and invalid inputs (missing required, wrong type, out of range, outside enum). Every result is judged:
 
-| Rule                           | Severity | Checks                                                                                        |
-| ------------------------------ | -------- | --------------------------------------------------------------------------------------------- |
-| `result-error-on-valid-input`  | error    | A schema-valid call threw or reported an error.                                               |
-| `result-contains-null`         | error    | Result contains `null` anywhere; Chrome's Prompt API rejects it.                              |
-| `result-not-serializable`      | error    | Result cannot be JSON serialized.                                                             |
-| `result-undefined`             | warning  | Tool returned nothing.                                                                        |
-| `result-too-large`             | warning  | Serialized result above `maxResultChars` (1,500 characters).                                  |
-| `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                                       |
-| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error, or the error came back as a result.              |
-| `result-string-json`           | info     | Returned JSON as a string rather than an object.                                              |
-| `result-navigates`             | warning  | The call changed the page URL and the tool declares `readOnlyHint` or no `consequentialHint`. |
-| `untrusted-content-unmarked`   | error    | Result text reads as an instruction and the tool declares no `untrustedContentHint`.          |
-| `result-suspicious-content`    | warning  | The same, on a tool that did declare it: the boundary is marked.                              |
+| Rule                           | Severity | Checks                                                                                              |
+| ------------------------------ | -------- | --------------------------------------------------------------------------------------------------- |
+| `result-error-on-valid-input`  | error    | A schema-valid call threw or reported an error.                                                     |
+| `result-contains-null`         | error    | Result contains `null` anywhere; Chrome's Prompt API rejects it.                                    |
+| `result-not-serializable`      | error    | Result cannot be JSON serialized.                                                                   |
+| `result-undefined`             | warning  | Tool returned nothing.                                                                              |
+| `result-too-large`             | warning  | Serialized result above `maxResultChars` (1,500 characters).                                        |
+| `result-slow`                  | warning  | Took longer than `maxDurationMs` (5 s).                                                             |
+| `result-accepts-invalid-input` | warning  | Invalid input was accepted without an error, or the error came back as a result.                    |
+| `result-string-json`           | info     | Returned JSON as a string rather than an object.                                                    |
+| `result-navigates`             | warning  | The call changed the page URL and the tool declares `readOnlyHint` or no `consequentialHint`.       |
+| `result-writes`                | error    | A tool that declares `readOnlyHint` sent a request other than GET, HEAD or OPTIONS during the call. |
+| `untrusted-content-unmarked`   | error    | Result text reads as an instruction and the tool declares no `untrustedContentHint`.                |
+| `result-suspicious-content`    | warning  | The same, on a tool that did declare it: the boundary is marked.                                    |
 
-Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it. Every run is recorded as a `SmokeRun` (tool, input kind and label, arguments, result or error, duration); `formatSmokeRuns()` renders them as a Markdown table, which is what `@swissspidy/webmcp-audit` puts in its report.
+Smoke runs execute real tools. By default only tools annotated read-only (`readOnlyHint`, or `readOnly` as the CDP domain reports it) are exercised; pass `tools: [...]`, a predicate, or `all: true` to widen it. Because that choice rests on the hint, smoke checks it: `result-navigates` watches the URL, and `result-writes` watches every request the browser context sends while the call runs, so a mislabeled tool that POSTs in the background fails in your test suite before the audit calls it on a live site. A request the tool schedules for later (a timer, an idle callback) is out of its sight, and neither is a write that goes over a WebSocket. The rule cannot tell the tool's requests from the page's own, so an analytics beacon that fires while a read-only tool runs is blamed on the tool; list such URLs in `ignoreRequests` as globs (`**` matches anything, `*` anything but `/`), regular expressions, or a predicate:
+
+```ts
+await expect(webmcp).toPassSmoke({
+  ignoreRequests: ["https://www.google-analytics.com/**", "**/api/track"],
+});
+```
+
+Every run is recorded as a `SmokeRun` (tool, input kind and label, arguments, result or error, duration); `formatSmokeRuns()` renders them as a Markdown table, which is what `@swissspidy/webmcp-audit` puts in its report.
 
 Results in the MCP shape, `{ content: [{ type: "text", text }], isError? }`, which `use-webmcp-tool` and MCP servers produce, are understood: `isError: true` counts as an error on valid input, an empty `content` array as no result, and text blocks are scanned like any other string.
 

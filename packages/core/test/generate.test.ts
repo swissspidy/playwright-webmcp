@@ -153,3 +153,20 @@ test("result-navigates: a call that changed the URL declares consequentialHint",
   const [readOnly] = judge({ annotations: { readOnlyHint: true, consequentialHint: false }, navigatedTo: "/r" });
   assert.match(readOnly.message, /declares readOnlyHint/);
 });
+
+test("result-writes flags a read-only tool that sent anything but a safe request", () => {
+  const base = { tool: "t", kind: "valid-minimal" as const, label: "x", args: {}, ok: true, durationMs: 1, result: { ok: true } };
+  const writes = [{ method: "POST", url: "https://shop.example/api/cart" }];
+  const ids = (run: object) => judgeRuns([{ ...base, ...run }]).findings.map((f) => f.ruleId);
+  const [f] = judgeRuns([{ ...base, annotations: { readOnlyHint: true }, writes }]).findings;
+  assert.equal(f.ruleId, "result-writes");
+  assert.equal(f.severity, "error");
+  assert.match(f.message, /declares readOnlyHint but sent POST https:\/\/shop\.example\/api\/cart/);
+  // The CDP domain's spelling, and a write before input validation, count the same.
+  assert.deepEqual(ids({ annotations: { readOnly: true }, writes, kind: "invalid", ok: false, error: "bad input" }), ["result-writes"]);
+  // A tool that does not claim to be read-only may write.
+  assert.deepEqual(ids({ annotations: { consequentialHint: true }, writes }), []);
+  assert.deepEqual(ids({ annotations: null, writes }), []);
+  const many = Array.from({ length: 5 }, (_, i) => ({ method: "POST", url: `/w${i}` }));
+  assert.match(judgeRuns([{ ...base, annotations: { readOnlyHint: true }, writes: many }]).findings[0].message, /\/w2, and 2 more\.$/);
+});

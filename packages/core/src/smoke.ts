@@ -25,7 +25,21 @@ export interface SmokeRun {
   annotations?: Record<string, unknown> | null;
   /** The page URL after the call, when the runner saw it change during the call. */
   navigatedTo?: string;
+  /**
+   * Requests with a method other than GET, HEAD or OPTIONS that the page sent
+   * during the call, when the runner watched for them.
+   */
+  writes?: SmokeRequest[];
 }
+
+/** A request observed during a smoke call. */
+export interface SmokeRequest {
+  method: string;
+  url: string;
+}
+
+/** Methods that do not change server state; a read-only tool may send these and nothing else. */
+export const SAFE_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export interface SmokeBudgets {
   /** Serialized result length, in characters, that triggers result-too-large. Default 1500. */
@@ -67,6 +81,11 @@ export const SMOKE_RULES = {
     severity: "warning" as Severity,
     description:
       "The call changed the page URL, but the tool does not declare consequentialHint, or declares readOnlyHint; a client cannot tell the view will change under the user.",
+  },
+  "result-writes": {
+    severity: "error" as Severity,
+    description:
+      "A tool that declares readOnlyHint sent a request other than GET, HEAD or OPTIONS during the call; smoke and the audit call read-only tools on live sites, so the hint has to be true.",
   },
   "untrusted-content-unmarked": {
     severity: "error" as Severity,
@@ -136,6 +155,20 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
           "Set consequentialHint to true so clients can confirm before the view changes, or to false if you decided it is not.",
         ),
       );
+  }
+
+  // Checked on every run, invalid input included: a write that happens before
+  // validation is still a write.
+  if (run.writes?.length && toolHints(run.annotations).readOnly === true) {
+    const shown = run.writes.slice(0, 3).map((r) => `${r.method} ${r.url}`);
+    out.push(
+      make(
+        "result-writes",
+        run,
+        `${where} declares readOnlyHint but sent ${shown.join(", ")}${run.writes.length > 3 ? `, and ${run.writes.length - 3} more` : ""}.`,
+        "A tool that writes is not read-only; drop readOnlyHint, or move the write out of the tool.",
+      ),
+    );
   }
 
   if (run.kind === "invalid") {

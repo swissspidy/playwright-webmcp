@@ -24,6 +24,10 @@ Options:
                         the report lists every input that ran.
   --all-tools           With --smoke: also call tools that are not annotated read-only.
                         These may have side effects (adding to a cart, sending mail).
+  --ignore-request <glob>
+                        With --smoke: a URL glob for requests the page sends on its own,
+                        such as analytics, so result-writes does not blame them on a
+                        read-only tool (** matches anything, * anything but /); repeatable
   --fail-on <severity>  Exit 1 when a finding of this severity or worse exists: error
                         (default), warning, info, or never. Pages that fail to load
                         always exit 1.
@@ -98,6 +102,7 @@ function parse() {
         "no-crawl": { type: "boolean", default: false },
         smoke: { type: "boolean", default: false },
         "all-tools": { type: "boolean", default: false },
+        "ignore-request": { type: "string", multiple: true, default: [] as string[] },
         "fail-on": { type: "string", default: "error" },
         baseline: { type: "string" },
         header: { type: "string", multiple: true, default: [] as string[] },
@@ -152,7 +157,10 @@ async function main(): Promise<number> {
     maxPages: integer("max-pages"),
     crawl: !values["no-crawl"],
     smoke: values.smoke,
-    smokeOptions: values["all-tools"] ? { all: true } : {},
+    smokeOptions: {
+      ...(values["all-tools"] ? { all: true } : {}),
+      ...((values["ignore-request"] as string[]).length ? { ignoreRequests: values["ignore-request"] as string[] } : {}),
+    },
     settleMs: integer("settle"),
     executablePath: values.executable ?? process.env.PW_CHROMIUM,
     args: values.arg,
