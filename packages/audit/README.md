@@ -68,7 +68,7 @@ Nothing is invented: every input comes from the tool's own `inputSchema`. For ea
 
 and executes them through the page's `modelContext`, then judges the results (errors on valid input, `null` in results, unserializable or oversized results, slow tools, invalid input accepted silently, instruction-like text in results). The Markdown report has one table row per input with its arguments and outcome, so you can see exactly what was called.
 
-Because these are real executions, only tools that declare `annotations: { readOnlyHint: true }` are called by default. A page with no read-only tools reports zero runs and says so; `--all-tools` calls everything, which on a shop means adding to carts and submitting forms, so use it against staging.
+Because these are real executions, only tools that declare `annotations: { readOnlyHint: true }` are called by default. A page with no read-only tools reports zero runs and says so; `--all-tools` calls everything, which on a shop means adding to carts and submitting forms, so use it against staging. The audit takes the hint at its word, and it can only report a wrong one after the call: a read-only tool that sent a POST, PUT, PATCH or DELETE while it ran is reported as `result-writes` (error), but the request has already reached the site. Run `toPassSmoke()` from `@swissspidy/playwright-webmcp` in your test suite to catch a mislabeled tool before the audit ever calls it.
 
 ## On CI
 

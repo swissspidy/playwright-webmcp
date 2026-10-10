@@ -38,7 +38,7 @@ import { CdpCollector, type CdpTool } from "./cdp.js";
 const debug = process.env.WEBMCP_DEBUG
   ? (...args: unknown[]) => console.error(`[webmcp fixture ${new Date().toISOString().slice(11, 23)}]`, ...args)
   : () => {};
-import { runSmoke, type SmokeOptions } from "./smoke.js";
+import { runSmoke, watchPage, type SmokeOptions } from "./smoke.js";
 import { RECORDER_SOURCE } from "./recorder.js";
 import { executeToolInputShape, type ExecuteToolInputShape } from "./input-shape.js";
 import { PromptApiHarness } from "./prompt-api.js";
@@ -267,12 +267,7 @@ export class WebMCP {
    */
   async smoke(options: SmokeOptions = {}): Promise<SmokeReport & { skipped: string[] }> {
     const tools = await this.tools();
-    const report = await runSmoke(
-      tools,
-      (name, args) => this.call(name, args),
-      options,
-      () => this.page.url(),
-    );
+    const report = await runSmoke(tools, (name, args) => this.call(name, args), options, watchPage(this.page));
     await this.attach(ATTACHMENTS.smoke, { url: this.page.url(), ...report });
     return report;
   }

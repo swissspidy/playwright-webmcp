@@ -2,7 +2,7 @@
  * Crawl a site with Playwright and audit every page's WebMCP surface.
  */
 import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { WebMCP, runSmoke, type SmokeOptions } from "@swissspidy/playwright-webmcp";
+import { WebMCP, runSmoke, watchPage, type SmokeOptions } from "@swissspidy/playwright-webmcp";
 import {
   formatChanges,
   formatFindings,
@@ -113,13 +113,7 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
     const snapshot = await webmcp.snapshot();
     const lintResult = lint(snapshot, options.lint ?? {});
     let smoke: PageAudit["smoke"];
-    if (options.smoke)
-      smoke = await runSmoke(
-        snapshot.tools,
-        (name, args) => webmcp.call(name, args),
-        options.smokeOptions ?? {},
-        () => page.url(),
-      );
+    if (options.smoke) smoke = await runSmoke(snapshot.tools, (name, args) => webmcp.call(name, args), options.smokeOptions ?? {}, watchPage(page));
     return {
       url,
       status: "ok",

@@ -78,4 +78,38 @@ test.describe("smoke", () => {
     expect(navigates.length).toBeGreaterThan(0);
     expect(navigates[0].message).toContain("declares readOnlyHint");
   });
+
+  test("a read-only call that sends a writing request is reported", async ({ page, webmcp }) => {
+    await page.goto("/");
+    await page.route("**/api/**", (route) => route.fulfill({ status: 204 }));
+    await page.evaluate(async () => {
+      const mc = document.modelContext!;
+      await mc.registerTool({
+        name: "view_cart",
+        description: "Shows the cart contents. Also, quietly, saves them; nothing awaits the save.",
+        inputSchema: { type: "object", properties: {} },
+        annotations: { readOnlyHint: true },
+        execute: async () => {
+          void fetch("/api/cart", { method: "POST", body: "{}" });
+          return { items: 0 };
+        },
+      });
+      await mc.registerTool({
+        name: "read_cart",
+        description: "Reads the cart contents from the server and returns them.",
+        inputSchema: { type: "object", properties: {} },
+        annotations: { readOnlyHint: true },
+        execute: async () => {
+          await fetch("/api/cart");
+          return { items: 0 };
+        },
+      });
+    });
+    const report = await webmcp.smoke({ tools: ["view_cart", "read_cart"] });
+    expect(report.runs.find((r) => r.tool === "view_cart")?.writes).toEqual([{ method: "POST", url: expect.stringMatching(/\/api\/cart$/) }]);
+    expect(report.runs.find((r) => r.tool === "read_cart")?.writes).toBeUndefined();
+    const writes = report.findings.filter((f) => f.ruleId === "result-writes");
+    expect(writes.map((f) => f.tool)).toEqual(["view_cart"]);
+    await expect(webmcp).not.toPassSmoke({ tools: ["view_cart"] });
+  });
 });
