@@ -19,6 +19,33 @@ export interface SmokeOptions extends GenerateOptions, SmokeBudgets {
   all?: boolean;
   /** Which argument kinds to run. Default: all four. */
   kinds?: Array<SmokeRun["kind"]>;
+  /**
+   * Requests the page sends on its own, such as analytics beacons, that
+   * `result-writes` should not blame on the tool being called. A string is a
+   * URL glob: `**` matches anything, `*` anything but `/`.
+   */
+  ignoreRequests?: Array<string | RegExp> | ((request: SmokeRequest) => boolean);
+}
+
+function globToRegExp(glob: string): RegExp {
+  const source = glob
+    .split("**")
+    .map((part) =>
+      part
+        .split("*")
+        .map((literal) => literal.replace(/[.+?^${}()|[\]\\]/g, "\\$&"))
+        .join("[^/]*"),
+    )
+    .join(".*");
+  return new RegExp(`^${source}$`);
+}
+
+/** The predicate `ignoreRequests` describes, or undefined when it ignores nothing. */
+export function requestFilter(ignore: SmokeOptions["ignoreRequests"]): ((request: SmokeRequest) => boolean) | undefined {
+  if (typeof ignore === "function") return ignore;
+  if (!ignore?.length) return undefined;
+  const patterns = ignore.map((p) => (typeof p === "string" ? globToRegExp(p) : p));
+  return (request) => patterns.some((p) => p.test(request.url));
 }
 
 /** @deprecated Import `isReadOnlyTool` from `webmcp-lint` instead. */
@@ -90,6 +117,7 @@ export async function runSmoke(
   watch: SmokeWatch | (() => string) = {},
 ): Promise<SmokeReport & { skipped: string[] }> {
   const { url: currentUrl, requests } = typeof watch === "function" ? { url: watch, requests: undefined } : watch;
+  const ignored = requestFilter(options.ignoreRequests);
   const { selected, skipped } = selectSmokeTools(tools, options);
   const kinds = new Set(options.kinds ?? ["valid-minimal", "valid-full", "boundary", "invalid"]);
   const runs: SmokeRun[] = [];
@@ -101,7 +129,7 @@ export async function runSmoke(
       const stopRequests = requests?.();
       const observed = async () => {
         const after = currentUrl?.();
-        const writes = (await stopRequests?.())?.filter((r) => !SAFE_METHODS.has(r.method.toUpperCase()));
+        const writes = (await stopRequests?.())?.filter((r) => !SAFE_METHODS.has(r.method.toUpperCase()) && !ignored?.(r));
         return {
           ...(after !== undefined && after !== before ? { navigatedTo: after } : {}),
           ...(writes?.length ? { writes } : {}),

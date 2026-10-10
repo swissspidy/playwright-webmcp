@@ -33,6 +33,10 @@ Usage: @swissspidy/webmcp-audit <url> [options]
                         the report lists every input that ran.
   --all-tools           With --smoke: also call tools that are not annotated read-only.
                         These may have side effects (adding to a cart, sending mail).
+  --ignore-request <glob>
+                        With --smoke: a URL glob for requests the page sends on its own,
+                        such as analytics, so result-writes does not blame them on a
+                        read-only tool (** matches anything, * anything but /); repeatable
   --fail-on <severity>  Exit 1 when a finding of this severity or worse exists: error
                         (default), warning, info, or never. Pages that fail to load
                         always exit 1.
@@ -68,7 +72,7 @@ Nothing is invented: every input comes from the tool's own `inputSchema`. For ea
 
 and executes them through the page's `modelContext`, then judges the results (errors on valid input, `null` in results, unserializable or oversized results, slow tools, invalid input accepted silently, instruction-like text in results). The Markdown report has one table row per input with its arguments and outcome, so you can see exactly what was called.
 
-Because these are real executions, only tools that declare `annotations: { readOnlyHint: true }` are called by default. A page with no read-only tools reports zero runs and says so; `--all-tools` calls everything, which on a shop means adding to carts and submitting forms, so use it against staging. The audit takes the hint at its word, and it can only report a wrong one after the call: a read-only tool that sent a POST, PUT, PATCH or DELETE while it ran is reported as `result-writes` (error), but the request has already reached the site. Run `toPassSmoke()` from `@swissspidy/playwright-webmcp` in your test suite to catch a mislabeled tool before the audit ever calls it.
+Because these are real executions, only tools that declare `annotations: { readOnlyHint: true }` are called by default. A page with no read-only tools reports zero runs and says so; `--all-tools` calls everything, which on a shop means adding to carts and submitting forms, so use it against staging. The audit takes the hint at its word, and it can only report a wrong one after the call: a read-only tool that sent a POST, PUT, PATCH or DELETE while it ran is reported as `result-writes` (error), but the request has already reached the site. Requests the page sends on its own while a tool runs, such as analytics beacons, are blamed on the tool too; `--ignore-request "https://www.google-analytics.com/**"` (repeatable) leaves them out. Run `toPassSmoke()` from `@swissspidy/playwright-webmcp` in your test suite to catch a mislabeled tool before the audit ever calls it.
 
 ## On CI
 
@@ -96,4 +100,4 @@ for (const page of report.pages)
   console.log(page.url, page.lint?.findings.length, page.smoke?.runs.length);
 ```
 
-`smokeOptions` accepts everything `webmcp.smoke()` does: `tools` (names or a predicate), `all`, `kinds`, `maxBoundary`, `maxInvalid`, `maxResultChars`, `maxDurationMs`. See the [repository README](https://github.com/swissspidy/playwright-webmcp#readme) for the rules.
+`smokeOptions` accepts everything `webmcp.smoke()` does: `tools` (names or a predicate), `all`, `kinds`, `ignoreRequests`, `maxBoundary`, `maxInvalid`, `maxResultChars`, `maxDurationMs`. See the [repository README](https://github.com/swissspidy/playwright-webmcp#readme) for the rules.
