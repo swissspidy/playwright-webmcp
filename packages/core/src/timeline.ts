@@ -2,7 +2,7 @@
  * Registration timeline: when tools become available relative to navigation,
  * and whether they flap.
  */
-import type { Finding, RegistrationEvent, Severity } from "./types.js";
+import type { Finding, RegistrationEvent, Severity, ToolEvent } from "./types.js";
 
 export interface TimelineMarks {
   domContentLoaded?: number;
@@ -23,6 +23,8 @@ export interface TimelineReport {
   afterLoad: string[];
   findings: Finding[];
   counts: Record<Severity, number>;
+  /** `toolactivated` and `toolcancel` events, when the runner recorded them. Not judged. */
+  toolEvents?: ToolEvent[];
 }
 
 export const TIMELINE_RULES = {

@@ -58,6 +58,19 @@ export interface RegistrationEvent {
   frameUrl: string;
 }
 
+/**
+ * A `toolactivated` or `toolcancel` event the page's modelContext fired,
+ * relative to the frame's navigation start. The browser fires them for every
+ * call it mediates, whoever made it.
+ */
+export interface ToolEvent {
+  type: "activated" | "canceled";
+  name: string;
+  /** Milliseconds since the frame's navigation start. */
+  at: number;
+  frameUrl: string;
+}
+
 export interface FrameSnapshot {
   url: string;
   origin: string;
@@ -150,4 +163,6 @@ export interface RecordedCall {
   via: "api" | "fixture" | "agent";
   /** Where the call was observed: page-side hooks or the CDP WebMCP domain. Default "page". */
   source?: "page" | "cdp";
+  /** Set when the call was canceled (through its abort signal or the CDP domain); `error` then says how. */
+  canceled?: boolean;
 }

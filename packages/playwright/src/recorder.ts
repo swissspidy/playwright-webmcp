@@ -99,6 +99,12 @@ export const RECORDER_SOURCE = String.raw`(() => {
       if (options && options.signal) options.signal.addEventListener("abort", () => wrappedNames.delete(name), { once: true });
       return r;
     };
+    // The browser fires these for every call it mediates, whoever made it.
+    if (typeof mc.addEventListener === "function") {
+      for (const [event, type] of [["toolactivated", "activated"], ["toolcancel", "canceled"]]) {
+        mc.addEventListener(event, (e) => report({ kind: "event", type, name: e && e.toolName, at: nowMs(), frameUrl: location.href }));
+      }
+    }
     if (origExecuteTool) {
       mc.executeTool = async (tool, args, options) => {
         const fromFixture = Boolean(options && options.__playwrightWebmcp);
@@ -114,7 +120,8 @@ export const RECORDER_SOURCE = String.raw`(() => {
           return result;
         } catch (err) {
           suppress--;
-          if (!fromFixture) report({ kind: "call", name, args: safe(parsedArgs), error: String((err && err.message) || err), startedAt, durationMs: Date.now() - startedAt, via: "api" });
+          const canceled = Boolean(err && err.name === "AbortError");
+          if (!fromFixture) report({ kind: "call", name, args: safe(parsedArgs), error: String((err && err.message) || err), startedAt, durationMs: Date.now() - startedAt, via: "api", ...(canceled ? { canceled } : {}) });
           throw err;
         }
       };

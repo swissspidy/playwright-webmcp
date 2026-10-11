@@ -99,24 +99,51 @@ export default defineConfig({
 
 `webmcp` is available in every test, and `promptApi` next to it for tests that want the on-device model (see [Agents](#agents)). The browser has to implement WebMCP (`document.modelContext`); the fixture does not polyfill it. Before navigation `webmcp` installs a **recorder** that wraps registration and execution so calls made by page scripts or in-page agents are captured.
 
-| Method                                                  | Purpose                                                                                              |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `snapshot()`                                            | Tools and frame facts from every frame, including cross-origin ones (Playwright can evaluate there). |
-| `tools()`, `tool(name)`                                 | Convenience accessors.                                                                               |
-| `call(name, args, { timeoutMs? })`                      | Execute a tool wherever it lives and record the call; waits up to 5 s for the tool to be registered. |
-| `calls()`, `clearCalls()`                               | Recorded calls in execution order, with `via: "fixture" \| "api"`.                                   |
-| `lint(options)`                                         | Run the rules; the result is attached to the test.                                                   |
-| `smoke(options)`                                        | Generate inputs from each tool's schema, execute them, and judge the results.                        |
-| `contract()`, `matchToolContract(name?)`                | The page's tool contract, and a comparison against the stored one.                                   |
-| `settle({ quietMs?, timeoutMs? })`                      | Wait until page-reported calls have arrived and the registered tool list has stopped changing.       |
-| `reachableTools({ from? })`                             | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`.     |
-| `mock(name, impl)`, `unmock(name)`, `replay(recording)` | Replace tool implementations from the test; replay recorded results.                                 |
-| `timeline(budgets)`                                     | Registration events since navigation, time to first tool, late and churn findings.                   |
-| `coverage()`, `score()`                                 | Tool and parameter coverage; agent-readiness score.                                                  |
-| `codegen({ name })`, `docs()`                           | Playwright test source from the recording; Markdown tool reference.                                  |
-| `cdp`                                                   | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`.                     |
+| Method                                                    | Purpose                                                                                                                                                |
+| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `snapshot()`                                              | Tools and frame facts from every frame, including cross-origin ones (Playwright can evaluate there).                                                   |
+| `tools()`, `tool(name)`                                   | Convenience accessors.                                                                                                                                 |
+| `call(name, args, { timeoutMs?, signal?, cancelAfter? })` | Execute a tool wherever it lives and record the call; waits up to 5 s for the tool to be registered. A canceled call rejects with `ToolCanceledError`. |
+| `cancel(name, { timeoutMs? })`                            | Cancel the pending calls of a tool, as an agent would. See [Cancellation and tool events](#cancellation-and-tool-events).                              |
+| `events()`, `waitForEvent(event, { tool?, timeoutMs? })`  | The `toolactivated` and `toolcancel` events since navigation; wait for the next one.                                                                   |
+| `calls()`, `clearCalls()`                                 | Recorded calls in execution order, with `via: "fixture" \| "api"`.                                                                                     |
+| `lint(options)`                                           | Run the rules; the result is attached to the test.                                                                                                     |
+| `smoke(options)`                                          | Generate inputs from each tool's schema, execute them, and judge the results.                                                                          |
+| `contract()`, `matchToolContract(name?)`                  | The page's tool contract, and a comparison against the stored one.                                                                                     |
+| `settle({ quietMs?, timeoutMs? })`                        | Wait until page-reported calls have arrived and the registered tool list has stopped changing.                                                         |
+| `reachableTools({ from? })`                               | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`.                                                       |
+| `mock(name, impl)`, `unmock(name)`, `replay(recording)`   | Replace tool implementations from the test; replay recorded results.                                                                                   |
+| `timeline(budgets)`                                       | Registration events since navigation, time to first tool, late and churn findings.                                                                     |
+| `coverage()`, `score()`                                   | Tool and parameter coverage; agent-readiness score.                                                                                                    |
+| `codegen({ name })`, `docs()`                             | Playwright test source from the recording; Markdown tool reference.                                                                                    |
+| `cdp`                                                     | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`.                                                                       |
 
 Options via `test.use({ webmcpOptions: { record: true, lint: {...}, cdp: "auto" \| "never" } })`.
+
+### Cancellation and tool events
+
+The browser fires `toolactivated` on `document.modelContext` when a call starts, whoever made it, and `toolcancel` when the browser or the agent cancels one. Both carry only `toolName`. A canceled call also aborts the signal the tool's `execute` gets as `client.signal`; the tool keeps running unless it checks that signal, so a tool with side effects should check it before it commits to them.
+
+The fixture records both events (`events()`, and in `timeline()` as `toolEvents`), and `call()` can cancel what it starts: pass a `signal`, or `cancelAfter` with milliseconds or `"activated"` to cancel once the page has fired `toolactivated` for the call. `cancel(name)` cancels the pending calls `call()` made; when there are none and the browser has the CDP `WebMCP` domain, it cancels any pending call of that tool, an agent's included. Recorded calls carry `canceled: true`. Without the CDP domain, cancellation goes through the page's `executeTool()` and works for `call()` only.
+
+A test that a canceled order is not placed, and that the page's "agent is working" indicator clears:
+
+```ts
+test("canceling place_order places no order", async ({ page, webmcp }) => {
+  const orders: string[] = [];
+  page.on(
+    "request",
+    (r) => r.url().endsWith("/api/orders") && r.method() === "POST" && orders.push(r.url()),
+  );
+  await page.goto("/cart");
+
+  const call = webmcp.call("place_order", {}, { cancelAfter: "activated" });
+  await expect(call).rejects.toBeInstanceOf(ToolCanceledError);
+  await expect(page.getByText("Agent is working")).toBeHidden();
+  await page.waitForTimeout(1000); // the tool keeps running unless it checks its signal
+  expect(orders).toEqual([]);
+});
+```
 
 ### Seeing what Chrome's agent does
 
