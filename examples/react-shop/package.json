@@ -21,6 +21,6 @@
     "eslint": "^10.11.0",
     "@swissspidy/eslint-plugin-webmcp": "workspace:*",
     "@swissspidy/playwright-webmcp": "workspace:*",
-    "vite": "^8.3.1"
+    "vite": "^8.3.2"
   }
 }
