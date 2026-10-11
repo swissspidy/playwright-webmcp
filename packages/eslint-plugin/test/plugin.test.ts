@@ -33,7 +33,7 @@ test("exposes every tool-scoped imperative rule and a recommended config", () =>
   assert.ok(!ids.includes("duplicate-tool-name"), "page rules are not exposed");
   assert.ok(ids.includes("declarative-description"), "form rules are exposed for JSX");
   assert.ok(ids.includes("no-interpolated-text"), "source-only rules are exposed too");
-  assert.equal(ids.length, staticRules.length + 3);
+  assert.equal(ids.length, staticRules.length + 4);
   assert.equal(plugin.meta.name, "@swissspidy/eslint-plugin-webmcp");
   assert.match(plugin.meta.version, /^\d+\.\d+\.\d+/);
   assert.equal(plugin.configs.recommended.rules?.["webmcp/tool-name-valid"], "error");
@@ -657,6 +657,57 @@ export const openResultsTool = { name: "openResults", description: "Opens result
   tester.run("no-interpolated-text", plugin.rules["no-interpolated-text"], {
     valid: [],
     invalid: [{ code: "export const t = { name: 'search', description: `Search ${site}`, inputSchema: {}, execute() {} };", errors: 1 }],
+  });
+});
+
+test("consequential-abort-signal: a consequential tool that waits reads its abort signal", () => {
+  const tool = (annotations: string, execute: string) =>
+    `mc.registerTool({ name: "place_order", description: "Places the order.", ${annotations} ${execute} });`;
+  const consequential = "annotations: { consequentialHint: true },";
+  tester.run("consequential-abort-signal", plugin.rules["consequential-abort-signal"], {
+    valid: [
+      good,
+      tool(consequential, `async execute(args, client) { client?.signal?.throwIfAborted(); await submit(args); },`),
+      tool(consequential, `async execute(args, { signal }) { await fetch("/api/orders", { method: "POST", signal }); },`),
+      tool(consequential, `execute: (args, client) => placeOrder(args, client),`),
+      tool(consequential, `async execute(...args) { await placeOrder(...args); },`),
+      tool(consequential, `async execute() { await placeOrder(arguments[1]); },`),
+      // Nothing to wait on, so no cancel can arrive mid-call.
+      tool(consequential, `execute(args) { cart.clear(); return { cleared: true }; },`),
+      tool(consequential, `execute: () => ({ ok: true }),`),
+      tool(consequential, `execute(args, client) { return placeOrder(args, client); },`),
+      tool(consequential, `execute(args) { return { placed: true }; },`),
+      // Not declared consequential (false is a decision, and the CDP spelling counts).
+      tool("", `async execute(args) { await placeOrder(args); },`),
+      tool("annotations: { consequentialHint: false },", `async execute(args) { await placeOrder(args); },`),
+      tool("annotations: hints,", `async execute(args) { await placeOrder(args); },`),
+      // An execute this file does not define cannot be read.
+      tool(consequential, `execute: withSignal(placeOrder),`),
+      // An await inside a nested function is that function's own.
+      tool(consequential, `execute(args) { button.onclick = async () => { await placeOrder(args); }; return {}; },`),
+    ],
+    invalid: [
+      {
+        code: tool(consequential, `async execute(args) { await placeOrder(args); return { placed: true }; },`),
+        errors: [{ messageId: "unread", data: { name: "place_order" }, line: 1, column: 116 }],
+      },
+      // A second parameter that is declared but unused, or used only as a property name, is not a read.
+      { code: tool(consequential, `async execute(args, client) { await placeOrder({ client: args }); },`), errors: [{ messageId: "unread" }] },
+      { code: tool("annotations: { consequential: true },", `execute: (args) => placeOrder(args),`), errors: [{ messageId: "unread" }] },
+      { code: tool(consequential, `execute(args) { return placeOrder(args).then(() => ({ placed: true })); },`), errors: [{ messageId: "unread" }] },
+      { code: tool(consequential, `execute(args) { return placeOrder(args); },`), errors: [{ messageId: "unread" }] },
+    ],
+  });
+  tester.run("consequential-abort-signal", plugin.rules["consequential-abort-signal"], {
+    valid: [],
+    invalid: [
+      {
+        code: `
+async function placeOrder(args) { await fetch("/api/orders", { method: "POST" }); }
+export const placeOrderTool = { name: "place_order", description: "Places the order.", inputSchema: {}, annotations: { consequentialHint: true }, execute: placeOrder };`,
+        errors: [{ messageId: "unread", data: { name: "place_order" } }],
+      },
+    ],
   });
 });
 

@@ -26,6 +26,7 @@ import {
   type RecordedCall,
   type ReconcileOptions,
   type RegistrationEvent,
+  type ToolEvent,
   type Score,
   type SmokeReport,
   type TimelineBudgets,
@@ -81,6 +82,24 @@ const instances = new WeakMap<Page, WebMCP>();
 /** Thrown by call() when no frame currently lists the tool; call() retries on it until its timeout. */
 export class ToolNotFoundError extends Error {}
 
+/** Thrown by call() when the call was canceled: through its `signal`, `cancelAfter`, `cancel()`, or by the browser. */
+export class ToolCanceledError extends Error {
+  override name = "ToolCanceledError";
+}
+
+export interface CallOptions {
+  /** How long to wait for the tool to be registered. Default 5000 ms. */
+  timeoutMs?: number;
+  via?: "fixture" | "agent";
+  /** Aborting it cancels the call, as an agent would: the tool's own signal aborts and `toolcancel` fires. */
+  signal?: AbortSignal;
+  /** Cancel the call this many milliseconds after it starts, or once the page fires `toolactivated` for it. */
+  cancelAfter?: number | "activated";
+}
+
+type ToolEventName = "toolactivated" | "toolcancel";
+const EVENT_TYPES: Record<ToolEventName, ToolEvent["type"]> = { toolactivated: "activated", toolcancel: "canceled" };
+
 export class WebMCP {
   private recorded: RecordedCall[] = [];
   private installed = false;
@@ -90,6 +109,10 @@ export class WebMCP {
   private readonly registrationIds = new WeakMap<RegistrationEvent, string>();
   private readonly mocks = new Map<string, (args: Record<string, unknown>) => unknown | Promise<unknown>>();
   private lastSnapshot: PageSnapshot | undefined;
+  private toolEvents: ToolEvent[] = [];
+  private readonly eventListeners = new Set<(event: ToolEvent) => void>();
+  /** Abort controllers of fixture calls in flight, by tool name, so cancel() can reach them. */
+  private readonly inFlight = new Map<string, Set<AbortController>>();
   /** CDP collector; `enabled` is true only when the browser implements the WebMCP domain. */
   cdp: CdpCollector | undefined;
 
@@ -131,6 +154,16 @@ export class WebMCP {
           };
           if (id !== undefined) this.registrationIds.set(event, id);
           this.timelineEvents.push(event);
+        } else if (entry.kind === "event") {
+          if (typeof entry.frameUrl === "string" && source.frame.url() !== entry.frameUrl) return;
+          const event: ToolEvent = {
+            type: entry.type as ToolEvent["type"],
+            name: String(entry.name),
+            at: Number(entry.at),
+            frameUrl: String(entry.frameUrl),
+          };
+          this.toolEvents.push(event);
+          for (const listener of [...this.eventListeners]) listener(event);
         } else {
           const { kind: _kind, ...call } = entry;
           this.recordObserved(call as unknown as RecordedCall);
@@ -148,7 +181,10 @@ export class WebMCP {
         }
       });
       this.page.on("framenavigated", (frame) => {
-        if (frame === this.page.mainFrame()) this.timelineEvents = [];
+        if (frame === this.page.mainFrame()) {
+          this.timelineEvents = [];
+          this.toolEvents = [];
+        }
       });
     }
     if (this.options.record) await this.page.addInitScript(RECORDER_SOURCE);
@@ -355,7 +391,7 @@ export class WebMCP {
       const nav = performance.getEntriesByType("navigation")[0] as PerformanceNavigationTiming | undefined;
       return { domContentLoaded: nav?.domContentLoadedEventEnd, load: nav?.loadEventEnd };
     });
-    const report = judgeTimeline(this.timelineEvents, marks, budgets);
+    const report: TimelineReport = { ...judgeTimeline(this.timelineEvents, marks, budgets), toolEvents: this.events() };
     await this.attach(ATTACHMENTS.timeline, { url: this.page.url(), ...report });
     return report;
   }
@@ -468,26 +504,136 @@ export class WebMCP {
    * Execute a tool through the page's modelContext and record the call.
    * Waits up to `timeoutMs` (default 5000) for the tool to be registered, since
    * pages register tools after load and native getTools() can lag behind.
+   * A canceled call rejects with ToolCanceledError.
    */
-  async call<T = unknown>(name: string, args: Record<string, unknown> = {}, options: { timeoutMs?: number; via?: "fixture" | "agent" } = {}): Promise<T> {
+  async call<T = unknown>(name: string, args: Record<string, unknown> = {}, options: CallOptions = {}): Promise<T> {
+    if (options.cancelAfter === "activated") await this.requireToolEvents('cancelAfter: "activated"');
     const deadline = Date.now() + (options.timeoutMs ?? 5000);
-    for (;;) {
-      try {
-        return await this.callOnce<T>(name, args, options.via ?? "fixture");
-      } catch (err) {
-        if (!(err instanceof ToolNotFoundError) || Date.now() >= deadline) throw err;
-        await new Promise((resolve) => setTimeout(resolve, 100));
+    const controller = new AbortController();
+    const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
+    const calls = this.inFlight.get(name) ?? new Set();
+    calls.add(controller);
+    this.inFlight.set(name, calls);
+    let stop = () => {};
+    if (typeof options.cancelAfter === "number") {
+      const timer = setTimeout(() => controller.abort(), options.cancelAfter);
+      stop = () => clearTimeout(timer);
+    } else if (options.cancelAfter === "activated") {
+      const listener = (event: ToolEvent) => {
+        if (event.type === "activated" && event.name === name) controller.abort();
+      };
+      this.eventListeners.add(listener);
+      stop = () => this.eventListeners.delete(listener);
+    }
+    try {
+      for (;;) {
+        try {
+          return await this.callOnce<T>(name, args, options.via ?? "fixture", signal);
+        } catch (err) {
+          if (!(err instanceof ToolNotFoundError) || Date.now() >= deadline) throw err;
+          await new Promise((resolve) => setTimeout(resolve, 100));
+        }
       }
+    } finally {
+      stop();
+      calls.delete(controller);
+      if (!calls.size) this.inFlight.delete(name);
     }
   }
 
-  private async callOnce<T>(name: string, args: Record<string, unknown>, via: "fixture" | "agent"): Promise<T> {
+  /**
+   * Cancel the pending calls of a tool: the ones made through `call()`, or,
+   * when there are none and the CDP domain is available, any call the browser
+   * mediates, such as an agent's. Waits up to `timeoutMs` (default 5000) for a
+   * call to start; resolves to the number canceled and throws when there was none.
+   */
+  async cancel(name: string, options: { timeoutMs?: number } = {}): Promise<number> {
+    const timeoutMs = options.timeoutMs ?? 5000;
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      // A fixture call that went through the browser is canceled there by its signal, so the browser is asked only when the fixture has none.
+      const own = [...(this.inFlight.get(name) ?? [])].filter((c) => !c.signal.aborted);
+      for (const controller of own) controller.abort();
+      if (own.length) return own.length;
+      const others = this.cdp?.enabled ? await this.cdp.cancelPending(name, Math.min(100, Math.max(0, deadline - Date.now()))) : 0;
+      if (others) return others;
+      if (Date.now() >= deadline)
+        throw new Error(
+          `No pending call of "${name}" to cancel within ${timeoutMs} ms${this.cdp?.enabled ? "" : " (without the CDP WebMCP domain only calls made through webmcp.call() can be canceled)"}`,
+        );
+      if (!this.cdp?.enabled) await new Promise((resolve) => setTimeout(resolve, 25));
+    }
+  }
+
+  /**
+   * Whether the page's modelContext fires `toolactivated` and `toolcancel`.
+   * Chromium added them after the rest of the API (153 has none); a call can
+   * still be canceled without them.
+   */
+  async supportsToolEvents(): Promise<boolean> {
+    return this.page
+      .evaluate(() => {
+        const mc = document.modelContext as object | undefined;
+        return Boolean(mc && "ontoolactivated" in mc && "ontoolcancel" in mc);
+      })
+      .catch(() => false);
+  }
+
+  private async requireToolEvents(what: string): Promise<void> {
+    if (!this.options.record) throw new Error(`${what} needs the recorder (webmcpOptions.record)`);
+    if (!(await this.supportsToolEvents()))
+      throw new Error(`${what} needs a browser that fires toolactivated and toolcancel; this one does not (check webmcp.supportsToolEvents())`);
+  }
+
+  /** `toolactivated` and `toolcancel` events since the last navigation, in the order they arrived. */
+  events(): ToolEvent[] {
+    return [...this.toolEvents];
+  }
+
+  /**
+   * Wait for the next `toolactivated` or `toolcancel` event, optionally for
+   * one tool. Start waiting before the action that fires it, as with
+   * Playwright's own waitForEvent.
+   */
+  waitForEvent(event: ToolEventName, options: { tool?: string; timeoutMs?: number } = {}): Promise<ToolEvent> {
+    const timeoutMs = options.timeoutMs ?? 5000;
+    let listener: (e: ToolEvent) => void = () => {};
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stop = () => {
+      this.eventListeners.delete(listener);
+      clearTimeout(timer);
+    };
+    // Listen before the support check settles, so an event fired meanwhile is not missed.
+    const next = new Promise<ToolEvent>((resolve, reject) => {
+      listener = (e) => {
+        if (e.type !== EVENT_TYPES[event] || (options.tool !== undefined && e.name !== options.tool)) return;
+        stop();
+        resolve(e);
+      };
+      timer = setTimeout(() => {
+        stop();
+        reject(new Error(`No ${event} event${options.tool ? ` for "${options.tool}"` : ""} within ${timeoutMs} ms`));
+      }, timeoutMs);
+      this.eventListeners.add(listener);
+    });
+    return Promise.all([this.requireToolEvents("waitForEvent()"), next]).then(
+      ([, e]) => e,
+      (err) => {
+        stop();
+        throw err;
+      },
+    );
+  }
+
+  private async callOnce<T>(name: string, args: Record<string, unknown>, via: "fixture" | "agent", signal?: AbortSignal): Promise<T> {
     if (process.env.WEBMCP_DEBUG)
       console.error(
         `[webmcp call ${new Date().toISOString().slice(11, 23)}] ${name} via=${via} cdp=${Boolean(this.cdp?.enabled && this.cdp.find(name))} url=${this.page.url()}`,
       );
+    if (signal?.aborted) throw new ToolCanceledError(`Tool "${name}" was canceled before it started`);
     if (this.cdp?.enabled && this.cdp.find(name)) {
-      const outcome = await this.cdp.invoke(name, args, undefined, undefined, via);
+      const outcome = await this.cdp.invoke(name, args, undefined, undefined, via, signal);
+      if (outcome.canceled) throw new ToolCanceledError(`Tool "${name}" was canceled: ${outcome.error}`);
       if (!outcome.ok) throw new Error(`Tool "${name}" failed: ${outcome.error}`);
       // toolResponded.output carries the value the agent gets; Chrome sends the string "undefined" for no result.
       return (outcome.result === "undefined" ? undefined : outcome.result) as T;
@@ -514,17 +660,39 @@ export class WebMCP {
       );
     }
     const startedAt = Date.now();
+    // The page holds the call's AbortController under this token; aborting the signal here aborts it there.
+    const token = `${startedAt}-${Math.random().toString(36).slice(2)}`;
+    // An abort can reach the page before the call has made its controller; it then leaves a mark the call finds.
+    const abort = () =>
+      void owner
+        .evaluate((t) => {
+          const aborts = ((window as any).__webmcpAborts ??= Object.create(null)) as Record<string, AbortController | "aborted">;
+          const controller = aborts[t];
+          if (controller instanceof AbortController) controller.abort();
+          else aborts[t] = "aborted";
+        }, token)
+        .catch(() => {});
+    // Finding the owner frame takes time; a cancel during it must not slip past the listener.
+    if (signal?.aborted) throw new ToolCanceledError(`Tool "${name}" was canceled before it started`);
+    signal?.addEventListener("abort", abort, { once: true });
     const outcome = await owner.evaluate(
-      async ([toolName, toolArgs, shape]) => {
+      async ([toolName, toolArgs, shape, abortToken]) => {
         const mc = document.modelContext!;
         const listed = (await mc.getTools()) ?? [];
         const tool = listed.find((t) => t.name === toolName);
         if (!tool) return { ok: false as const, error: `No WebMCP tool named "${toolName}" is registered` };
+        const aborts = ((window as any).__webmcpAborts ??= Object.create(null)) as Record<string, AbortController | "aborted">;
+        if (aborts[abortToken] === "aborted") {
+          delete aborts[abortToken];
+          return { ok: false as const, error: "signal is aborted without reason", canceled: true };
+        }
+        const controller = new AbortController();
+        aborts[abortToken] = controller;
         try {
           // executeTool() takes the RegisteredTool object. The specification declares the input as an
           // object; Chrome 154 and earlier took only a JSON string, which `shape` accounts for.
           const input = shape === "string" ? JSON.stringify(toolArgs) : toolArgs;
-          const raw: unknown = await mc.executeTool(tool, input as object, { __playwrightWebmcp: true } as never);
+          const raw: unknown = await mc.executeTool(tool, input as object, { __playwrightWebmcp: true, signal: controller.signal } as never);
           // The result arrives as a string: JSON for objects, String(value) for primitives, "undefined" for no result.
           let result: unknown;
           if (typeof raw !== "string") result = JSON.parse(JSON.stringify(raw === undefined ? null : raw));
@@ -538,11 +706,14 @@ export class WebMCP {
           }
           return { ok: true as const, result };
         } catch (err) {
-          return { ok: false as const, error: String((err as Error)?.message ?? err) };
+          return { ok: false as const, error: String((err as Error)?.message ?? err), canceled: (err as Error)?.name === "AbortError" };
+        } finally {
+          delete aborts[abortToken];
         }
       },
-      [name, args, this.inputShape()] as const,
+      [name, args, this.inputShape(), token] as const,
     );
+    signal?.removeEventListener("abort", abort);
     const entry: RecordedCall = {
       name,
       args,
@@ -550,8 +721,10 @@ export class WebMCP {
       durationMs: Date.now() - startedAt,
       via,
       ...(outcome.ok ? { result: outcome.result } : { error: outcome.error }),
+      ...(!outcome.ok && outcome.canceled ? { canceled: true } : {}),
     };
     this.recorded.push(entry);
+    if (!outcome.ok && outcome.canceled) throw new ToolCanceledError(`Tool "${name}" was canceled: ${outcome.error}`);
     if (!outcome.ok) throw new Error(`Tool "${name}" failed: ${outcome.error}`);
     return outcome.result as T;
   }
@@ -612,7 +785,8 @@ export class WebMCP {
     if (!this.testInfo) return;
     if (this.recorded.length) await this.attach(ATTACHMENTS.calls, this.calls());
     if (this.lastSnapshot) await this.attach(ATTACHMENTS.toolSnapshots, this.lastSnapshot.tools);
-    if (this.timelineEvents.length) await this.attach(ATTACHMENTS.timeline, { url: this.page.url(), events: this.timelineEvents });
+    if (this.timelineEvents.length || this.toolEvents.length)
+      await this.attach(ATTACHMENTS.timeline, { url: this.page.url(), events: this.timelineEvents, toolEvents: this.toolEvents });
   }
 
   /** @internal */
@@ -621,6 +795,8 @@ export class WebMCP {
   }
 
   private readonly matchedObservations = new WeakSet<RecordedCall>();
+  /** CDP records of invocations the collector made itself; their `via` is known for certain. */
+  private readonly ownInvocations = new WeakSet<RecordedCall>();
 
   /**
    * Page-side hooks and the CDP domain both observe an execution the browser
@@ -640,6 +816,7 @@ export class WebMCP {
         JSON.stringify(c.args ?? {}) === key,
     );
     if (!twin) {
+      if (fromCdp && ownInvocation) this.ownInvocations.add(call);
       this.recorded.push(call);
       return;
     }
@@ -648,9 +825,11 @@ export class WebMCP {
     const page = fromCdp ? twin : call;
     twin.source = "cdp";
     // The collector knows what it invoked itself (fixture or an agent driver); otherwise the page side knows best.
-    twin.via = fromCdp && ownInvocation ? cdp.via : page.via;
+    // Usually the page reports first, but a canceled call's response can beat the page's report of it.
+    twin.via = fromCdp && ownInvocation ? cdp.via : this.ownInvocations.has(twin) ? twin.via : page.via;
     if (twin.result === undefined && cdp.result !== undefined && cdp.result !== "undefined") twin.result = cdp.result;
     if (!twin.error && cdp.error) twin.error = cdp.error;
+    if (call.canceled || cdp.canceled) twin.canceled = true;
   }
 
   /** @internal */

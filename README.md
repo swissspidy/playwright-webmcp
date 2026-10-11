@@ -99,24 +99,53 @@ export default defineConfig({
 
 `webmcp` is available in every test, and `promptApi` next to it for tests that want the on-device model (see [Agents](#agents)). The browser has to implement WebMCP (`document.modelContext`); the fixture does not polyfill it. Before navigation `webmcp` installs a **recorder** that wraps registration and execution so calls made by page scripts or in-page agents are captured.
 
-| Method                                                  | Purpose                                                                                              |
-| ------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `snapshot()`                                            | Tools and frame facts from every frame, including cross-origin ones (Playwright can evaluate there). |
-| `tools()`, `tool(name)`                                 | Convenience accessors.                                                                               |
-| `call(name, args, { timeoutMs? })`                      | Execute a tool wherever it lives and record the call; waits up to 5 s for the tool to be registered. |
-| `calls()`, `clearCalls()`                               | Recorded calls in execution order, with `via: "fixture" \| "api"`.                                   |
-| `lint(options)`                                         | Run the rules; the result is attached to the test.                                                   |
-| `smoke(options)`                                        | Generate inputs from each tool's schema, execute them, and judge the results.                        |
-| `contract()`, `matchToolContract(name?)`                | The page's tool contract, and a comparison against the stored one.                                   |
-| `settle({ quietMs?, timeoutMs? })`                      | Wait until page-reported calls have arrived and the registered tool list has stopped changing.       |
-| `reachableTools({ from? })`                             | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`.     |
-| `mock(name, impl)`, `unmock(name)`, `replay(recording)` | Replace tool implementations from the test; replay recorded results.                                 |
-| `timeline(budgets)`                                     | Registration events since navigation, time to first tool, late and churn findings.                   |
-| `coverage()`, `score()`                                 | Tool and parameter coverage; agent-readiness score.                                                  |
-| `codegen({ name })`, `docs()`                           | Playwright test source from the recording; Markdown tool reference.                                  |
-| `cdp`                                                   | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`.                     |
+| Method                                                                           | Purpose                                                                                                                                                |
+| -------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `snapshot()`                                                                     | Tools and frame facts from every frame, including cross-origin ones (Playwright can evaluate there).                                                   |
+| `tools()`, `tool(name)`                                                          | Convenience accessors.                                                                                                                                 |
+| `call(name, args, { timeoutMs?, signal?, cancelAfter? })`                        | Execute a tool wherever it lives and record the call; waits up to 5 s for the tool to be registered. A canceled call rejects with `ToolCanceledError`. |
+| `cancel(name, { timeoutMs? })`                                                   | Cancel the pending calls of a tool, as an agent would. See [Cancellation and tool events](#cancellation-and-tool-events).                              |
+| `events()`, `waitForEvent(event, { tool?, timeoutMs? })`, `supportsToolEvents()` | The `toolactivated` and `toolcancel` events since navigation; wait for the next one; whether this browser fires them.                                  |
+| `calls()`, `clearCalls()`                                                        | Recorded calls in execution order, with `via: "fixture" \| "api"`.                                                                                     |
+| `lint(options)`                                                                  | Run the rules; the result is attached to the test.                                                                                                     |
+| `smoke(options)`                                                                 | Generate inputs from each tool's schema, execute them, and judge the results.                                                                          |
+| `contract()`, `matchToolContract(name?)`                                         | The page's tool contract, and a comparison against the stored one.                                                                                     |
+| `settle({ quietMs?, timeoutMs? })`                                               | Wait until page-reported calls have arrived and the registered tool list has stopped changing.                                                         |
+| `reachableTools({ from? })`                                                      | What an agent in a given frame can reach through the API, after `allow="tools"` and `exposedTo`.                                                       |
+| `mock(name, impl)`, `unmock(name)`, `replay(recording)`                          | Replace tool implementations from the test; replay recorded results.                                                                                   |
+| `timeline(budgets)`                                                              | Registration events since navigation, time to first tool, late and churn findings.                                                                     |
+| `coverage()`, `score()`                                                          | Tool and parameter coverage; agent-readiness score.                                                                                                    |
+| `codegen({ name })`, `docs()`                                                    | Playwright test source from the recording; Markdown tool reference.                                                                                    |
+| `cdp`                                                                            | The CDP collector when the browser has the WebMCP domain; `webmcp.cdp?.enabled`.                                                                       |
 
 Options via `test.use({ webmcpOptions: { record: true, lint: {...}, cdp: "auto" \| "never" } })`.
+
+### Cancellation and tool events
+
+The browser fires `toolactivated` on `document.modelContext` when a call starts, whoever made it, and `toolcancel` when the browser or the agent cancels one. Both carry only `toolName`. A canceled call also aborts the signal the tool's `execute` gets as `client.signal`, and the agent is told the call was canceled; the tool's code keeps running unless it checks that signal.
+
+Which tools should check it: one that waits and then does something it cannot take back (places an order, sends a message, deletes data). Check right before the side effect, `client?.signal?.throwIfAborted()`, since the cancel usually arrives during a wait, and pass the signal on to `fetch()` so a request that has not gone out yet is dropped; a request already sent is not undone by aborting it. A read-only tool can ignore the signal: the browser discards a canceled call's result. The ESLint plugin's `webmcp/consequential-abort-signal` flags a tool that declares `consequentialHint`, waits in its `execute`, and never reads its second parameter.
+
+The fixture records both events (`events()`, and in `timeline()` as `toolEvents`), and `call()` can cancel what it starts: pass a `signal`, or `cancelAfter` with milliseconds or `"activated"` to cancel once the page has fired `toolactivated` for the call. `cancel(name)` cancels the pending calls `call()` made; when there are none and the browser has the CDP `WebMCP` domain, it cancels any pending call of that tool, an agent's included. Recorded calls carry `canceled: true`. Without the CDP domain, cancellation goes through the page's `executeTool()` and works for `call()` only. Chromium added the two events after the rest of the API (153 has neither, but already aborts the signal); `supportsToolEvents()` says whether the browser fires them, and `waitForEvent()` and `cancelAfter: "activated"` throw rather than wait when it does not.
+
+A test that a canceled order is not placed, and that the page's "agent is working" indicator clears:
+
+```ts
+test("canceling place_order places no order", async ({ page, webmcp }) => {
+  const orders: string[] = [];
+  page.on(
+    "request",
+    (r) => r.url().endsWith("/api/orders") && r.method() === "POST" && orders.push(r.url()),
+  );
+  await page.goto("/cart");
+
+  const call = webmcp.call("place_order", {}, { cancelAfter: "activated" });
+  await expect(call).rejects.toBeInstanceOf(ToolCanceledError);
+  await expect(page.getByText("Agent is working")).toBeHidden();
+  await page.waitForTimeout(1000); // the tool keeps running unless it checks its signal
+  expect(orders).toEqual([]);
+});
+```
 
 ### Seeing what Chrome's agent does
 
@@ -455,7 +484,7 @@ The same engine runs wherever tool definitions are available.
 
 **In ESLint or oxlint.** `@swissspidy/eslint-plugin-webmcp` exposes every tool-scoped rule as `webmcp/<rule-id>`, run statically against the object literals passed to `registerTool()` and `useWebMCP()` from `use-webmcp-tool`, plus any wrapper you name in `settings.webmcp.definitions`, against object literals shaped like a tool wherever they are written (a literal `name`, `execute` and `inputSchema`, or typed `ModelContextTool`; this is how a tool exported from one module and registered in another is found), and against `<form toolname>` elements in JSX. A `const` holding the literal is followed. Literal fields are read; computed ones are skipped rather than guessed. What one file cannot show (a definition built at runtime, what `execute` does through an event or another module, what the page registers as a whole) is left to the runtime checks; the [plugin README](packages/eslint-plugin/README.md#what-it-can-and-cannot-see) maps each blind spot to the check that covers it.
 
-It also carries rules with no `@swissspidy/webmcp-lint` counterpart, because only the source shows what they catch and nothing survives to runtime. `webmcp/valid-event-name` flags a listener for a `tool*` event other than `toolchange`, `toolactivated` and `toolcancel`, which the typings let through and which never fires. And `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. `webmcp/navigation-consequential` (warning) reads a tool's `execute`, and functions it calls in the same file, for navigation: `location` assignments and methods, the History and Navigation APIs, router objects and a bare `navigate()`. A tool that navigates should declare `consequentialHint` (`false` counts as a decision) and never `readOnlyHint`. A handler reached through an event or another module is out of its sight; smoke's `result-navigates` catches those at runtime by watching the URL. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
+It also carries rules with no `@swissspidy/webmcp-lint` counterpart, because only the source shows what they catch and nothing survives to runtime. `webmcp/valid-event-name` flags a listener for a `tool*` event other than `toolchange`, `toolactivated` and `toolcancel`, which the typings let through and which never fires. And `webmcp/no-interpolated-text` (warning) flags tool text assembled at runtime — `` description: `Search ${siteName} products` ``, or the same by concatenation — in a name, title, description or parameter description, and in the matching JSX form attributes. By the time the page runs, that description is just a string and no page-level rule can tell it from a literal one; in the source it is visibly a sentence the author wrote half of, and the other half reaches every visiting agent. A reference to text is not an interpolation: `t("search.description")` and `STRINGS.search` are left alone. Interpolation is not by itself a bug, which is why it warns — what it asks is whether you can name where each value comes from. `fields` narrows it to the ones you care about. `webmcp/navigation-consequential` (warning) reads a tool's `execute`, and functions it calls in the same file, for navigation: `location` assignments and methods, the History and Navigation APIs, router objects and a bare `navigate()`. A tool that navigates should declare `consequentialHint` (`false` counts as a decision) and never `readOnlyHint`. A handler reached through an event or another module is out of its sight; smoke's `result-navigates` catches those at runtime by watching the URL. `webmcp/consequential-abort-signal` (warning) flags a tool that declares `consequentialHint` and waits in its `execute` (async, awaits, `.then()`, or hands its work to another call) but never reads the second parameter, whose `signal` aborts when the call is canceled; see [Cancellation and tool events](#cancellation-and-tool-events). Any use of the parameter counts, passing it to a helper included. The same package loads as an oxlint JS plugin (`"jsPlugins": ["@swissspidy/eslint-plugin-webmcp"]`), which the test suite exercises against the real oxlint binary.
 
 ```js
 // eslint.config.js

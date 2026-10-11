@@ -137,3 +137,54 @@ test("invoke() hands back an invocation another client started when the response
     [{ query: "shirt" }, "fixture", true],
   ]);
 });
+
+test("an aborted signal cancels the invocation through the browser, and a Canceled response is recorded as such", async () => {
+  const calls: RecordedCall[] = [];
+  const session = new FakeSession();
+  const collector = new CdpCollector(session, { onCall: (c) => calls.push(c) });
+  await collector.enable();
+  session.emit("WebMCP.toolsAdded", { tools: [{ name: "checkout", description: "", frameId: "F1" }] });
+
+  const controller = new AbortController();
+  const pending = collector.invoke("checkout", {}, undefined, undefined, "fixture", controller.signal);
+  await new Promise((r) => setTimeout(r, 0));
+  session.emit("WebMCP.toolInvoked", { toolName: "checkout", frameId: "F1", invocationId: "inv-1", input: "{}" });
+  controller.abort();
+  expect(session.sent.filter((s) => s.method === "WebMCP.cancelInvocation").map((s) => s.params)).toEqual([{ invocationId: "inv-1" }]);
+  session.emit("WebMCP.toolResponded", { invocationId: "inv-1", status: "Canceled", errorText: "" });
+
+  expect(await pending).toEqual({ ok: false, result: undefined, error: "Canceled", canceled: true });
+  expect(calls).toMatchObject([{ name: "checkout", via: "fixture", canceled: true, error: "Canceled" }]);
+});
+
+test("cancelPending() cancels every pending invocation of a tool, whoever started it, and waits for one", async () => {
+  const session = new FakeSession();
+  const collector = new CdpCollector(session);
+  await collector.enable();
+  session.emit("WebMCP.toolsAdded", { tools: [{ name: "checkout", description: "", frameId: "F1" }] });
+
+  expect(await collector.cancelPending("checkout", 50)).toBe(0);
+  const waiting = collector.cancelPending("checkout", 1000);
+  session.emit("WebMCP.toolInvoked", { toolName: "checkout", frameId: "F1", invocationId: "agent-1", input: "{}" });
+  session.emit("WebMCP.toolInvoked", { toolName: "checkout", frameId: "F1", invocationId: "agent-2", input: "{}" });
+  session.emit("WebMCP.toolInvoked", { toolName: "search", frameId: "F1", invocationId: "agent-3", input: "{}" });
+  expect(await waiting).toBe(2);
+  expect(session.sent.filter((s) => s.method === "WebMCP.cancelInvocation").map((s) => s.params?.invocationId)).toEqual(["agent-1", "agent-2"]);
+});
+
+test("a settled invocation is not canceled when its signal aborts later", async () => {
+  const session = new FakeSession();
+  const collector = new CdpCollector(session);
+  await collector.enable();
+  session.emit("WebMCP.toolsAdded", { tools: [{ name: "checkout", description: "", frameId: "F1" }] });
+
+  const controller = new AbortController();
+  const pending = collector.invoke("checkout", {}, undefined, undefined, "fixture", controller.signal);
+  await new Promise((r) => setTimeout(r, 0));
+  session.emit("WebMCP.toolInvoked", { toolName: "checkout", frameId: "F1", invocationId: "inv-1", input: "{}" });
+  session.emit("WebMCP.toolResponded", { invocationId: "inv-1", status: "Completed", output: { ok: true } });
+  expect((await pending).ok).toBe(true);
+
+  controller.abort();
+  expect(session.sent.filter((s) => s.method === "WebMCP.cancelInvocation")).toEqual([]);
+});

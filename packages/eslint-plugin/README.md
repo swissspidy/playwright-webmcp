@@ -67,11 +67,12 @@ Each rule has a page under [`docs/rules/`](https://github.com/swissspidy/playwri
 
 Source rules judge the code that calls the API. They have no `@swissspidy/webmcp-lint` counterpart because nothing they catch survives to runtime. Shape mistakes in the dictionaries themselves (an unknown property, a missing `execute`, a misspelt hint) are TypeScript's job, with the [`webmcp-types`](https://www.npmjs.com/package/webmcp-types) package installed.
 
-| Rule                              | Recommended | Checks                                                                                                                                                 |
-| --------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `webmcp/valid-event-name`         | error       | Listeners for `tool*` events name `toolchange`, `toolactivated` or `toolcancel`.                                                                       |
-| `webmcp/no-interpolated-text`     | warn        | Tool text assembled at runtime from values the author cannot name the source of.                                                                       |
-| `webmcp/navigation-consequential` | warn        | A tool whose `execute` navigates (`location`, History and Navigation APIs, routers, `navigate()`) declares `consequentialHint` and not `readOnlyHint`. |
+| Rule                                | Recommended | Checks                                                                                                                                                   |
+| ----------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webmcp/valid-event-name`           | error       | Listeners for `tool*` events name `toolchange`, `toolactivated` or `toolcancel`.                                                                         |
+| `webmcp/no-interpolated-text`       | warn        | Tool text assembled at runtime from values the author cannot name the source of.                                                                         |
+| `webmcp/navigation-consequential`   | warn        | A tool whose `execute` navigates (`location`, History and Navigation APIs, routers, `navigate()`) declares `consequentialHint` and not `readOnlyHint`.   |
+| `webmcp/consequential-abort-signal` | warn        | A tool that declares `consequentialHint` and waits in its `execute` reads the abort signal it is given (its second parameter), so a canceled call stops. |
 
 Rule options are the same objects `@swissspidy/webmcp-lint` accepts. `webmcp.configs.recommended` turns on every rule marked above except the `off` ones; `webmcp.configs.all` turns every rule, the opt-in ones included, into an error.
 
@@ -127,12 +128,13 @@ The plugin reads literals: strings, numbers, booleans, arrays and nested objects
 
 ESLint looks at one file at a time, so some things are out of its reach. A clean lint does not mean they are fine. Each one is covered by a check that runs against the page, where the browser has already built the tool:
 
-| Out of static reach                                             | Example                                                                                                                  | Check it with                                                                                                                 |
-| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| A definition built at runtime                                   | `tools.map((t) => ({ name: t.id, ... }))`, a schema from `zodToJsonSchema()`, a description imported from another module | `await expect(webmcp).toPassLint()` in a Playwright test, or `lintTools()` in a unit test of the module that builds the tools |
-| What `execute` does through an event, a store or another module | `execute` dispatches a `CustomEvent` and a listener elsewhere calls `navigate()`                                         | `await expect(webmcp).toPassSmoke({ tools: ["search_flights"] })`: `result-navigates` watches the URL during the call         |
-| What `execute` returns                                          | an error written as a string, a result over the 1,500-character budget, `null` inside the result                         | the same smoke run: `result-accepts-invalid-input`, `result-too-large`, `result-contains-null`                                |
-| What the page registers as a whole                              | two components registering the same name, 30 tools on one route                                                          | `toPassLint({ scope: "page" })`, or `@swissspidy/webmcp-audit` against a URL                                                  |
+| Out of static reach                                                       | Example                                                                                                                  | Check it with                                                                                                                 |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------- |
+| A definition built at runtime                                             | `tools.map((t) => ({ name: t.id, ... }))`, a schema from `zodToJsonSchema()`, a description imported from another module | `await expect(webmcp).toPassLint()` in a Playwright test, or `lintTools()` in a unit test of the module that builds the tools |
+| What `execute` does through an event, a store or another module           | `execute` dispatches a `CustomEvent` and a listener elsewhere calls `navigate()`                                         | `await expect(webmcp).toPassSmoke({ tools: ["search_flights"] })`: `result-navigates` watches the URL during the call         |
+| Whether `execute` stops when canceled, when the work is in another module | `execute: (args, client) => orders.place(args, client)`, where `orders.place` ignores `client.signal`                    | a Playwright test: `webmcp.call("place_order", {}, { cancelAfter: "activated" })`, then check no order request went out       |
+| What `execute` returns                                                    | an error written as a string, a result over the 1,500-character budget, `null` inside the result                         | the same smoke run: `result-accepts-invalid-input`, `result-too-large`, `result-contains-null`                                |
+| What the page registers as a whole                                        | two components registering the same name, 30 tools on one route                                                          | `toPassLint({ scope: "page" })`, or `@swissspidy/webmcp-audit` against a URL                                                  |
 
 Smoke runs only read-only tools unless you name tools or pass `all: true`. Point it at a test page or mocked backend before running tools that act. A project that runs this plugin can keep its Playwright assertion to `scope: "page"`, so each static finding is reported once, in the editor. Add a smoke run for the tools whose behaviour the plugin cannot follow.
 
@@ -157,6 +159,7 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/valid-event-name": "error",
     "webmcp/no-interpolated-text": "warn",
     "webmcp/navigation-consequential": "warn",
+    "webmcp/consequential-abort-signal": "warn",
     "webmcp/description-length": "warn",
     "webmcp/param-description-missing": "warn",
     "webmcp/param-description-length": "warn",

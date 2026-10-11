@@ -17,12 +17,14 @@ import { builtinRules, type Rule as LintRule } from "@swissspidy/webmcp-lint";
 import { noInterpolatedText } from "./interpolation.js";
 import { validEventName } from "./api-usage.js";
 import { navigationConsequential } from "./navigation.js";
+import { consequentialAbortSignal } from "./abort-signal.js";
 import { createRule } from "./rule.js";
 
 export { createRule } from "./rule.js";
 export { noInterpolatedText, interpolationOf } from "./interpolation.js";
 export { validEventName } from "./api-usage.js";
 export { navigationConsequential } from "./navigation.js";
+export { consequentialAbortSignal } from "./abort-signal.js";
 export { toolsFromCall, toolObjectsFromCall, staticValue, DYNAMIC, type ExtractedTool, type ToolObject, type Resolver } from "./extract.js";
 export { formTool, type ExtractedForm } from "./jsx.js";
 export { DEFAULT_DEFINITION_SITES, definitionSites, type DefinitionSite, type DefinitionSiteSetting, type WebMCPSettings } from "./settings.js";
@@ -59,6 +61,8 @@ const sourceOnlyRules: Record<string, { rule: ESLintRule.RuleModule; recommended
   "valid-event-name": { rule: validEventName, recommended: "error" },
   // Detection is a heuristic over the source, and false is a legitimate answer: a warning.
   "navigation-consequential": { rule: navigationConsequential, recommended: "warn" },
+  // Whether a cancel can arrive mid-call is read from the source, and the side effect may sit behind a helper: a warning.
+  "consequential-abort-signal": { rule: consequentialAbortSignal, recommended: "warn" },
 };
 
 const rules: Record<string, ESLintRule.RuleModule> = {

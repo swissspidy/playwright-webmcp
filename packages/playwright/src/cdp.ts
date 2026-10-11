@@ -34,7 +34,7 @@ export interface CdpTool {
   location?: { url: string; line: number; column: number };
 }
 
-type Outcome = { ok: boolean; result?: unknown; error?: string };
+type Outcome = { ok: boolean; result?: unknown; error?: string; canceled?: boolean };
 
 interface Pending {
   name: string;
@@ -190,9 +190,17 @@ export class CdpCollector {
    * response's invocation id confirms it, or hands the claimed invocation
    * back as someone else's.
    */
-  async invoke(name: string, input: Record<string, unknown>, frameId?: string, timeoutMs = 30_000, via: "fixture" | "agent" = "fixture"): Promise<Outcome> {
+  async invoke(
+    name: string,
+    input: Record<string, unknown>,
+    frameId?: string,
+    timeoutMs = 30_000,
+    via: "fixture" | "agent" = "fixture",
+    signal?: AbortSignal,
+  ): Promise<Outcome> {
     const tool = this.find(name, frameId);
     if (!tool) throw new Error(`CDP collector knows no tool named "${name}"`);
+    signal?.throwIfAborted();
     const ticket: Ticket = { name, via, confirmed: false };
     const queue = this.waiting.get(name) ?? [];
     queue.push(ticket);
@@ -215,16 +223,32 @@ export class CdpCollector {
       this.release(ticket);
     }
     ticket.confirmed = true;
+    // Cancel through the browser, as an agent would; the tool's own signal aborts and toolcancel fires.
+    // Once the invocation has settled there is nothing left to cancel. A local timeout does not settle it: the
+    // browser may still be running the tool, so the listener stays.
+    let detach = () => {};
+    if (signal) {
+      const cancel = () => void this.cancelInvocation(invocationId);
+      if (signal.aborted) cancel();
+      else {
+        signal.addEventListener("abort", cancel, { once: true });
+        detach = () => signal.removeEventListener("abort", cancel);
+      }
+    }
+    const settled = (outcome: Outcome) => {
+      detach();
+      return outcome;
+    };
     if (ticket.held) {
       this.options.onCall?.(ticket.held, { ours: true });
       ticket.held = undefined;
     }
-    if (ticket.outcome) return ticket.outcome;
+    if (ticket.outcome) return settled(ticket.outcome);
     if (ticket.invocationId === undefined) {
       this.unqueue(ticket);
       // The response for our id may already have gone by while the ticket was bound elsewhere.
       const done = this.recent.get(invocationId);
-      if (done) return done;
+      if (done) return settled(done);
       const inFlight = this.pending.get(invocationId);
       if (inFlight) inFlight.ticket = ticket;
       // Otherwise the events have not arrived yet; bind the ticket to the id so they find it.
@@ -239,10 +263,36 @@ export class CdpCollector {
       }, timeoutMs);
       ticket.resolve = (outcome) => {
         clearTimeout(timer);
-        resolve(outcome);
+        resolve(settled(outcome));
       };
       if (ticket.outcome) ticket.resolve(ticket.outcome);
     });
+  }
+
+  /** Cancel one invocation through the browser. Resolves false when the browser no longer knows it. */
+  async cancelInvocation(invocationId: string): Promise<boolean> {
+    debug("cancel ->", invocationId);
+    try {
+      await this.session.send("WebMCP.cancelInvocation", { invocationId });
+      return true;
+    } catch (err) {
+      debug("cancel failed", invocationId, String((err as Error)?.message));
+      return false;
+    }
+  }
+
+  /**
+   * Cancel every pending invocation of a tool, whoever started it, waiting up
+   * to `timeoutMs` for one to start. Resolves to the number canceled.
+   */
+  async cancelPending(name: string, timeoutMs = 5000): Promise<number> {
+    const deadline = Date.now() + timeoutMs;
+    for (;;) {
+      const ids = [...this.pending].filter(([, p]) => p.name === name).map(([id]) => id);
+      if (ids.length) return (await Promise.all(ids.map((id) => this.cancelInvocation(id)))).filter(Boolean).length;
+      if (Date.now() >= deadline) return 0;
+      await new Promise((resolve) => setTimeout(resolve, 25));
+    }
   }
 
   /** Undo a provisional claim: the invocation the ticket took was not ours after all. */
@@ -322,8 +372,9 @@ export class CdpCollector {
     this.pending.delete(params.invocationId);
     this.tickets.delete(params.invocationId);
     const ok = params.status === "Completed";
+    const canceled = params.status === "Canceled";
     const error = ok ? undefined : params.errorText || params.exception?.description || params.status;
-    this.remember(params.invocationId, { ok, result: params.output, error });
+    this.remember(params.invocationId, { ok, result: params.output, error, ...(canceled ? { canceled } : {}) });
     const ticket = entry.ticket;
     const call: RecordedCall = {
       name: entry.name,
@@ -333,12 +384,13 @@ export class CdpCollector {
       via: ticket ? ticket.via : "agent",
       source: "cdp" as const,
       ...(ok ? { result: params.output } : { error }),
+      ...(canceled ? { canceled } : {}),
     };
     // A provisional claim is reported once the command response confirms whose invocation it was.
     if (ticket && !ticket.confirmed) ticket.held = call;
     else this.options.onCall?.(call, { ours: Boolean(ticket) });
     if (ticket) {
-      ticket.outcome = { ok, result: params.output, error };
+      ticket.outcome = { ok, result: params.output, error, ...(canceled ? { canceled } : {}) };
       ticket.resolve?.(ticket.outcome);
     }
   }
