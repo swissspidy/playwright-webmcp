@@ -8,7 +8,8 @@
  * declaration, so this lives in the plugin only.
  *
  * It flags an `execute` that waits (is async, awaits, chains `.then()`, or
- * hands its work to another call) and never uses its second parameter. Any use
+ * hands its work to another call by returning it) and never uses its second
+ * parameter. Any use
  * counts, including passing it to a helper; a tool whose `execute` is not a
  * function written in this file is left alone.
  */
@@ -72,6 +73,8 @@ function waits(fn: AnyFunction): boolean {
   while (stack.length) {
     const node = stack.pop()!;
     if (node.type === "AwaitExpression") return true;
+    // `execute(args) { return placeOrder(args); }`, the block-bodied form of the arrow above.
+    if (node.type === "ReturnStatement" && node.argument && unwrap(node.argument as Node).type === "CallExpression") return true;
     if (node.type === "CallExpression") {
       const callee = unwrap(node.callee as Node);
       if (callee.type === "MemberExpression" && !callee.computed && callee.property.type === "Identifier" && callee.property.name === "then") return true;

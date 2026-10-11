@@ -675,6 +675,8 @@ test("consequential-abort-signal: a consequential tool that waits reads its abor
       // Nothing to wait on, so no cancel can arrive mid-call.
       tool(consequential, `execute(args) { cart.clear(); return { cleared: true }; },`),
       tool(consequential, `execute: () => ({ ok: true }),`),
+      tool(consequential, `execute(args, client) { return placeOrder(args, client); },`),
+      tool(consequential, `execute(args) { return { placed: true }; },`),
       // Not declared consequential (false is a decision, and the CDP spelling counts).
       tool("", `async execute(args) { await placeOrder(args); },`),
       tool("annotations: { consequentialHint: false },", `async execute(args) { await placeOrder(args); },`),
@@ -693,6 +695,7 @@ test("consequential-abort-signal: a consequential tool that waits reads its abor
       { code: tool(consequential, `async execute(args, client) { await placeOrder({ client: args }); },`), errors: [{ messageId: "unread" }] },
       { code: tool("annotations: { consequential: true },", `execute: (args) => placeOrder(args),`), errors: [{ messageId: "unread" }] },
       { code: tool(consequential, `execute(args) { return placeOrder(args).then(() => ({ placed: true })); },`), errors: [{ messageId: "unread" }] },
+      { code: tool(consequential, `execute(args) { return placeOrder(args); },`), errors: [{ messageId: "unread" }] },
     ],
   });
   tester.run("consequential-abort-signal", plugin.rules["consequential-abort-signal"], {

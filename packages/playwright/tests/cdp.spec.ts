@@ -171,3 +171,20 @@ test("cancelPending() cancels every pending invocation of a tool, whoever starte
   expect(await waiting).toBe(2);
   expect(session.sent.filter((s) => s.method === "WebMCP.cancelInvocation").map((s) => s.params?.invocationId)).toEqual(["agent-1", "agent-2"]);
 });
+
+test("a settled invocation is not canceled when its signal aborts later", async () => {
+  const session = new FakeSession();
+  const collector = new CdpCollector(session);
+  await collector.enable();
+  session.emit("WebMCP.toolsAdded", { tools: [{ name: "checkout", description: "", frameId: "F1" }] });
+
+  const controller = new AbortController();
+  const pending = collector.invoke("checkout", {}, undefined, undefined, "fixture", controller.signal);
+  await new Promise((r) => setTimeout(r, 0));
+  session.emit("WebMCP.toolInvoked", { toolName: "checkout", frameId: "F1", invocationId: "inv-1", input: "{}" });
+  session.emit("WebMCP.toolResponded", { invocationId: "inv-1", status: "Completed", output: { ok: true } });
+  expect((await pending).ok).toBe(true);
+
+  controller.abort();
+  expect(session.sent.filter((s) => s.method === "WebMCP.cancelInvocation")).toEqual([]);
+});

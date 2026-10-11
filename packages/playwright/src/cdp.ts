@@ -224,21 +224,31 @@ export class CdpCollector {
     }
     ticket.confirmed = true;
     // Cancel through the browser, as an agent would; the tool's own signal aborts and toolcancel fires.
+    // Once the invocation has settled there is nothing left to cancel. A local timeout does not settle it: the
+    // browser may still be running the tool, so the listener stays.
+    let detach = () => {};
     if (signal) {
       const cancel = () => void this.cancelInvocation(invocationId);
       if (signal.aborted) cancel();
-      else signal.addEventListener("abort", cancel, { once: true });
+      else {
+        signal.addEventListener("abort", cancel, { once: true });
+        detach = () => signal.removeEventListener("abort", cancel);
+      }
     }
+    const settled = (outcome: Outcome) => {
+      detach();
+      return outcome;
+    };
     if (ticket.held) {
       this.options.onCall?.(ticket.held, { ours: true });
       ticket.held = undefined;
     }
-    if (ticket.outcome) return ticket.outcome;
+    if (ticket.outcome) return settled(ticket.outcome);
     if (ticket.invocationId === undefined) {
       this.unqueue(ticket);
       // The response for our id may already have gone by while the ticket was bound elsewhere.
       const done = this.recent.get(invocationId);
-      if (done) return done;
+      if (done) return settled(done);
       const inFlight = this.pending.get(invocationId);
       if (inFlight) inFlight.ticket = ticket;
       // Otherwise the events have not arrived yet; bind the ticket to the id so they find it.
@@ -253,7 +263,7 @@ export class CdpCollector {
       }, timeoutMs);
       ticket.resolve = (outcome) => {
         clearTimeout(timer);
-        resolve(outcome);
+        resolve(settled(outcome));
       };
       if (ticket.outcome) ticket.resolve(ticket.outcome);
     });
