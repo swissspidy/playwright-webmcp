@@ -188,3 +188,37 @@ test("oxlint reads a typed tool whose name is computed", () => {
     ["webmcp(no-interpolated-text)"],
   );
 });
+
+test("oxlint reports consequential-abort-signal as ESLint does", () => {
+  const { status, stdout, stderr } = runOxlint(
+    {
+      "order.js": `const mc = document.modelContext;
+async function placeOrder(args) {
+  await fetch("/api/orders", { method: "POST", body: JSON.stringify(args) });
+}
+mc.registerTool({
+  name: "place_order",
+  description: "Places the order in the cart.",
+  inputSchema: { type: "object", properties: {} },
+  annotations: { consequentialHint: true },
+  execute: placeOrder,
+});
+mc.registerTool({
+  name: "cancel_order",
+  description: "Cancels an order that has not shipped yet.",
+  inputSchema: { type: "object", properties: {} },
+  annotations: { consequentialHint: true },
+  async execute(args, { signal }) {
+    await fetch("/api/orders/cancel", { method: "POST", signal });
+  },
+});
+`,
+    },
+    { jsPlugins: [{ name: "webmcp", specifier: pluginPath }], rules: { "webmcp/consequential-abort-signal": "error" } },
+  );
+  assert.equal(status, 1, stderr);
+  assert.deepEqual(
+    diagnostics(stdout).map((d) => [d.rule, d.line]),
+    [["webmcp(consequential-abort-signal)", 10]],
+  );
+});

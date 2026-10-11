@@ -22,7 +22,7 @@ import { makeResolver } from "./rule.js";
 import { ruleDocsUrl } from "./docs-url.js";
 
 type Node = ESTree.Node;
-type AnyFunction = ESTree.FunctionExpression | ESTree.ArrowFunctionExpression | ESTree.FunctionDeclaration;
+export type AnyFunction = ESTree.FunctionExpression | ESTree.ArrowFunctionExpression | ESTree.FunctionDeclaration;
 
 const DOCS = ruleDocsUrl("navigation-consequential");
 /** How many calls to local functions are followed from `execute`. */
@@ -74,7 +74,7 @@ function navigationAt(node: Node): string | undefined {
 }
 
 /** The function a node stands for: a function literal, or an identifier bound to one in this file. */
-function functionOf(node: Node, resolve: Resolver, sourceCode: ESLintRule.RuleContext["sourceCode"]): AnyFunction | undefined {
+export function functionOf(node: Node, resolve: Resolver, sourceCode: ESLintRule.RuleContext["sourceCode"]): AnyFunction | undefined {
   const n = unwrap(resolve(node));
   if (n.type === "FunctionExpression" || n.type === "ArrowFunctionExpression" || n.type === "FunctionDeclaration") return n;
   if (n.type !== "Identifier") return undefined;
@@ -95,7 +95,7 @@ function functionOf(node: Node, resolve: Resolver, sourceCode: ESLintRule.RuleCo
 
 const SKIP_KEYS = new Set(["parent", "loc", "range", "start", "end", "typeAnnotation", "returnType", "typeParameters"]);
 
-function* children(node: Node): Generator<Node> {
+export function* children(node: Node): Generator<Node> {
   for (const [key, value] of Object.entries(node)) {
     if (SKIP_KEYS.has(key)) continue;
     if (Array.isArray(value)) {
