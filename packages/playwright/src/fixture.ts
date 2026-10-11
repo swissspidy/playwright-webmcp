@@ -507,7 +507,7 @@ export class WebMCP {
    * A canceled call rejects with ToolCanceledError.
    */
   async call<T = unknown>(name: string, args: Record<string, unknown> = {}, options: CallOptions = {}): Promise<T> {
-    if (options.cancelAfter === "activated" && !this.options.record) throw new Error('cancelAfter: "activated" needs the recorder (webmcpOptions.record)');
+    if (options.cancelAfter === "activated") await this.requireToolEvents('cancelAfter: "activated"');
     const deadline = Date.now() + (options.timeoutMs ?? 5000);
     const controller = new AbortController();
     const signal = options.signal ? AbortSignal.any([options.signal, controller.signal]) : controller.signal;
@@ -565,6 +565,26 @@ export class WebMCP {
     }
   }
 
+  /**
+   * Whether the page's modelContext fires `toolactivated` and `toolcancel`.
+   * Chromium added them after the rest of the API (153 has none); a call can
+   * still be canceled without them.
+   */
+  async supportsToolEvents(): Promise<boolean> {
+    return this.page
+      .evaluate(() => {
+        const mc = document.modelContext as object | undefined;
+        return Boolean(mc && "ontoolactivated" in mc && "ontoolcancel" in mc);
+      })
+      .catch(() => false);
+  }
+
+  private async requireToolEvents(what: string): Promise<void> {
+    if (!this.options.record) throw new Error(`${what} needs the recorder (webmcpOptions.record)`);
+    if (!(await this.supportsToolEvents()))
+      throw new Error(`${what} needs a browser that fires toolactivated and toolcancel; this one does not (check webmcp.supportsToolEvents())`);
+  }
+
   /** `toolactivated` and `toolcancel` events since the last navigation, in the order they arrived. */
   events(): ToolEvent[] {
     return [...this.toolEvents];
@@ -576,21 +596,33 @@ export class WebMCP {
    * Playwright's own waitForEvent.
    */
   waitForEvent(event: ToolEventName, options: { tool?: string; timeoutMs?: number } = {}): Promise<ToolEvent> {
-    if (!this.options.record) return Promise.reject(new Error("waitForEvent() needs the recorder (webmcpOptions.record)"));
     const timeoutMs = options.timeoutMs ?? 5000;
-    return new Promise((resolve, reject) => {
-      const listener = (e: ToolEvent) => {
+    let listener: (e: ToolEvent) => void = () => {};
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const stop = () => {
+      this.eventListeners.delete(listener);
+      clearTimeout(timer);
+    };
+    // Listen before the support check settles, so an event fired meanwhile is not missed.
+    const next = new Promise<ToolEvent>((resolve, reject) => {
+      listener = (e) => {
         if (e.type !== EVENT_TYPES[event] || (options.tool !== undefined && e.name !== options.tool)) return;
-        this.eventListeners.delete(listener);
-        clearTimeout(timer);
+        stop();
         resolve(e);
       };
-      const timer = setTimeout(() => {
-        this.eventListeners.delete(listener);
+      timer = setTimeout(() => {
+        stop();
         reject(new Error(`No ${event} event${options.tool ? ` for "${options.tool}"` : ""} within ${timeoutMs} ms`));
       }, timeoutMs);
       this.eventListeners.add(listener);
     });
+    return Promise.all([this.requireToolEvents("waitForEvent()"), next]).then(
+      ([, e]) => e,
+      (err) => {
+        stop();
+        throw err;
+      },
+    );
   }
 
   private async callOnce<T>(name: string, args: Record<string, unknown>, via: "fixture" | "agent", signal?: AbortSignal): Promise<T> {
@@ -630,7 +662,18 @@ export class WebMCP {
     const startedAt = Date.now();
     // The page holds the call's AbortController under this token; aborting the signal here aborts it there.
     const token = `${startedAt}-${Math.random().toString(36).slice(2)}`;
-    const abort = () => void owner.evaluate((t) => (window as any).__webmcpAborts?.[t]?.abort(), token).catch(() => {});
+    // An abort can reach the page before the call has made its controller; it then leaves a mark the call finds.
+    const abort = () =>
+      void owner
+        .evaluate((t) => {
+          const aborts = ((window as any).__webmcpAborts ??= Object.create(null)) as Record<string, AbortController | "aborted">;
+          const controller = aborts[t];
+          if (controller instanceof AbortController) controller.abort();
+          else aborts[t] = "aborted";
+        }, token)
+        .catch(() => {});
+    // Finding the owner frame takes time; a cancel during it must not slip past the listener.
+    if (signal?.aborted) throw new ToolCanceledError(`Tool "${name}" was canceled before it started`);
     signal?.addEventListener("abort", abort, { once: true });
     const outcome = await owner.evaluate(
       async ([toolName, toolArgs, shape, abortToken]) => {
@@ -638,8 +681,13 @@ export class WebMCP {
         const listed = (await mc.getTools()) ?? [];
         const tool = listed.find((t) => t.name === toolName);
         if (!tool) return { ok: false as const, error: `No WebMCP tool named "${toolName}" is registered` };
-        const aborts = ((window as any).__webmcpAborts ??= Object.create(null)) as Record<string, AbortController>;
-        const controller = (aborts[abortToken] = new AbortController());
+        const aborts = ((window as any).__webmcpAborts ??= Object.create(null)) as Record<string, AbortController | "aborted">;
+        if (aborts[abortToken] === "aborted") {
+          delete aborts[abortToken];
+          return { ok: false as const, error: "signal is aborted without reason", canceled: true };
+        }
+        const controller = new AbortController();
+        aborts[abortToken] = controller;
         try {
           // executeTool() takes the RegisteredTool object. The specification declares the input as an
           // object; Chrome 154 and earlier took only a JSON string, which `shape` accounts for.
