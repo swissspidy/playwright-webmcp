@@ -25,7 +25,25 @@ export interface SmokeRun {
   annotations?: Record<string, unknown> | null;
   /** The page URL after the call, when the runner saw it change during the call. */
   navigatedTo?: string;
+  /**
+   * Requests with a method other than GET, HEAD or OPTIONS that the page sent
+   * during the call, when the runner watched for them.
+   */
+  writes?: SmokeRequest[];
 }
+
+/** A request observed during a smoke call. */
+export interface SmokeRequest {
+  method: string;
+  url: string;
+  /** The request body, when there is one. Offered to `ignoreRequests` predicates; not kept on the run. */
+  body?: string;
+  /** Set when the request went to an origin other than the page's and the configured first-party ones. */
+  crossOrigin?: boolean;
+}
+
+/** Methods that do not change server state; a read-only tool may send these and nothing else. */
+export const SAFE_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export interface SmokeBudgets {
   /** Serialized result length, in characters, that triggers result-too-large. Default 1500. */
@@ -67,6 +85,16 @@ export const SMOKE_RULES = {
     severity: "warning" as Severity,
     description:
       "The call changed the page URL, but the tool does not declare consequentialHint, or declares readOnlyHint; a client cannot tell the view will change under the user.",
+  },
+  "result-writes": {
+    severity: "error" as Severity,
+    description:
+      "A tool that declares readOnlyHint sent a request other than GET, HEAD or OPTIONS during the call; smoke and the audit call read-only tools on live sites, so the hint has to be true.",
+  },
+  "result-writes-cross-origin": {
+    severity: "warning" as Severity,
+    description:
+      "A tool that declares readOnlyHint was running when a request other than GET, HEAD or OPTIONS went to another origin; often the page's own analytics, but a backend on another host is a write all the same.",
   },
   "untrusted-content-unmarked": {
     severity: "error" as Severity,
@@ -134,6 +162,36 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
           run,
           `${where} navigated to ${run.navigatedTo} but does not declare consequentialHint.`,
           "Set consequentialHint to true so clients can confirm before the view changes, or to false if you decided it is not.",
+        ),
+      );
+  }
+
+  // Checked on every run, invalid input included: a write that happens before
+  // validation is still a write.
+  if (run.writes?.length && toolHints(run.annotations).readOnly === true) {
+    const list = (writes: SmokeRequest[]) =>
+      `${writes
+        .slice(0, 3)
+        .map((r) => `${r.method} ${r.url}`)
+        .join(", ")}${writes.length > 3 ? `, and ${writes.length - 3} more` : ""}`;
+    const own = run.writes.filter((r) => !r.crossOrigin);
+    const other = run.writes.filter((r) => r.crossOrigin);
+    if (own.length)
+      out.push(
+        make(
+          "result-writes",
+          run,
+          `${where} declares readOnlyHint but sent ${list(own)}.`,
+          "A tool that writes is not read-only; drop readOnlyHint, or move the write out of the tool.",
+        ),
+      );
+    if (other.length)
+      out.push(
+        make(
+          "result-writes-cross-origin",
+          run,
+          `${where} declares readOnlyHint, and while it ran the page sent ${list(other)}.`,
+          "If this is the tool's backend, list its origin in firstPartyOrigins and drop readOnlyHint; if the page sends it on its own, add it to ignoreRequests.",
         ),
       );
   }
