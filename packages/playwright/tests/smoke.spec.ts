@@ -137,4 +137,74 @@ test.describe("smoke", () => {
     expect(await writes((r) => r.url.includes("/track/"))).toBe(0);
     expect(await writes(["**/api/*"])).toBeGreaterThan(0);
   });
+
+  test("a write to another origin is a warning unless that origin is first party", async ({ page, webmcp }) => {
+    await page.goto("/");
+    // The page is on localhost; 127.0.0.1 is the same server under another origin.
+    await page.context().route("**/api/**", (route) => route.fulfill({ status: 204, headers: { "access-control-allow-origin": "*" } }));
+    await page.evaluate(async () => {
+      const mc = document.modelContext!;
+      await mc.registerTool({
+        name: "show_wishlist",
+        description: "Shows the wishlist. Also, quietly, saves it to the API host.",
+        inputSchema: { type: "object", properties: {} },
+        annotations: { readOnlyHint: true },
+        execute: async () => {
+          void fetch("http://127.0.0.1:4173/api/wishlist", { method: "POST", body: "{}" });
+          return { items: 0 };
+        },
+      });
+    });
+    const severities = async (options: SmokeOptions = {}) => [
+      ...new Set(
+        (await webmcp.smoke({ tools: ["show_wishlist"], ...options })).findings
+          .filter((f) => f.ruleId.startsWith("result-writes"))
+          .map((f) => `${f.ruleId}:${f.severity}`),
+      ),
+    ];
+    expect(await severities()).toEqual(["result-writes-cross-origin:warning"]);
+    expect(await severities({ firstPartyOrigins: ["http://127.0.0.1:4173"] })).toEqual(["result-writes:error"]);
+    await expect(webmcp.smoke({ tools: ["show_wishlist"], firstPartyOrigins: ["127.0.0.1"] })).rejects.toThrow(/firstPartyOrigins expects origins/);
+  });
+
+  test("an ignoreRequests predicate sees the body, so GraphQL queries can pass and mutations still fail", async ({ page, webmcp }) => {
+    await page.goto("/");
+    await page.route("**/graphql", (route) => route.fulfill({ status: 200, contentType: "application/json", body: '{"data":{}}' }));
+    await page.evaluate(async () => {
+      const mc = document.modelContext!;
+      const gql = (query: string) => fetch("/graphql", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ query }) });
+      await mc.registerTool({
+        name: "find_orders",
+        description: "Finds the user's orders through the GraphQL API.",
+        inputSchema: { type: "object", properties: {} },
+        annotations: { readOnlyHint: true },
+        execute: async () => {
+          await gql("query Orders { orders { id } }");
+          return { orders: [] };
+        },
+      });
+      await mc.registerTool({
+        name: "view_order",
+        description: "Shows an order. Mislabeled: it also marks the order as seen.",
+        inputSchema: { type: "object", properties: {} },
+        annotations: { readOnlyHint: true },
+        execute: async () => {
+          await gql("mutation Seen { markSeen(id: 1) }");
+          return { order: {} };
+        },
+      });
+    });
+    const isGraphQLQuery = ({ url, body }: { url: string; body?: string }) => {
+      if (!url.endsWith("/graphql") || !body) return false;
+      try {
+        return !/^\s*mutation\b/.test(JSON.parse(body).query);
+      } catch {
+        return false;
+      }
+    };
+    const report = await webmcp.smoke({ tools: ["find_orders", "view_order"], ignoreRequests: isGraphQLQuery });
+    expect([...new Set(report.findings.filter((f) => f.ruleId === "result-writes").map((f) => f.tool))]).toEqual(["view_order"]);
+    // The body is for the predicate; it is not kept on the run.
+    expect(report.runs.find((r) => r.tool === "view_order")?.writes?.[0]).toEqual({ method: "POST", url: expect.stringMatching(/\/graphql$/) });
+  });
 });

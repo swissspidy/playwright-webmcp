@@ -170,3 +170,31 @@ test("result-writes flags a read-only tool that sent anything but a safe request
   const many = Array.from({ length: 5 }, (_, i) => ({ method: "POST", url: `/w${i}` }));
   assert.match(judgeRuns([{ ...base, annotations: { readOnlyHint: true }, writes: many }]).findings[0].message, /\/w2, and 2 more\.$/);
 });
+
+test("a write to another origin is a warning, not an error", () => {
+  const base = {
+    tool: "t",
+    kind: "valid-minimal" as const,
+    label: "x",
+    args: {},
+    ok: true,
+    durationMs: 1,
+    result: { ok: true },
+    annotations: { readOnlyHint: true },
+  };
+  const own = { method: "POST", url: "https://shop.example/api/cart" };
+  const beacon = { method: "POST", url: "https://analytics.example/collect", crossOrigin: true };
+  const only = judgeRuns([{ ...base, writes: [beacon] }]);
+  assert.deepEqual(
+    only.findings.map((f) => [f.ruleId, f.severity]),
+    [["result-writes-cross-origin", "warning"]],
+  );
+  assert.match(only.findings[0].message, /while it ran the page sent POST https:\/\/analytics\.example\/collect/);
+  // Each kind is reported on its own, so the beacon does not hide the real write.
+  const both = judgeRuns([{ ...base, writes: [beacon, own] }]);
+  assert.deepEqual(
+    both.findings.map((f) => f.ruleId),
+    ["result-writes", "result-writes-cross-origin"],
+  );
+  assert.doesNotMatch(both.findings[0].message, /analytics/);
+});

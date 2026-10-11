@@ -22,9 +22,16 @@ export interface SmokeOptions extends GenerateOptions, SmokeBudgets {
   /**
    * Requests the page sends on its own, such as analytics beacons, that
    * `result-writes` should not blame on the tool being called. A string is a
-   * URL glob: `**` matches anything, `*` anything but `/`.
+   * URL glob: `**` matches anything, `*` anything but `/`. A predicate also
+   * gets the request body, so it can tell a GraphQL query from a mutation.
    */
   ignoreRequests?: Array<string | RegExp> | ((request: SmokeRequest) => boolean);
+  /**
+   * Origins besides the page's own that count as the site's backend, such as
+   * `https://api.shop.example`. A write to one of these is `result-writes`
+   * (error); a write to any other origin is `result-writes-cross-origin` (warning).
+   */
+  firstPartyOrigins?: string[];
 }
 
 function globToRegExp(glob: string): RegExp {
@@ -38,6 +45,15 @@ function globToRegExp(glob: string): RegExp {
     )
     .join(".*");
   return new RegExp(`^${source}$`);
+}
+
+function originOf(url: string): string | undefined {
+  try {
+    const { origin } = new URL(url);
+    return origin === "null" ? undefined : origin;
+  } catch {
+    return undefined;
+  }
 }
 
 /** The predicate `ignoreRequests` describes, or undefined when it ignores nothing. */
@@ -89,7 +105,10 @@ export function watchPage(page: Page): SmokeWatch {
     url: () => page.url(),
     requests: () => {
       const seen: SmokeRequest[] = [];
-      const onRequest = (request: Request) => seen.push({ method: request.method(), url: request.url() });
+      const onRequest = (request: Request) => {
+        const body = SAFE_METHODS.has(request.method().toUpperCase()) ? null : request.postData();
+        seen.push({ method: request.method(), url: request.url(), ...(body !== null ? { body } : {}) });
+      };
       const context = page.context();
       context.on("request", onRequest);
       return async () => {
@@ -118,6 +137,13 @@ export async function runSmoke(
 ): Promise<SmokeReport & { skipped: string[] }> {
   const { url: currentUrl, requests } = typeof watch === "function" ? { url: watch, requests: undefined } : watch;
   const ignored = requestFilter(options.ignoreRequests);
+  const firstParty = new Set(
+    (options.firstPartyOrigins ?? []).map((o) => {
+      const origin = originOf(o);
+      if (origin === undefined) throw new Error(`firstPartyOrigins expects origins such as https://api.example.com, got ${JSON.stringify(o)}`);
+      return origin;
+    }),
+  );
   const { selected, skipped } = selectSmokeTools(tools, options);
   const kinds = new Set(options.kinds ?? ["valid-minimal", "valid-full", "boundary", "invalid"]);
   const runs: SmokeRun[] = [];
@@ -131,7 +157,15 @@ export async function runSmoke(
         // Stop recording first, so the listener comes off even if reading the URL throws.
         const seen = await stopRequests?.();
         const after = currentUrl?.();
-        const writes = seen?.filter((r) => !SAFE_METHODS.has(r.method.toUpperCase()) && !ignored?.(r));
+        // Without a page URL there is nothing to compare against, and every write counts as the site's own.
+        const pageOrigin = before === undefined ? undefined : originOf(before);
+        const writes = seen
+          ?.filter((r) => !SAFE_METHODS.has(r.method.toUpperCase()) && !ignored?.(r))
+          .map(({ method, url }) => {
+            const origin = originOf(url);
+            const crossOrigin = pageOrigin !== undefined && origin !== pageOrigin && !(origin !== undefined && firstParty.has(origin));
+            return { method, url, ...(crossOrigin ? { crossOrigin } : {}) };
+          });
         return {
           ...(after !== undefined && after !== before ? { navigatedTo: after } : {}),
           ...(writes?.length ? { writes } : {}),

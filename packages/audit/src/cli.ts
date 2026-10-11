@@ -28,6 +28,10 @@ Options:
                         With --smoke: a URL glob for requests the page sends on its own,
                         such as analytics, so result-writes does not blame them on a
                         read-only tool (** matches anything, * anything but /); repeatable
+  --first-party-origin <origin>
+                        With --smoke: an origin besides the audited one that is the
+                        site's own backend, e.g. https://api.shop.example; a read-only
+                        tool's write there is an error rather than a warning; repeatable
   --fail-on <severity>  Exit 1 when a finding of this severity or worse exists: error
                         (default), warning, info, or never. Pages that fail to load
                         always exit 1.
@@ -103,6 +107,7 @@ function parse() {
         smoke: { type: "boolean", default: false },
         "all-tools": { type: "boolean", default: false },
         "ignore-request": { type: "string", multiple: true, default: [] as string[] },
+        "first-party-origin": { type: "string", multiple: true, default: [] as string[] },
         "fail-on": { type: "string", default: "error" },
         baseline: { type: "string" },
         header: { type: "string", multiple: true, default: [] as string[] },
@@ -143,6 +148,13 @@ async function main(): Promise<number> {
   const format = String(values.format);
   if (!["md", "json", "github"].includes(format)) fail(`--format expects md, json or github, got ${JSON.stringify(format)}`);
   const headers = parseHeaders(values.header as string[]);
+  for (const origin of values["first-party-origin"] as string[]) {
+    let parsed: URL | undefined;
+    try {
+      parsed = new URL(origin);
+    } catch {}
+    if (!parsed || parsed.origin === "null") fail(`--first-party-origin expects an origin such as https://api.shop.example, got ${JSON.stringify(origin)}`);
+  }
   const baseline = values.baseline ? readBaseline(values.baseline) : undefined;
   const integer = (name: "max-pages" | "settle"): number | undefined => {
     const raw = values[name];
@@ -160,6 +172,7 @@ async function main(): Promise<number> {
     smokeOptions: {
       ...(values["all-tools"] ? { all: true } : {}),
       ...((values["ignore-request"] as string[]).length ? { ignoreRequests: values["ignore-request"] as string[] } : {}),
+      ...((values["first-party-origin"] as string[]).length ? { firstPartyOrigins: values["first-party-origin"] as string[] } : {}),
     },
     settleMs: integer("settle"),
     executablePath: values.executable ?? process.env.PW_CHROMIUM,

@@ -36,6 +36,10 @@ export interface SmokeRun {
 export interface SmokeRequest {
   method: string;
   url: string;
+  /** The request body, when there is one. Offered to `ignoreRequests` predicates; not kept on the run. */
+  body?: string;
+  /** Set when the request went to an origin other than the page's and the configured first-party ones. */
+  crossOrigin?: boolean;
 }
 
 /** Methods that do not change server state; a read-only tool may send these and nothing else. */
@@ -86,6 +90,11 @@ export const SMOKE_RULES = {
     severity: "error" as Severity,
     description:
       "A tool that declares readOnlyHint sent a request other than GET, HEAD or OPTIONS during the call; smoke and the audit call read-only tools on live sites, so the hint has to be true.",
+  },
+  "result-writes-cross-origin": {
+    severity: "warning" as Severity,
+    description:
+      "A tool that declares readOnlyHint was running when a request other than GET, HEAD or OPTIONS went to another origin; often the page's own analytics, but a backend on another host is a write all the same.",
   },
   "untrusted-content-unmarked": {
     severity: "error" as Severity,
@@ -160,15 +169,31 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
   // Checked on every run, invalid input included: a write that happens before
   // validation is still a write.
   if (run.writes?.length && toolHints(run.annotations).readOnly === true) {
-    const shown = run.writes.slice(0, 3).map((r) => `${r.method} ${r.url}`);
-    out.push(
-      make(
-        "result-writes",
-        run,
-        `${where} declares readOnlyHint but sent ${shown.join(", ")}${run.writes.length > 3 ? `, and ${run.writes.length - 3} more` : ""}.`,
-        "A tool that writes is not read-only; drop readOnlyHint, or move the write out of the tool.",
-      ),
-    );
+    const list = (writes: SmokeRequest[]) =>
+      `${writes
+        .slice(0, 3)
+        .map((r) => `${r.method} ${r.url}`)
+        .join(", ")}${writes.length > 3 ? `, and ${writes.length - 3} more` : ""}`;
+    const own = run.writes.filter((r) => !r.crossOrigin);
+    const other = run.writes.filter((r) => r.crossOrigin);
+    if (own.length)
+      out.push(
+        make(
+          "result-writes",
+          run,
+          `${where} declares readOnlyHint but sent ${list(own)}.`,
+          "A tool that writes is not read-only; drop readOnlyHint, or move the write out of the tool.",
+        ),
+      );
+    if (other.length)
+      out.push(
+        make(
+          "result-writes-cross-origin",
+          run,
+          `${where} declares readOnlyHint, and while it ran the page sent ${list(other)}.`,
+          "If this is the tool's backend, list its origin in firstPartyOrigins and drop readOnlyHint; if the page sends it on its own, add it to ignoreRequests.",
+        ),
+      );
   }
 
   if (run.kind === "invalid") {
