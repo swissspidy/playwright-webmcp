@@ -76,6 +76,24 @@ function fromNative(tool: NativeTool): ToolDefinitionLike {
   };
 }
 
+/**
+ * Longest a single native tools() probe may take. getTools() in a page occasionally never resolves
+ * (seen on Chrome under load), and a later call usually does, so a probe that times out is retried
+ * until the assertion's deadline rather than given the whole budget.
+ */
+const NATIVE_PROBE_MS = 1000;
+
+async function nativeTools(native: NativeWebMCP, deadline: number): Promise<NativeTool[]> {
+  for (;;) {
+    const remaining = deadline - Date.now();
+    try {
+      return await native.tools({ timeout: Math.max(1, Math.min(NATIVE_PROBE_MS, remaining)) });
+    } catch (err) {
+      if ((err as Error)?.name !== "TimeoutError" || Date.now() >= deadline) throw err;
+    }
+  }
+}
+
 function resolve(received: unknown, matcher: string): WebMCP {
   if (received instanceof WebMCP) return received;
   if (isNativeWebMCP(received))
@@ -162,13 +180,13 @@ export const expect = baseExpect.extend({
   async toHaveTool(received: unknown, name: string, expected: ToolExpectation = {}) {
     if (isNativeWebMCP(received)) {
       const native = received;
-      // tools() has no timeout of its own by default, and until() cannot stop a call in flight; give each call what is left.
+      // tools() has no timeout of its own by default, and until() cannot stop a call in flight; nativeTools() bounds each probe.
       // A call that runs out after an earlier one completed reports that earlier answer rather than the timeout.
       const deadline = Date.now() + ((this as MatcherContext).timeout ?? 5000);
       let last: Awaited<ReturnType<typeof checkTool>> | undefined;
       return until(this as MatcherContext, async () => {
         try {
-          last = await checkTool(() => native.tools({ timeout: Math.max(1, deadline - Date.now()) }), name, expected);
+          last = await checkTool(() => nativeTools(native, deadline), name, expected);
           return last;
         } catch (err) {
           if (last) return last;
@@ -184,7 +202,7 @@ export const expect = baseExpect.extend({
     const { failOn = "error", ...lintOptions } = options;
     // page.webmcp sees one frame and no frame facts, so it gets the tool-scoped rules on that frame's tools.
     const result = isNativeWebMCP(received)
-      ? lintTools((await received.tools({ timeout: (this as MatcherContext).timeout ?? 5000 })).map(fromNative), lintOptions)
+      ? lintTools((await nativeTools(received, Date.now() + ((this as MatcherContext).timeout ?? 5000))).map(fromNative), lintOptions)
       : await resolve(received, "toPassLint").lint(lintOptions);
     const failing = result.findings.filter((f) => RANK[f.severity] >= RANK[failOn]);
     const pass = failing.length === 0;

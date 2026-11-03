@@ -66,7 +66,7 @@ test.describe("Playwright's page.webmcp", () => {
       tools: (options?: { timeout?: number }) => {
         timeouts.push(options?.timeout);
         return new Promise<never>((_resolve, reject) => {
-          if (options?.timeout) setTimeout(() => reject(new Error(`Timeout ${options.timeout}ms exceeded.`)), options.timeout);
+          if (options?.timeout) setTimeout(() => reject(timeoutError(options.timeout!)), options.timeout);
         });
       },
       callTool: async () => undefined,
@@ -81,10 +81,29 @@ test.describe("Playwright's page.webmcp", () => {
       const startedAt = Date.now();
       await expect(assertion()).rejects.toThrow(/Timeout \d+ms exceeded/);
       expect(Date.now() - startedAt).toBeLessThan(2000);
-      expect(timeouts).toHaveLength(1);
-      expect(timeouts[0]).toBeGreaterThan(0);
-      expect(timeouts[0]).toBeLessThanOrEqual(500);
+      expect(timeouts.length).toBeGreaterThan(0);
+      for (const timeout of timeouts) expect(timeout).toBeGreaterThan(0);
+      expect(timeouts.reduce((sum, t) => sum! + t!, 0)).toBeLessThanOrEqual(500);
     }
+  });
+
+  test("a tools() call that hangs once is retried within the expect timeout", async () => {
+    // getTools() in a page occasionally never resolves while the next call does; one hung probe must not use up the assertion.
+    const timeouts: (number | undefined)[] = [];
+    const flaky = {
+      tools: (options?: { timeout?: number }) => {
+        timeouts.push(options?.timeout);
+        if (timeouts.length === 1) return new Promise<never>((_resolve, reject) => setTimeout(() => reject(timeoutError(options!.timeout!)), options!.timeout));
+        return Promise.resolve([{ name: "list_reviews", description: "List the reviews of a product." }]);
+      },
+      callTool: async () => undefined,
+    };
+    await expect(flaky).toHaveTool("list_reviews");
+    expect(timeouts).toHaveLength(2);
+    expect(timeouts[0]).toBeLessThanOrEqual(1000);
+    timeouts.length = 0;
+    await expect(flaky).toPassLint();
+    expect(timeouts).toHaveLength(2);
   });
 
   test("matchers that need recorded calls or every frame say so", async ({ page }) => {
@@ -94,3 +113,10 @@ test.describe("Playwright's page.webmcp", () => {
     );
   });
 });
+
+/** What Playwright throws when an operation's timeout runs out. */
+function timeoutError(timeout: number): Error {
+  const error = new Error(`Timeout ${timeout}ms exceeded.`);
+  error.name = "TimeoutError";
+  return error;
+}
