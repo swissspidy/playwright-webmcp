@@ -41,7 +41,6 @@ const debug = process.env.WEBMCP_DEBUG
   : () => {};
 import { runSmoke, watchPage, type SmokeOptions } from "./smoke.js";
 import { RECORDER_SOURCE } from "./recorder.js";
-import { executeToolInputShape, type ExecuteToolInputShape } from "./input-shape.js";
 import { PromptApiHarness } from "./prompt-api.js";
 
 export interface WebMCPOptions {
@@ -676,7 +675,7 @@ export class WebMCP {
     if (signal?.aborted) throw new ToolCanceledError(`Tool "${name}" was canceled before it started`);
     signal?.addEventListener("abort", abort, { once: true });
     const outcome = await owner.evaluate(
-      async ([toolName, toolArgs, shape, abortToken]) => {
+      async ([toolName, toolArgs, abortToken]) => {
         const mc = document.modelContext!;
         const listed = (await mc.getTools()) ?? [];
         const tool = listed.find((t) => t.name === toolName);
@@ -689,10 +688,8 @@ export class WebMCP {
         const controller = new AbortController();
         aborts[abortToken] = controller;
         try {
-          // executeTool() takes the RegisteredTool object. The specification declares the input as an
-          // object; Chrome 154 and earlier took only a JSON string, which `shape` accounts for.
-          const input = shape === "string" ? JSON.stringify(toolArgs) : toolArgs;
-          const raw: unknown = await mc.executeTool(tool, input as object, { __playwrightWebmcp: true, signal: controller.signal } as never);
+          // executeTool() takes the RegisteredTool object and the input as an object.
+          const raw: unknown = await mc.executeTool(tool, toolArgs, { __playwrightWebmcp: true, signal: controller.signal } as never);
           // The result arrives as a string: JSON for objects, String(value) for primitives, "undefined" for no result.
           let result: unknown;
           if (typeof raw !== "string") result = JSON.parse(JSON.stringify(raw === undefined ? null : raw));
@@ -711,7 +708,7 @@ export class WebMCP {
           delete aborts[abortToken];
         }
       },
-      [name, args, this.inputShape(), token] as const,
+      [name, args, token] as const,
     );
     signal?.removeEventListener("abort", abort);
     const entry: RecordedCall = {
@@ -727,14 +724,6 @@ export class WebMCP {
     if (!outcome.ok && outcome.canceled) throw new ToolCanceledError(`Tool "${name}" was canceled: ${outcome.error}`);
     if (!outcome.ok) throw new Error(`Tool "${name}" failed: ${outcome.error}`);
     return outcome.result as T;
-  }
-
-  /**
-   * The shape `executeTool()` takes in this browser: an object as the
-   * specification says, or the JSON string Chrome 154 and earlier required.
-   */
-  inputShape(): ExecuteToolInputShape {
-    return executeToolInputShape(this.page.context().browser()?.version());
   }
 
   /** All recorded calls so far, in execution order. */

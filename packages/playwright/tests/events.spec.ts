@@ -114,14 +114,14 @@ test("with CDP, cancel() reaches a call the page made itself, as it would an age
   await page.goto("/");
   test.skip(!webmcp.cdp?.enabled, "this browser has no CDP WebMCP domain");
   await registerOrderTool(page, true);
-  const outcome = page.evaluate(async (shape) => {
+  const outcome = page.evaluate(async () => {
     const mc = document.modelContext!;
     const tool = (await mc.getTools()).find((t) => t.name === "place_order")!;
-    return mc.executeTool(tool, (shape === "string" ? "{}" : {}) as never).then(
+    return mc.executeTool(tool, {}).then(
       () => "resolved",
       () => "rejected",
     );
-  }, webmcp.inputShape());
+  });
   expect(await webmcp.cancel("place_order")).toBe(1);
   // Chrome rejects the page's promise (with an UnknownError, not an AbortError).
   expect(await outcome).toBe("rejected");
