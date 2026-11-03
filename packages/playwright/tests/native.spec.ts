@@ -84,7 +84,9 @@ test.describe("Playwright's page.webmcp", () => {
       expect(Date.now() - startedAt).toBeLessThan(1200);
       expect(timeouts.length).toBeGreaterThan(0);
       for (const timeout of timeouts) expect(timeout).toBeGreaterThan(0);
-      expect(timeouts.reduce((sum, t) => sum! + t!, 0)).toBeLessThanOrEqual(500);
+      // Together the probes ask for the budget, give or take timer rounding: a probe's timer can fire a millisecond before the
+      // matcher's deadline, which then starts one last probe floored at 1 ms (seen on CI as 500 + 1).
+      expect(timeouts.reduce((sum, t) => sum! + t!, 0)).toBeLessThanOrEqual(510);
     }
   });
 
