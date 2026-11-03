@@ -59,6 +59,34 @@ test.describe("Playwright's page.webmcp", () => {
     expect(message).not.toContain('Tool "get_account" does not declare "readOnlyHint"');
   });
 
+  test("a tools() call that never answers is bounded by the expect timeout", async () => {
+    // Stands in for a page.webmcp whose page never answers: it gives up when the timeout it is handed runs out, as Playwright's does.
+    const timeouts: (number | undefined)[] = [];
+    const stalled = {
+      tools: (options?: { timeout?: number }) => {
+        timeouts.push(options?.timeout);
+        return new Promise<never>((_resolve, reject) => {
+          if (options?.timeout) setTimeout(() => reject(new Error(`Timeout ${options.timeout}ms exceeded.`)), options.timeout);
+        });
+      },
+      callTool: async () => undefined,
+    };
+    const quick = expect.configure({ timeout: 500 });
+    for (const assertion of [
+      () => quick(stalled).toHaveTool("search_products"),
+      () => quick(stalled).not.toHaveTool("checkout"),
+      () => quick(stalled).toPassLint(),
+    ]) {
+      timeouts.length = 0;
+      const startedAt = Date.now();
+      await expect(assertion()).rejects.toThrow(/Timeout \d+ms exceeded/);
+      expect(Date.now() - startedAt).toBeLessThan(2000);
+      expect(timeouts).toHaveLength(1);
+      expect(timeouts[0]).toBeGreaterThan(0);
+      expect(timeouts[0]).toBeLessThanOrEqual(500);
+    }
+  });
+
   test("matchers that need recorded calls or every frame say so", async ({ page }) => {
     await page.goto("/");
     expect(() => expect(page.webmcp).toHaveCalledTool("search_products")).toThrow(
