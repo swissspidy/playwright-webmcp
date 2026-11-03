@@ -41,7 +41,9 @@ test("shop exposes usable tools", async ({ page, webmcp }) => {
 });
 ```
 
-Matchers: `toHaveTool`, `toPassLint`, `toPassSmoke`, `toMatchToolContract`, `toReachTool`, `toHaveToolCoverage`, `toHaveAgentReadinessScore`, `toRegisterToolsWithin`, `toHaveCalledTool`, `toMatchCalls`, and `toPassEval` for agents.
+Matchers: `toHaveTool`, `toPassLint`, `toPassSmoke`, `toMatchToolContract`, `toReachTool`, `toHaveToolCoverage`, `toHaveAgentReadinessScore`, `toRegisterToolsWithin`, `toHaveCalledTool`, `toMatchCalls`, and `toPassEval` for agents. `toHaveTool` and `toPassLint` also accept Playwright's own `page.webmcp` and `frame.webmcp` (1.64 and later); the repository README compares the native API with the fixture.
+
+Requires Chrome or Chromium 155 or later.
 
 Agents: the lazy `promptApi` fixture drives Chrome's on-device model against the page's tools, and `toolsForAgent(webmcp)` hands the same tools as callables to any model or framework you run from Node. `expect(webmcp).toPassEval(evalCase, { agent })` takes a Vercel AI SDK `ToolLoopAgent`, any object with `generate()` or `run()`, or an async function, and judges the calls the fixture recorded.
 

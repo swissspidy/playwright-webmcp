@@ -18,7 +18,6 @@ import type { WebMCP as WebMCPTypes } from "webmcp-types";
 import { evaluateAgent, type AgentRunner, type AgentRunResult, type EvalRunOptions, type EvalRunResult } from "./agent.js";
 import { fakeLanguageModelSource, type FakeLanguageModelPlan } from "./fake-language-model.js";
 import type { WebMCP } from "./fixture.js";
-import type { ExecuteToolInputShape } from "./input-shape.js";
 
 export interface PromptApiRunOptions {
   /** User turns, sent in order within one session. */
@@ -66,9 +65,9 @@ export interface PromptApiRunResult extends AgentRunResult {
 }
 
 type SerializableRunOptions = Required<Omit<PromptApiRunOptions, "systemPrompt" | "toolNames" | "expectedTools">> &
-  Pick<PromptApiRunOptions, "systemPrompt" | "toolNames" | "expectedTools"> & { inputShape: ExecuteToolInputShape };
+  Pick<PromptApiRunOptions, "systemPrompt" | "toolNames" | "expectedTools">;
 
-export function normalizeRunOptions(options: PromptApiRunOptions & { inputShape?: ExecuteToolInputShape }): SerializableRunOptions {
+export function normalizeRunOptions(options: PromptApiRunOptions): SerializableRunOptions {
   return {
     prompts: options.prompts,
     systemPrompt: options.systemPrompt,
@@ -80,7 +79,6 @@ export function normalizeRunOptions(options: PromptApiRunOptions & { inputShape?
     expectedTools: options.expectedTools,
     waitForToolsMs: options.waitForToolsMs ?? 3000,
     maxToolRounds: options.maxToolRounds ?? 10,
-    inputShape: options.inputShape ?? "object",
   };
 }
 
@@ -142,9 +140,7 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
   result.toolsOffered = listed.map((t) => t.name);
 
   function schemaOf(tool: WebMCPTypes.RegisteredTool): Record<string, unknown> {
-    // Chrome 154 and earlier handed inputSchema back as the JSON string it was stored as.
-    const raw = typeof tool.inputSchema === "string" ? JSON.parse(tool.inputSchema) : tool.inputSchema;
-    return (raw as Record<string, unknown>) ?? { type: "object", properties: {} };
+    return (tool.inputSchema as Record<string, unknown> | undefined) ?? { type: "object", properties: {} };
   }
 
   const byName = new Map(listed.map((tool) => [tool.name, tool]));
@@ -160,9 +156,8 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
       return { ok: false, error: message };
     }
     try {
-      // Same convention as WebMCP.call(): the shape Chrome takes, decided from its version, and the string result decoded.
-      const input = options.inputShape === "string" ? JSON.stringify(args ?? {}) : (args ?? {});
-      const returned: unknown = await mc.executeTool(tool, input as object, { __playwrightWebmcp: true } as never);
+      // Same convention as WebMCP.call(): the input as an object, and the string result decoded.
+      const returned: unknown = await mc.executeTool(tool, args ?? {}, { __playwrightWebmcp: true } as never);
       let raw: unknown = returned;
       if (returned === "undefined") raw = undefined;
       else if (typeof returned === "string") {
@@ -331,7 +326,7 @@ export class PromptApiHarness implements AgentRunner {
     const given = typeof options === "string" ? { prompts: [options] } : options;
     // Offer the model every tool the fixture can see; the in-page list may need a moment to catch up.
     const known = (await this.webmcp.tools()).map((t) => t.name).filter((name) => !given.toolNames || given.toolNames.includes(name));
-    const opts = normalizeRunOptions({ expectedTools: known, ...given, inputShape: this.webmcp.inputShape() });
+    const opts = normalizeRunOptions({ expectedTools: known, ...given });
     const result = await this.webmcp.page.evaluate(runPromptApiInPage, opts);
     const missing = known.filter((name) => !result.toolsOffered.includes(name));
     if (missing.length && process.env.WEBMCP_DEBUG)

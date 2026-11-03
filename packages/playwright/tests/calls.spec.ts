@@ -42,15 +42,14 @@ test.describe("calling and recording", () => {
     expect(calls[0].result).toEqual({ products: [{ id: 3, name: "Green hat", price: 12 }] });
   });
 
-  // The input shape only matters on the page-side path. With the CDP domain
+  // Only the page-side path calls the page's executeTool. With the CDP domain
   // enabled -- which is what happens on Chrome -- call() invokes through it
   // and never touches the page's executeTool at all.
-  test.describe("page-side input shape", () => {
+  test.describe("page-side executeTool", () => {
     test.use({ webmcpOptions: { cdp: "never" } });
 
-    test("call() sends the shape this browser takes, once", async ({ page, webmcp }) => {
+    test("call() sends the input as an object, once", async ({ page, webmcp }) => {
       await page.goto("/");
-      const shape = webmcp.inputShape();
       // The stub answers on its own rather than delegating, so the test does not depend on
       // what the browser underneath would have accepted; it only checks what was sent.
       await page.evaluate(() => {
@@ -59,11 +58,11 @@ test.describe("calling and recording", () => {
         (globalThis as Record<string, unknown>).__attempts = seen;
         mc.executeTool = (async (_tool: never, args: unknown) => {
           seen.push(typeof args);
-          return JSON.stringify({ echoed: typeof args === "string" ? JSON.parse(args) : args });
+          return JSON.stringify({ echoed: args });
         }) as typeof mc.executeTool;
       });
       expect(await webmcp.call("search_products", { query: "hat" })).toEqual({ echoed: { query: "hat" } });
-      expect(await page.evaluate(() => (globalThis as Record<string, unknown>).__attempts as string[])).toEqual([shape]);
+      expect(await page.evaluate(() => (globalThis as Record<string, unknown>).__attempts as string[])).toEqual(["object"]);
 
       // An error from the tool is rethrown, not retried: a tool that writes must not run twice.
       await page.evaluate(() => {

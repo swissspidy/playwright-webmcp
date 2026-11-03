@@ -55,8 +55,8 @@ export async function collectFrame(options: { getToolsTimeoutMs?: number } = {})
       name: String(t.name ?? ""),
       title: typeof t.title === "string" && t.title ? t.title : undefined,
       description: String(t.description ?? ""),
-      inputSchema: safeJson(fromJsonString(t.inputSchema)),
-      annotations: safeJson(fromJsonString(t.annotations)) ?? undefined,
+      inputSchema: safeJson(t.inputSchema),
+      annotations: safeJson(t.annotations) ?? undefined,
       origin: String(t.origin ?? location.origin),
       source: decl ? "declarative" : "imperative",
       hasExecute: typeof t.execute === "function" || typeof t._execute === "function" ? true : decl ? true : undefined,
@@ -78,16 +78,6 @@ export async function collectFrame(options: { getToolsTimeoutMs?: number } = {})
     });
   }
   return { frame, tools };
-
-  // Chrome 154 and earlier handed inputSchema back as a JSON string; the specification (and Chrome since) says object.
-  function fromJsonString(v: unknown): unknown {
-    if (typeof v !== "string") return v;
-    try {
-      return JSON.parse(v);
-    } catch {
-      return v;
-    }
-  }
 
   function safeJson(v: unknown): Record<string, unknown> | null {
     if (v === undefined || v === null) return null;

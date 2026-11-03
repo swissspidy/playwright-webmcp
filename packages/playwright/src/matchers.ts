@@ -13,7 +13,7 @@ import {
   type Severity,
   type ToolSource,
 } from "@swissspidy/webmcp-lint";
-import { formatScore, type TimelineBudgets } from "@swissspidy/webmcp-lint";
+import { formatScore, lintTools, type ToolDefinitionLike, type TimelineBudgets } from "@swissspidy/webmcp-lint";
 import { WebMCP } from "./fixture.js";
 import { evaluateAgent, isEvalAgent, type EvalAgent, type EvalRunOptions } from "./agent.js";
 import type { SmokeOptions } from "./smoke.js";
@@ -35,8 +35,53 @@ export interface SmokeExpectation extends SmokeOptions {
   failOn?: Severity;
 }
 
-function resolve(received: unknown): WebMCP {
+/**
+ * Playwright's own `page.webmcp` / `frame.webmcp` (1.64 and later), typed
+ * structurally so the package still builds and runs against older Playwright.
+ */
+export interface NativeWebMCP {
+  tools(options?: { timeout?: number }): Promise<NativeTool[]>;
+  callTool(name: string, input?: unknown, options?: { timeout?: number }): Promise<unknown>;
+}
+
+interface NativeTool {
+  name: string;
+  description: string;
+  inputSchema?: unknown;
+  annotations?: { readOnly?: boolean; untrustedContent?: boolean; consequential?: boolean };
+}
+
+function isNativeWebMCP(value: unknown): value is NativeWebMCP {
+  return (
+    !(value instanceof WebMCP) &&
+    Boolean(value) &&
+    typeof value === "object" &&
+    typeof (value as NativeWebMCP).tools === "function" &&
+    typeof (value as NativeWebMCP).callTool === "function"
+  );
+}
+
+/** A native tool in the shape the rules read: Playwright renames the hints, the rules expect the page's spelling. */
+function fromNative(tool: NativeTool): ToolDefinitionLike {
+  const a = tool.annotations;
+  const annotations: Record<string, unknown> = {};
+  if (a?.readOnly !== undefined) annotations.readOnlyHint = a.readOnly;
+  if (a?.untrustedContent !== undefined) annotations.untrustedContentHint = a.untrustedContent;
+  if (a?.consequential !== undefined) annotations.consequentialHint = a.consequential;
+  return {
+    name: tool.name,
+    description: tool.description,
+    inputSchema: (tool.inputSchema ?? null) as ToolDefinitionLike["inputSchema"],
+    ...(Object.keys(annotations).length ? { annotations } : {}),
+  };
+}
+
+function resolve(received: unknown, matcher: string): WebMCP {
   if (received instanceof WebMCP) return received;
+  if (isNativeWebMCP(received))
+    throw new TypeError(
+      `${matcher} needs the webmcp fixture or a Page; Playwright's page.webmcp supports only toHaveTool and toPassLint, because it does not record calls or see other frames`,
+    );
   const page = received as Page;
   if (page && typeof page.frames === "function") {
     return WebMCP.for(page) ?? new WebMCP(page, undefined);
@@ -44,9 +89,9 @@ function resolve(received: unknown): WebMCP {
   throw new TypeError("Expected a Page or the webmcp fixture");
 }
 
-function callsOf(received: unknown): RecordedCall[] {
+function callsOf(received: unknown, matcher: string): RecordedCall[] {
   if (Array.isArray(received)) return received as RecordedCall[];
-  return resolve(received).calls();
+  return resolve(received, matcher).calls();
 }
 
 const RANK: Record<Severity, number> = { error: 3, warning: 2, info: 1 };
@@ -71,8 +116,15 @@ async function until<T extends { pass: boolean }>(ctx: MatcherContext, check: ()
   }
 }
 
-async function checkTool(webmcp: WebMCP, name: string, expected: ToolExpectation) {
-  const tools = await webmcp.tools();
+interface ToolLike {
+  name: string;
+  description: string;
+  inputSchema?: unknown;
+  source?: ToolSource;
+}
+
+async function checkTool(listTools: () => Promise<ToolLike[]>, name: string, expected: ToolExpectation) {
+  const tools = await listTools();
   const tool = tools.find((t) => t.name === name);
   const problems: string[] = [];
   if (!tool) {
@@ -89,7 +141,12 @@ async function checkTool(webmcp: WebMCP, name: string, expected: ToolExpectation
     if (expected.inputSchema !== undefined && !matchesArgument(expected.inputSchema, tool.inputSchema)) {
       problems.push(...explainMismatch(expected.inputSchema, tool.inputSchema, "inputSchema"));
     }
-    if (expected.source !== undefined && tool.source !== expected.source) problems.push(`source is ${tool.source}, expected ${expected.source}`);
+    if (expected.source !== undefined && tool.source !== expected.source)
+      problems.push(
+        tool.source === undefined
+          ? `source is not reported by page.webmcp, expected ${expected.source}`
+          : `source is ${tool.source}, expected ${expected.source}`,
+      );
   }
   const pass = problems.length === 0;
   return {
@@ -103,14 +160,20 @@ async function checkTool(webmcp: WebMCP, name: string, expected: ToolExpectation
 
 export const expect = baseExpect.extend({
   async toHaveTool(received: unknown, name: string, expected: ToolExpectation = {}) {
-    const webmcp = resolve(received);
-    return until(this as MatcherContext, () => checkTool(webmcp, name, expected));
+    if (isNativeWebMCP(received)) {
+      const native = received;
+      return until(this as MatcherContext, () => checkTool(() => native.tools(), name, expected));
+    }
+    const webmcp = resolve(received, "toHaveTool");
+    return until(this as MatcherContext, () => checkTool(() => webmcp.tools(), name, expected));
   },
 
   async toPassLint(received: unknown, options: LintExpectation = {}) {
     const { failOn = "error", ...lintOptions } = options;
-    const webmcp = resolve(received);
-    const result = await webmcp.lint(lintOptions);
+    // page.webmcp sees one frame and no frame facts, so it gets the tool-scoped rules on that frame's tools.
+    const result = isNativeWebMCP(received)
+      ? lintTools((await received.tools()).map(fromNative), lintOptions)
+      : await resolve(received, "toPassLint").lint(lintOptions);
     const failing = result.findings.filter((f) => RANK[f.severity] >= RANK[failOn]);
     const pass = failing.length === 0;
     return {
@@ -124,7 +187,7 @@ export const expect = baseExpect.extend({
   },
 
   toHaveCalledTool(received: unknown, name: string, args?: unknown) {
-    const calls = callsOf(received);
+    const calls = callsOf(received, "toHaveCalledTool");
     const matching = calls.filter((c) => c.name === name && (args === undefined || matchesArgument(args, c.args)));
     const pass = matching.length > 0;
     const sameName = calls.filter((c) => c.name === name);
@@ -144,7 +207,7 @@ export const expect = baseExpect.extend({
 
   async toPassSmoke(received: unknown, options: SmokeExpectation = {}) {
     const { failOn = "error", ...smokeOptions } = options;
-    const webmcp = resolve(received);
+    const webmcp = resolve(received, "toPassSmoke");
     const report = await webmcp.smoke(smokeOptions);
     const failing = report.findings.filter((f) => RANK[f.severity] >= RANK[failOn]);
     const pass = failing.length === 0;
@@ -159,7 +222,7 @@ export const expect = baseExpect.extend({
   },
 
   async toMatchToolContract(received: unknown, name?: string) {
-    const webmcp = resolve(received);
+    const webmcp = resolve(received, "toMatchToolContract");
     const check = async () => {
       const result = await webmcp.matchToolContract(name);
       return {
@@ -180,7 +243,7 @@ export const expect = baseExpect.extend({
   },
 
   async toReachTool(received: unknown, name: string, options: { from?: number } = {}) {
-    const webmcp = resolve(received);
+    const webmcp = resolve(received, "toReachTool");
     return until(this as MatcherContext, async () => {
       const reachable = await webmcp.reachableTools(options);
       const pass = reachable.some((t) => t.name === name);
@@ -196,7 +259,7 @@ export const expect = baseExpect.extend({
   },
 
   async toHaveToolCoverage(received: unknown, minimum: number) {
-    const webmcp = resolve(received);
+    const webmcp = resolve(received, "toHaveToolCoverage");
     const report = await webmcp.coverage();
     const min = minimum > 1 ? minimum / 100 : minimum;
     const pass = report.ratio >= min;
@@ -209,7 +272,7 @@ export const expect = baseExpect.extend({
   },
 
   async toHaveAgentReadinessScore(received: unknown, minimum: number, options: { smoke?: boolean } = {}) {
-    const webmcp = resolve(received);
+    const webmcp = resolve(received, "toHaveAgentReadinessScore");
     const score = await webmcp.score(options);
     const pass = score.score >= minimum;
     return {
@@ -220,7 +283,7 @@ export const expect = baseExpect.extend({
   },
 
   async toRegisterToolsWithin(received: unknown, ms: number, budgets: TimelineBudgets = {}) {
-    const webmcp = resolve(received);
+    const webmcp = resolve(received, "toRegisterToolsWithin");
     const report = await webmcp.timeline(budgets);
     const pass = report.timeToFirstTool !== undefined && report.timeToFirstTool <= ms;
     return {
@@ -243,7 +306,7 @@ export const expect = baseExpect.extend({
       webmcp = harness.webmcp;
       agent = harness as unknown as EvalAgent;
     } else {
-      webmcp = resolve(received);
+      webmcp = resolve(received, "toPassEval");
       if (!isEvalAgent(given)) {
         throw new TypeError(
           "toPassEval needs an agent: expect(webmcp).toPassEval(evalCase, { agent }) with an AI SDK agent, an object with generate() or run(), or an async function; or expect(promptApi).toPassEval(evalCase)",
@@ -266,7 +329,7 @@ export const expect = baseExpect.extend({
   },
 
   toMatchCalls(received: unknown, expected: ExpectedCallNode[], options: ReconcileOptions = {}) {
-    const calls = callsOf(received);
+    const calls = callsOf(received, "toMatchCalls");
     const result = reconcileCalls(
       expected,
       calls.map((c) => ({ name: c.name, args: c.args, result: c.result })),

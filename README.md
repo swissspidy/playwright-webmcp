@@ -120,13 +120,41 @@ export default defineConfig({
 
 Options via `test.use({ webmcpOptions: { record: true, lint: {...}, cdp: "auto" \| "never" } })`.
 
+### Playwright's own `page.webmcp`
+
+Playwright 1.64 added [`page.webmcp` and `frame.webmcp`](https://playwright.dev/docs/api/class-webmcp): `tools()` lists what one frame registered and `callTool(name, input)` runs a tool there. For a quick look at a page's tools that is all you need. The fixture is for what goes beyond that:
+
+|                                                          | `page.webmcp`                                                   | `webmcp` fixture                                                        |
+| -------------------------------------------------------- | --------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| Frames                                                   | One per instance; child frames through their own `frame.webmcp` | Every frame in one snapshot, cross-origin ones included                 |
+| Calls                                                    | Not recorded                                                    | Recorded, whether the test, page script or an agent made them           |
+| Cancellation                                             | No signal                                                       | `signal`, `cancelAfter`, `cancel()`, `ToolCanceledError`                |
+| Waiting for late registration                            | No                                                              | `call()` and `toHaveTool` wait; `settle()`                              |
+| Tool facts                                               | Name, description, parsed schema, three hints                   | Also `source`, `exposedTo`, frame and origin facts, the schema as given |
+| Lint, smoke, contracts, coverage, evals, agents, mocking | No                                                              | Yes                                                                     |
+| Playwright version                                       | 1.64 and later                                                  | 1.49 and later                                                          |
+
+`toHaveTool` and `toPassLint` accept `page.webmcp` and `frame.webmcp` as well, so a test written against the native API can use them without the fixture:
+
+```ts
+import { test, expect } from "@swissspidy/playwright-webmcp";
+
+test("native API", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.webmcp).toHaveTool("search_products", { description: /catalogue/ });
+  await expect(page.webmcp).toPassLint();
+});
+```
+
+`toPassLint` then runs on that one frame's tools, the way `lintTools()` would. Playwright does not report whether a tool is declarative, so every tool is linted as imperative, and the rules that need frame facts (`exposedTo`, cross-origin frames) have nothing to go on. The matchers that need recorded calls or every frame (`toHaveCalledTool`, `toMatchCalls`, `toPassSmoke` and the rest) throw a `TypeError` that says so; pass `webmcp` or `page` to those.
+
 ### Cancellation and tool events
 
 The browser fires `toolactivated` on `document.modelContext` when a call starts, whoever made it, and `toolcancel` when the browser or the agent cancels one. Both carry only `toolName`. A canceled call also aborts the signal the tool's `execute` gets as `client.signal`, and the agent is told the call was canceled; the tool's code keeps running unless it checks that signal.
 
 Which tools should check it: one that waits and then does something it cannot take back (places an order, sends a message, deletes data). Check right before the side effect, `client?.signal?.throwIfAborted()`, since the cancel usually arrives during a wait, and pass the signal on to `fetch()` so a request that has not gone out yet is dropped; a request already sent is not undone by aborting it. A read-only tool can ignore the signal: the browser discards a canceled call's result. The ESLint plugin's `webmcp/consequential-abort-signal` flags a tool that declares `consequentialHint`, waits in its `execute`, and never reads its second parameter.
 
-The fixture records both events (`events()`, and in `timeline()` as `toolEvents`), and `call()` can cancel what it starts: pass a `signal`, or `cancelAfter` with milliseconds or `"activated"` to cancel once the page has fired `toolactivated` for the call. `cancel(name)` cancels the pending calls `call()` made; when there are none and the browser has the CDP `WebMCP` domain, it cancels any pending call of that tool, an agent's included. Recorded calls carry `canceled: true`. Without the CDP domain, cancellation goes through the page's `executeTool()` and works for `call()` only. Chromium added the two events after the rest of the API (153 has neither, but already aborts the signal); `supportsToolEvents()` says whether the browser fires them, and `waitForEvent()` and `cancelAfter: "activated"` throw rather than wait when it does not.
+The fixture records both events (`events()`, and in `timeline()` as `toolEvents`), and `call()` can cancel what it starts: pass a `signal`, or `cancelAfter` with milliseconds or `"activated"` to cancel once the page has fired `toolactivated` for the call. `cancel(name)` cancels the pending calls `call()` made; when there are none and the browser has the CDP `WebMCP` domain, it cancels any pending call of that tool, an agent's included. Recorded calls carry `canceled: true`. Without the CDP domain, cancellation goes through the page's `executeTool()` and works for `call()` only. Chromium added the two events after the rest of the API; `supportsToolEvents()` says whether the browser fires them, and `waitForEvent()` and `cancelAfter: "activated"` throw rather than wait when it does not.
 
 A test that a canceled order is not placed, and that the page's "agent is working" indicator clears:
 
@@ -159,19 +187,19 @@ On browsers without the domain the collector stays off and everything falls back
 
 ### Matchers
 
-| Matcher                                                      | Receiver                     | Notes                                                               |
-| ------------------------------------------------------------ | ---------------------------- | ------------------------------------------------------------------- |
-| `toHaveTool(name, { description?, inputSchema?, source? })`  | `webmcp` or `page`           | `inputSchema` uses subset matching. Waits like a locator assertion. |
-| `toPassLint({ failOn?, rules?, extraRules?, scope? })`       | `webmcp` or `page`           | `failOn` defaults to `"error"`; `scope: "page"` skips tool rules.   |
-| `toPassSmoke({ tools?, all?, kinds?, failOn?, ...budgets })` | `webmcp` or `page`           | Runtime findings from generated inputs.                             |
-| `toMatchToolContract(name?)`                                 | `webmcp` or `page`           | Compares against the stored contract; honours `--update-snapshots`. |
-| `toReachTool(name, { from? })`                               | `webmcp` or `page`           | Reachability through the API from a frame. Waits like `toHaveTool`. |
-| `toHaveToolCoverage(min)`                                    | `webmcp` or `page`           | Fraction (0..1) or percent of tools called.                         |
-| `toHaveAgentReadinessScore(min, { smoke? })`                 | `webmcp` or `page`           | Score at least `min`.                                               |
-| `toRegisterToolsWithin(ms)`                                  | `webmcp` or `page`           | Time to first tool registration.                                    |
-| `toHaveCalledTool(name, args?)`                              | `webmcp` or `RecordedCall[]` | `args` accepts the evals constraint operators.                      |
-| `toMatchCalls(expectedCall, { strict? })`                    | `webmcp` or `RecordedCall[]` | Full trajectory check with `ordered`, `unordered`, `optional`.      |
-| `toPassEval(evalCase, { agent?, mode?, strict? })`           | `webmcp` or `promptApi`      | Runs the case through the agent and reconciles its calls.           |
+| Matcher                                                      | Receiver                          | Notes                                                               |
+| ------------------------------------------------------------ | --------------------------------- | ------------------------------------------------------------------- |
+| `toHaveTool(name, { description?, inputSchema?, source? })`  | `webmcp`, `page` or `page.webmcp` | `inputSchema` uses subset matching. Waits like a locator assertion. |
+| `toPassLint({ failOn?, rules?, extraRules?, scope? })`       | `webmcp`, `page` or `page.webmcp` | `failOn` defaults to `"error"`; `scope: "page"` skips tool rules.   |
+| `toPassSmoke({ tools?, all?, kinds?, failOn?, ...budgets })` | `webmcp` or `page`                | Runtime findings from generated inputs.                             |
+| `toMatchToolContract(name?)`                                 | `webmcp` or `page`                | Compares against the stored contract; honours `--update-snapshots`. |
+| `toReachTool(name, { from? })`                               | `webmcp` or `page`                | Reachability through the API from a frame. Waits like `toHaveTool`. |
+| `toHaveToolCoverage(min)`                                    | `webmcp` or `page`                | Fraction (0..1) or percent of tools called.                         |
+| `toHaveAgentReadinessScore(min, { smoke? })`                 | `webmcp` or `page`                | Score at least `min`.                                               |
+| `toRegisterToolsWithin(ms)`                                  | `webmcp` or `page`                | Time to first tool registration.                                    |
+| `toHaveCalledTool(name, args?)`                              | `webmcp` or `RecordedCall[]`      | `args` accepts the evals constraint operators.                      |
+| `toMatchCalls(expectedCall, { strict? })`                    | `webmcp` or `RecordedCall[]`      | Full trajectory check with `ordered`, `unordered`, `optional`.      |
+| `toPassEval(evalCase, { agent?, mode?, strict? })`           | `webmcp` or `promptApi`           | Runs the case through the agent and reconciles its calls.           |
 
 `toHaveTool` and `toReachTool` re-check the page until they pass, or until their negation holds under `.not`, for the expect timeout (5 s by default, `{ timeout }` to change it), because tools register after load and native `getTools()` can lag behind a registration. `call()` waits the same way for a tool that is not there yet and throws `ToolNotFoundError` after its timeout. Snapshot-based methods such as `snapshot()`, `lint()` and `contract()` look once; call `settle()` or wait for the tool first when a page registers late.
 
@@ -220,7 +248,7 @@ Tool results go back to the model as a `text` result item holding JSON, with nul
 
 ### Bring your own agent
 
-The fixture is the discovery and execution half: `webmcp.tools()` lists what the page registered and `webmcp.call()` runs a tool, the way Puppeteer's `page.webmcp` does. `toolsForAgent(webmcp)` hands the same tools over as callables (`name`, `description`, `inputSchema`, `readOnly`, `execute()`), and every `execute()` runs in the page and is recorded with `via: "agent"`. The agent itself is yours: whatever model or framework you run from Node, and the stronger the model, the more the eval verdicts mean. With the Vercel AI SDK the mapping is one line per tool, and its `ToolLoopAgent` is accepted by `toPassEval` as it is:
+The fixture is the discovery and execution half: `webmcp.tools()` lists what the page registered and `webmcp.call()` runs a tool, as Playwright's and Puppeteer's own `page.webmcp` do, except that the fixture covers every frame and records the call. `toolsForAgent(webmcp)` hands the same tools over as callables (`name`, `description`, `inputSchema`, `readOnly`, `execute()`), and every `execute()` runs in the page and is recorded with `via: "agent"`. The agent itself is yours: whatever model or framework you run from Node, and the stronger the model, the more the eval verdicts mean. With the Vercel AI SDK the mapping is one line per tool, and its `ToolLoopAgent` is accepted by `toPassEval` as it is:
 
 ```ts
 import { ToolLoopAgent, jsonSchema, stepCountIs, tool, type JSONSchema7 } from "ai";
@@ -273,10 +301,10 @@ PW_CHROMIUM=/opt/google/chrome-beta/chrome pnpm run test:e2e   # or: pnpm run te
 npx @swissspidy/webmcp-audit https://shop.example --executable /opt/google/chrome-beta/chrome
 ```
 
-CI runs the suites on Playwright's Chromium on every push, and on Chrome Beta as an informational job, because the API is still an origin trial and the beta channel is where changes land first. Things the fixture accounts for, because tests written against one build must behave the same on the next:
+Chrome or Chromium 155 or later is required. Earlier builds took `executeTool()` input only as a JSON string and returned `inputSchema` as one; the packages no longer account for that, so calls fail there with the browser's own input error. CI runs the suites on Playwright's Chromium on every push, and on Chrome Beta as an informational job, because the API is still an origin trial and the beta channel is where changes land first. Things the fixture accounts for, because tests written against one build must behave the same on the next:
 
-- `getTools()` returns `RegisteredTool` objects without `execute`; older builds returned `inputSchema` as a JSON string, which the collector still accepts. A build fills in whichever annotation defaults it knows (`consequentialHint` and `debugging` are recent), so contracts keep only the hints a tool declared `true`.
-- `executeTool(tool, input)` takes the tool object, not a name. The specification says `input` is an object; Chrome 154 and earlier took only a JSON string, and Chrome 155 deprecated the string. The fixture, the `promptApi` harness and `tests/helpers.ts` pick the shape from the browser's version (`webmcp.inputShape()`), because a refused attempt would still show up as an invocation on the CDP domain. The promise resolves with a string: JSON for objects, `String(value)` for primitives, `"undefined"` when the callback returned nothing.
+- `getTools()` returns `RegisteredTool` objects without `execute`, with `inputSchema` as an object. A build fills in whichever annotation defaults it knows (`consequentialHint` and `debugging` are recent), so contracts keep only the hints a tool declared `true`.
+- `executeTool(tool, input)` takes the tool object, not a name, and `input` as an object. The promise resolves with a string: JSON for objects, `String(value)` for primitives, `"undefined"` when the callback returned nothing.
 - Registering a name twice rejects with `InvalidStateError`; unregistering is the `AbortSignal` passed to `registerTool()`. `exposedTo` and `fromOrigins` accept potentially trustworthy origins only, so `"*"` rejects.
 - A frame whose `<iframe>` lacks `allow="tools"` cannot register at all (the `tools` permissions policy), so its tools never appear in a snapshot.
 - Declarative `<select>` fields get a schema with one `const` per option plus `enum`; `schema-unsupported-keywords` skips browser-derived schemas for that reason. A field without `toolparamdescription` gets its label text as the description.
