@@ -80,7 +80,8 @@ test.describe("Playwright's page.webmcp", () => {
       timeouts.length = 0;
       const startedAt = Date.now();
       await expect(assertion()).rejects.toThrow(/Timeout \d+ms exceeded/);
-      expect(Date.now() - startedAt).toBeLessThan(2000);
+      // The 500 ms budget plus room for a slow CI runner; a matcher that waited past its budget would take a second or more.
+      expect(Date.now() - startedAt).toBeLessThan(1200);
       expect(timeouts.length).toBeGreaterThan(0);
       for (const timeout of timeouts) expect(timeout).toBeGreaterThan(0);
       expect(timeouts.reduce((sum, t) => sum! + t!, 0)).toBeLessThanOrEqual(500);
@@ -90,19 +91,23 @@ test.describe("Playwright's page.webmcp", () => {
   test("a tools() call that hangs once is retried within the expect timeout", async () => {
     // getTools() in a page occasionally never resolves while the next call does; one hung probe must not use up the assertion.
     const timeouts: (number | undefined)[] = [];
-    const flaky = {
+    const flakyWith = (tools: { name: string; description: string }[]) => ({
       tools: (options?: { timeout?: number }) => {
         timeouts.push(options?.timeout);
         if (timeouts.length === 1) return new Promise<never>((_resolve, reject) => setTimeout(() => reject(timeoutError(options!.timeout!)), options!.timeout));
-        return Promise.resolve([{ name: "list_reviews", description: "List the reviews of a product." }]);
+        return Promise.resolve(tools);
       },
       callTool: async () => undefined,
-    };
-    await expect(flaky).toHaveTool("list_reviews");
+    });
+    await expect(flakyWith([{ name: "list_reviews", description: "List the reviews of a product." }])).toHaveTool("list_reviews");
     expect(timeouts).toHaveLength(2);
     expect(timeouts[0]).toBeLessThanOrEqual(1000);
+
+    // The lint has to be of what the retried probe returned: an invalid name there is the only way to get this finding.
     timeouts.length = 0;
-    await expect(flaky).toPassLint();
+    await expect(expect(flakyWith([{ name: "list reviews", description: "List the reviews of a product." }])).toPassLint()).rejects.toThrow(
+      /tool-name-valid \(tool list reviews/,
+    );
     expect(timeouts).toHaveLength(2);
   });
 
