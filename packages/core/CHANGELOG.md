@@ -1,5 +1,13 @@
 # @swissspidy/webmcp-lint
 
+## 0.4.0
+
+### Minor Changes
+
+- [#67](https://github.com/swissspidy/playwright-webmcp/pull/67) [`9e84ed5`](https://github.com/swissspidy/playwright-webmcp/commit/9e84ed50a6f9d8ca04488afbea672642a4f23af6) Thanks [@swissspidy](https://github.com/swissspidy)! - `toHaveTool` and `toPassLint` accept Playwright's own `page.webmcp` and `frame.webmcp` (Playwright 1.64 and later). The README compares the native API with the `webmcp` fixture.
+  
+  Breaking: Chrome and Chromium 154 and earlier are no longer supported. `executeTool()` input is always sent as an object, `inputSchema` and annotations returned as JSON strings are no longer parsed, and `webmcp.inputShape()`, `executeToolInputShape()`, `chromiumMajor()` and the `ExecuteToolInputShape` type are removed.
+
 ## 0.3.0
 
 ### Minor Changes
