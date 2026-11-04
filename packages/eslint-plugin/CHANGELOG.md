@@ -1,5 +1,12 @@
 # @swissspidy/eslint-plugin-webmcp
 
+## 0.4.0
+
+### Patch Changes
+
+- Updated dependencies [[`9e84ed5`](https://github.com/swissspidy/playwright-webmcp/commit/9e84ed50a6f9d8ca04488afbea672642a4f23af6)]:
+  - @swissspidy/webmcp-lint@0.4.0
+
 ## 0.3.0
 
 ### Minor Changes
