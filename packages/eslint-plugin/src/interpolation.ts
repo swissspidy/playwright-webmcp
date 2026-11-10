@@ -20,7 +20,7 @@
  */
 import type { Rule as ESLintRule } from "eslint";
 import type * as ESTree from "estree";
-import { DYNAMIC, findProperty, staticValue, unwrap, type Resolver } from "./extract.js";
+import { DYNAMIC, findProperty, propertyKey, staticValue, unwrap, type Resolver } from "./extract.js";
 import { discoverTools } from "./discover.js";
 import { elementsWithin, type JSXAttributeNode, type JSXElementNode, type JSXOpeningElementNode } from "./jsx.js";
 import { makeResolver } from "./rule.js";
@@ -140,8 +140,8 @@ export const noInterpolatedText: ESLintRule.RuleModule = {
         const description = findProperty(param, "description");
         if (!description || description.value.type === "AssignmentPattern") continue;
         const found = interpolationOf(description.value as ESTree.Node, resolve);
-        const key = prop.key.type === "Identifier" ? prop.key.name : String((prop.key as ESTree.Literal).value);
-        if (found) report(found.node, found.shape, PARAM, `The description of parameter "${key}"`);
+        const key = propertyKey(prop);
+        if (found) report(found.node, found.shape, PARAM, key === undefined ? "The description of a parameter" : `The description of parameter "${key}"`);
       }
     };
 

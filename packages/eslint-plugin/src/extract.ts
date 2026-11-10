@@ -47,7 +47,7 @@ export function unwrap(node: Node): Node {
 
 const identity: Resolver = (node) => node;
 
-function propertyKey(prop: ESTree.Property): string | undefined {
+export function propertyKey(prop: ESTree.Property): string | undefined {
   if (prop.computed) {
     const key = prop.key;
     if (key.type === "Literal" && typeof key.value === "string") return key.value;

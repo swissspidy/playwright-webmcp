@@ -18,10 +18,45 @@
  */
 import type { Rule as ESLintRule } from "eslint";
 import type * as ESTree from "estree";
-import { findProperty, staticValue, toolObjectsFromCall, type Resolver, type ToolObject } from "./extract.js";
+import { findProperty, staticValue, toolObjectsFromCall, unwrap, type Resolver, type ToolObject } from "./extract.js";
 import { definitionSites, toolObjectsEnabled } from "./settings.js";
 
 type WithParent = ESTree.Node & { parent?: WithParent };
+
+/**
+ * Whether a reference to a binding is the target of an in-place mutation:
+ * `tool.name = x`, `tool.inputSchema.properties.q = x`, `delete tool.x`,
+ * `tool.count++`, or `Object.assign(tool, ...)`.
+ */
+export function mutates(identifier: ESTree.Node): boolean {
+  let node = identifier as WithParent;
+  let parent = node.parent;
+  while (parent?.type === "MemberExpression" && parent.object === node) {
+    node = parent;
+    parent = node.parent;
+  }
+  if (!parent) return false;
+  if (node === identifier) {
+    // `Object.assign(tool, ...)` with the binding as the target.
+    if (parent.type !== "CallExpression" || parent.arguments[0] !== node) return false;
+    const callee = unwrap(parent.callee as ESTree.Node);
+    return (
+      callee.type === "MemberExpression" &&
+      callee.object.type === "Identifier" &&
+      callee.object.name === "Object" &&
+      callee.property.type === "Identifier" &&
+      callee.property.name === "assign"
+    );
+  }
+  if (parent.type === "AssignmentExpression") return parent.left === node;
+  if (parent.type === "UpdateExpression") return true;
+  if (parent.type === "UnaryExpression") return parent.operator === "delete";
+  if (parent.type === "ForInStatement" || parent.type === "ForOfStatement") return parent.left === node;
+  // A destructuring target: `[tool.x] = arr`, `({ y: tool.x } = obj)`.
+  if (parent.type === "ArrayPattern" || parent.type === "RestElement") return true;
+  if (parent.type === "Property") return parent.parent?.type === "ObjectPattern";
+  return false;
+}
 
 const TOOL_TYPES = new Set(["ModelContextTool"]);
 
@@ -64,6 +99,23 @@ export function isToolShaped(obj: ESTree.ObjectExpression, resolve: Resolver): b
 }
 
 /**
+ * True when the literal initialises a binding that is then changed in place (`tool.description = ...`,
+ * `Object.assign(tool, ...)`). What it holds when it is registered is not what the literal says, so
+ * it is left alone, as it is when a definition site is handed such a binding.
+ */
+function initialisesMutatedBinding(obj: ESTree.ObjectExpression, sourceCode: ESLintRule.RuleContext["sourceCode"]): boolean {
+  let node = obj as WithParent;
+  while (node.parent && TS_WRAPPERS.has(node.parent.type)) node = node.parent;
+  const declarator = node.parent;
+  if (declarator?.type !== "VariableDeclarator" || declarator.init !== node || declarator.id.type !== "Identifier") return false;
+  try {
+    return sourceCode.getDeclaredVariables(declarator).some((variable) => variable.references.some((ref) => mutates(ref.identifier as ESTree.Node)));
+  } catch {
+    return false;
+  }
+}
+
+/**
  * Listener entries that call `onTool` once for every tool definition literal
  * in the file. Merge them into a rule's own listener.
  *
@@ -99,7 +151,7 @@ export function discoverTools(
     // definition site's argument once that call has been visited.
     "Program:exit"() {
       for (const obj of candidates) {
-        if (seen.has(obj) || !isToolShaped(obj, resolve)) continue;
+        if (seen.has(obj) || !isToolShaped(obj, resolve) || initialisesMutatedBinding(obj, context.sourceCode)) continue;
         seen.add(obj);
         onTool({ node: obj, exposedTo: { value: undefined } }, false);
       }

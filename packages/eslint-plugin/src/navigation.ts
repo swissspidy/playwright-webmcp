@@ -45,14 +45,43 @@ function lastName(node: Node): string | undefined {
   return n.property.type === "Literal" && typeof n.property.value === "string" ? n.property.value : undefined;
 }
 
-const isLocation = (node: Node) => lastName(node) === "location";
+type SourceCode = ESLintRule.RuleContext["sourceCode"];
+
+const GLOBAL_OBJECTS = new Set(["window", "document", "globalThis", "self"]);
+
+/** True when the identifier is a parameter of an enclosing function: tool input, not the browser's global. */
+function isParameter(identifier: ESTree.Identifier, sourceCode: SourceCode): boolean {
+  let scope: Scope.Scope | null;
+  try {
+    scope = sourceCode.getScope(identifier);
+  } catch {
+    return false;
+  }
+  for (; scope; scope = scope.upper) {
+    const variable = scope.set.get(identifier.name);
+    if (variable) return variable.defs.some((def) => def.type === "Parameter");
+  }
+  return false;
+}
+
+/**
+ * `location`, `window.location`, `document.location`: the browser's own object. Not `args.location`
+ * or a `location` parameter, which are data that happens to share the name.
+ */
+function isLocation(node: Node, sourceCode: SourceCode): boolean {
+  const n = unwrap(node);
+  if (n.type === "Identifier") return n.name === "location" && !isParameter(n, sourceCode);
+  if (n.type !== "MemberExpression" || lastName(n) !== "location") return false;
+  const object = unwrap(n.object as Node);
+  return object.type === "Identifier" && GLOBAL_OBJECTS.has(object.name);
+}
 
 /** A short description of how a node navigates, or undefined when it does not. */
-function navigationAt(node: Node): string | undefined {
+function navigationAt(node: Node, sourceCode: SourceCode): string | undefined {
   if (node.type === "AssignmentExpression") {
     const left = unwrap(node.left as Node);
-    if (isLocation(left)) return "assigns location";
-    if (left.type === "MemberExpression" && isLocation(left.object as Node)) {
+    if (isLocation(left, sourceCode)) return "assigns location";
+    if (left.type === "MemberExpression" && isLocation(left.object as Node, sourceCode)) {
       const prop = lastName(left);
       if (prop && LOCATION_PROPS.has(prop)) return `sets location.${prop}`;
     }
@@ -64,8 +93,12 @@ function navigationAt(node: Node): string | undefined {
   if (callee.type !== "MemberExpression") return undefined;
   const method = lastName(callee);
   if (!method) return undefined;
-  const receiver = lastName(callee.object as Node) ?? "";
-  if (receiver === "location" && LOCATION_METHODS.has(method)) return `calls location.${method}()`;
+  const object = unwrap(callee.object as Node);
+  if (isLocation(object, sourceCode)) return LOCATION_METHODS.has(method) ? `calls location.${method}()` : undefined;
+  // A parameter named history or router is the tool's input (a list, a string), not the API.
+  if (object.type === "Identifier" && isParameter(object, sourceCode)) return undefined;
+  const receiver = lastName(object) ?? "";
+  if (receiver === "location") return undefined;
   if (receiver === "history" && HISTORY_METHODS.has(method)) return `calls history.${method}()`;
   if (receiver === "navigation" && NAVIGATION_METHODS.has(method)) return `calls navigation.${method}()`;
   if (/router$/i.test(receiver) && ROUTER_METHODS.has(method)) return `calls ${receiver}.${method}()`;
@@ -122,7 +155,7 @@ function findNavigation(
   const stack: Node[] = [fn.body as Node];
   while (stack.length) {
     const node = stack.pop()!;
-    const how = navigationAt(node);
+    const how = navigationAt(node, sourceCode);
     if (how) return { node, how };
     if (node.type === "CallExpression" && depth < MAX_DEPTH) {
       const target = functionOf(node.callee as Node, resolve, sourceCode);

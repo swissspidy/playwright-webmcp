@@ -523,8 +523,6 @@ test("valid-event-name", () => {
 });
 
 test("JSX label text reaches the derived schema the way the browser derives it", () => {
-  const { formTool } = plugin as unknown as { formTool: never };
-  void formTool;
   const source = `
     <form toolname="signup" tooldescription="Sign a person up for the newsletter with their details.">
       <label htmlFor="email"><span>Email</span> address</label>
@@ -744,4 +742,57 @@ mc.registerTool(tool, { exposedTo: ["http://example.com"] });`;
     invalid: [{ code, errors: [{ messageId: "finding", line: 4 }] }],
   });
   tester.run("tool-name-valid", plugin.rules["tool-name-valid"], { valid: [], invalid: [{ code, errors: 1 }] });
+});
+
+test("a tool-shaped literal that is changed after it is written is not judged by what the literal says", () => {
+  tester.run("description-missing", plugin.rules["description-missing"], {
+    valid: [
+      `const tool = { name: "search", inputSchema: {}, execute() {} }; tool.description = "Search the catalogue by keyword."; mc.registerTool(tool);`,
+      `const tool = { name: "search", inputSchema: {}, execute() {} }; Object.assign(tool, extras); mc.registerTool(tool);`,
+    ],
+    invalid: [{ code: `export const tool = { name: "search", inputSchema: {}, execute() {} };`, errors: [{ messageId: "finding" }] }],
+  });
+});
+
+test("navigation-consequential tells the browser's location and history from data that shares the name", () => {
+  const tool = (body: string, params = "args") =>
+    `mc.registerTool({ name: "t", description: "Does a thing for the user when asked to do it.", inputSchema: {}, execute(${params}) { ${body} } });`;
+  tester.run("navigation-consequential", plugin.rules["navigation-consequential"], {
+    valid: [
+      tool(`return args.location.replace(",", "");`),
+      tool(`return location.replace(/ /g, "+");`, "{ location }"),
+      tool(`state.location = args.location;`),
+      tool(`history.push(args.q); return history.length;`, "{ history, ...args }"),
+    ],
+    invalid: [
+      { code: tool(`location.replace("/cart");`), errors: 1 },
+      { code: tool(`window.location.href = "/cart";`), errors: 1 },
+      { code: tool(`document.location = args.url;`), errors: 1 },
+      { code: tool(`history.pushState({}, "", "/cart");`), errors: 1 },
+    ],
+  });
+});
+
+test("JSX forms: a spread, a label outside the form, a radio group and an empty aria-label", () => {
+  const form = (inner: string, attrs = `tooldescription="Search the catalogue by keyword and return matches."`) =>
+    `const x = <><label htmlFor="q">Query</label><form toolname="search" ${attrs}>${inner}</form></>;`;
+  tester.run("declarative-description", plugin.rules["declarative-description"], {
+    valid: [form(`<input name="q" aria-label="Query" />`, "{...formProps}")],
+    invalid: [{ code: form(`<input name="q" aria-label="Query" />`, ""), errors: 1 }],
+  });
+  tester.run("declarative-field-description", plugin.rules["declarative-field-description"], {
+    valid: [form(`<input id="q" name="q" />`)],
+    invalid: [
+      { code: form(`<input type="radio" name="size" value="s" /><input type="radio" name="size" value="l" />`), errors: 1 },
+      { code: form(`<input name="other" aria-label="" />`), errors: 1 },
+    ],
+  });
+});
+
+test("a schema's own title is not mistaken for the tool's", () => {
+  const code = `mc.registerTool({ name: "search", title: t("Search"), description: "Search the catalogue by keyword and return matches.", inputSchema: { type: "object", title: null, properties: {} }, execute() {} });`;
+  tester.run("schema-no-null-literals", plugin.rules["schema-no-null-literals"], {
+    valid: [],
+    invalid: [{ code, errors: [{ messageId: "finding", data: { message: 'inputSchema of "search" contains a null literal at /title.' } }] }],
+  });
 });

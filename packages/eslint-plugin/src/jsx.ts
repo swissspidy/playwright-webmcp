@@ -132,7 +132,8 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
   const fields: DeclarativeField[] = [];
   const fieldNodes = new Map<string, JSXOpeningElementNode>();
   const dynamic = new Set<string>();
-  if (description === DYNAMIC) dynamic.add("description");
+  // A spread on the form may carry the description.
+  if (description === DYNAMIC || (description === undefined && hasSpread(opening))) dynamic.add("description");
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
   const labelledIds = new Set<string>();
@@ -142,7 +143,22 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
   // Static text by element id, for aria-labelledby.
   const textById = new Map<string, string>();
 
-  // First pass: labels. <label htmlFor="id">, fields wrapped in <label>, and anything with an id.
+  // A <label htmlFor> does not have to sit inside the form; the browser looks through the whole
+  // document, so look through the whole JSX tree the form is written in.
+  let root = el as JSXElementNode & { parent?: { type?: string } };
+  while (root.parent?.type === "JSXElement" || root.parent?.type === "JSXFragment") root = root.parent as typeof root;
+  if (root !== el) {
+    for (const outer of elementsWithin((root as { children?: unknown[] }).children ?? [])) {
+      if (tagName(outer) !== "label") continue;
+      const htmlFor = attribute(outer.openingElement, "htmlFor", resolve) ?? attribute(outer.openingElement, "for", resolve);
+      if (typeof htmlFor !== "string") continue;
+      labelledIds.add(htmlFor);
+      const text = staticText(outer.children);
+      if (text) labelTexts.set(htmlFor, text);
+    }
+  }
+
+  // Then the form's own: <label htmlFor="id">, fields wrapped in <label>, and anything with an id.
   for (const child of elementsWithin(el.children)) {
     const childId = attribute(child.openingElement, "id", resolve);
     if (typeof childId === "string") {
@@ -171,7 +187,7 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
     const fieldName = attribute(child.openingElement, "name", resolve);
     if (typeof fieldName !== "string" || !fieldName) continue;
     const typeAttr = tag === "input" ? attribute(child.openingElement, "type", resolve) : undefined;
-    const type = tag === "input" ? (typeof typeAttr === "string" ? typeAttr.toLowerCase() : typeAttr === DYNAMIC ? "text" : "text") : tag;
+    const type = tag === "input" ? (typeof typeAttr === "string" ? typeAttr.toLowerCase() : "text") : tag;
     if (SKIPPED_TYPES.has(type)) continue;
     const id = attribute(child.openingElement, "id", resolve);
     const paramDescriptionValue = attribute(child.openingElement, "toolparamdescription", resolve);
@@ -195,9 +211,26 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
             .join(" ") || undefined
         : undefined;
     const labelText = typeof ariaLabel === "string" ? ariaLabel : (labelledByText ?? (typeof id === "string" ? labelTexts.get(id) : undefined));
-    const hasLabel = isPresent(ariaLabel) || isPresent(ariaLabelledBy) || (typeof id === "string" && labelledIds.has(id)) || labelledNames.has(fieldName);
+    // An empty aria-label labels nothing, as in the browser.
+    const hasLabel = Boolean(
+      (typeof ariaLabel === "string" && ariaLabel) ||
+      (typeof ariaLabelledBy === "string" && ariaLabelledBy) ||
+      (typeof id === "string" && labelledIds.has(id)) ||
+      labelledNames.has(fieldName),
+    );
     // A boolean attribute is present whatever its value, as in HTML (`required="false"` still requires).
     const isRequired = isPresent(requiredValue) || requiredValue === DYNAMIC;
+    // Controls that share a name (a radio group) are one parameter.
+    const sameName = fields.find((f) => f.name === fieldName);
+    if (sameName) {
+      sameName.hasLabel ||= hasLabel;
+      sameName.paramDescription ??= paramDescription;
+      if (isRequired && !sameName.required) {
+        sameName.required = true;
+        required.push(fieldName);
+      }
+      continue;
+    }
     fields.push({ name: fieldName, type, required: isRequired, hasLabel, paramDescription, autocomplete });
     fieldNodes.set(fieldName, child.openingElement);
     const prop: JsonSchema = { type: type === "number" || type === "range" ? "number" : type === "checkbox" ? "boolean" : "string" };

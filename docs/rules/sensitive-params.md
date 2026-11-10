@@ -26,9 +26,16 @@ A tool rule judges one tool from its own definition, so it runs everywhere: `lin
 ## Configuring it
 
 ```ts
-lint(snapshot, { rules: { "sensitive-params": false } });          // off
-lint(snapshot, { rules: { "sensitive-params": "warning" } });      // change severity
-lint(snapshot, { rules: { "sensitive-params": { pattern: /* see the table above */ } } });
+lint(snapshot, { rules: { "sensitive-params": false } }); // off
+lint(snapshot, { rules: { "sensitive-params": "warning" } }); // change severity
+lint(snapshot, {
+  rules: {
+    "sensitive-params": {
+      pattern:
+        "(password|passcode|secret|token|api[-_]?key|ssn|social[-_]?security|credit[-_]?card|card[-_]?number|cvv|cvc|iban|account[-_]?number|routing)",
+    },
+  },
+});
 ```
 
 ```bash

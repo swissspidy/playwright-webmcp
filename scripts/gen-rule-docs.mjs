@@ -79,12 +79,13 @@ function optionExample(rule) {
   if (entries.length === 0) return [];
   const short = entries.find(([, value]) => inline(value) !== null) ?? entries[0];
   const [name, value] = short;
-  const shown = inline(value) === null ? "/* see the table above */" : JSON.stringify(value);
+  // Always a value, so the snippet is valid as it stands; a long default is the one under Options.
+  const shown = JSON.stringify(value);
   return [`lint(snapshot, { rules: { "${rule.id}": { ${name}: ${shown} } } });`];
 }
 
 function corePage(rule) {
-  const scope = rule.scope ?? "tool";
+  const scope = rule.scope ?? "page";
   const eslintName = inEslint.has(rule.id) ? `webmcp/${rule.id}` : null;
   const lines = [
     BANNER,
@@ -150,8 +151,8 @@ function eslintPage(id, rule) {
 }
 
 function index() {
-  const tool = coreRules.filter((r) => (r.scope ?? "tool") !== "page");
-  const page = coreRules.filter((r) => (r.scope ?? "tool") === "page");
+  const tool = coreRules.filter((r) => (r.scope ?? "page") !== "page");
+  const page = coreRules.filter((r) => (r.scope ?? "page") === "page");
   const row = (r) => `| [\`${r.id}\`](./${r.id}.md) | \`${r.severity}\` | ${r.enabled ? "on" : "off"} | ${cell(r.description)} |`;
   return [
     BANNER,

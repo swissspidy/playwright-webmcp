@@ -10,7 +10,7 @@ import type { Rule as ESLintRule, Scope } from "eslint";
 import type * as ESTree from "estree";
 import { builtinRules, lintTools, type Finding, type Rule as LintRule } from "@swissspidy/webmcp-lint";
 import { findProperty, nodeAtPath, toolFromObject, unwrap, type ExtractedTool, type Resolver } from "./extract.js";
-import { discoverTools } from "./discover.js";
+import { discoverTools, mutates } from "./discover.js";
 import { formTool, type ExtractedForm, type JSXElementNode } from "./jsx.js";
 import { ruleDocsUrl } from "./docs-url.js";
 
@@ -24,14 +24,23 @@ const EXPOSED_TO_RULES = new Set(["exposed-to-secure-origins", "exposed-to-origi
 const NEEDS: Record<string, string[]> = {
   description: ["description-missing", "description-length", "description-when-to-use", "description-injection", "declarative-description"],
   inputSchema: ["param-description-missing", "schema-shape", "schema-no-null-literals", "schema-depth", "schema-unsupported-keywords", "sensitive-params"],
-  exposedTo: ["exposed-to-secure-origins", "exposed-to-origin-only"],
-  annotations: ["annotations-explicit"],
-  title: ["tool-title-missing"],
+  exposedTo: [...EXPOSED_TO_RULES],
 };
 
+/**
+ * Rules whose paths start at the tool (`/title`, `/annotations/...`) and not at its input schema.
+ * A schema can have a `title` of its own, so the path alone does not say which is meant.
+ */
+const TOOL_PATH_RULES = new Set(["tool-title-missing", "annotations-explicit", "description-injection"]);
+
+function toolField(finding: Finding): "title" | "annotations" | undefined {
+  if (!TOOL_PATH_RULES.has(finding.ruleId)) return undefined;
+  return finding.path?.match(/^\/(title|annotations)(?:\/|$)/)?.[1] as "title" | "annotations" | undefined;
+}
+
 function fieldOf(finding: Finding): string | undefined {
-  if (finding.path?.startsWith("/title")) return "title";
-  if (finding.path?.startsWith("/annotations")) return "annotations";
+  const field = toolField(finding);
+  if (field) return field;
   if (finding.path) return "inputSchema";
   for (const [field, ids] of Object.entries(NEEDS)) if (ids.includes(finding.ruleId)) return field;
   return undefined;
@@ -39,10 +48,11 @@ function fieldOf(finding: Finding): string | undefined {
 
 /** True when the finding concerns something the extractor marked dynamic. */
 function aboutDynamic(finding: Finding, dynamic: Set<string>): boolean {
-  if (dynamic.has("*")) return true;
   const field = fieldOf(finding);
   if (field && dynamic.has(field)) return true;
-  if (finding.path) for (const entry of dynamic) if (entry.startsWith("/") && (finding.path === entry || finding.path.startsWith(`${entry}/`))) return true;
+  // Dynamic paths are input schema paths; a tool-level path such as /title is not one of them.
+  if (finding.path && field === "inputSchema")
+    for (const entry of dynamic) if (entry.startsWith("/") && (finding.path === entry || finding.path.startsWith(`${entry}/`))) return true;
   return false;
 }
 
@@ -62,7 +72,7 @@ function optionSchema(rule: LintRule): ESLintRule.RuleMetaData["schema"] {
 function locate(tool: ExtractedTool, finding: Finding, resolve: Resolver): ESTree.Node {
   if (EXPOSED_TO_RULES.has(finding.ruleId) && tool.exposedToNode) return tool.exposedToNode;
   // Findings on `title` and `annotations` carry the field as their path.
-  const field = finding.path?.match(/^\/(title|annotations)/)?.[1];
+  const field = toolField(finding);
   if (field) {
     const at = nodeAtPath(tool.node, finding.path!.slice(1), resolve) ?? findProperty(tool.node, field)?.value;
     if (at) return at as ESTree.Node;
@@ -93,43 +103,6 @@ function locateInForm(form: ExtractedForm, finding: Finding): ESTree.Node {
   const field = finding.path?.match(/^\/properties\/([^/]+)/)?.[1];
   const node = (field && form.fieldNodes.get(field)) ?? form.node.openingElement;
   return node as unknown as ESTree.Node;
-}
-
-type WithParent = ESTree.Node & { parent?: WithParent };
-
-/**
- * Whether a reference to a binding is the target of an in-place mutation:
- * `tool.name = x`, `tool.inputSchema.properties.q = x`, `delete tool.x`,
- * `tool.count++`, or `Object.assign(tool, ...)`.
- */
-function mutates(identifier: ESTree.Node): boolean {
-  let node = identifier as WithParent;
-  let parent = node.parent;
-  while (parent?.type === "MemberExpression" && parent.object === node) {
-    node = parent;
-    parent = node.parent;
-  }
-  if (!parent) return false;
-  if (node === identifier) {
-    // `Object.assign(tool, ...)` with the binding as the target.
-    if (parent.type !== "CallExpression" || parent.arguments[0] !== node) return false;
-    const callee = unwrap(parent.callee as ESTree.Node);
-    return (
-      callee.type === "MemberExpression" &&
-      callee.object.type === "Identifier" &&
-      callee.object.name === "Object" &&
-      callee.property.type === "Identifier" &&
-      callee.property.name === "assign"
-    );
-  }
-  if (parent.type === "AssignmentExpression") return parent.left === node;
-  if (parent.type === "UpdateExpression") return true;
-  if (parent.type === "UnaryExpression") return parent.operator === "delete";
-  if (parent.type === "ForInStatement" || parent.type === "ForOfStatement") return parent.left === node;
-  // A destructuring target: `[tool.x] = arr`, `({ y: tool.x } = obj)`.
-  if (parent.type === "ArrayPattern" || parent.type === "RestElement") return true;
-  if (parent.type === "Property") return parent.parent?.type === "ObjectPattern";
-  return false;
 }
 
 /**
@@ -190,7 +163,7 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
         if (dynamic.has("*")) return;
         const result = lintTools([definition], { scope: "tool", rules, url: context.filename });
         for (const finding of result.findings) {
-          if (finding.ruleId !== rule.id || aboutDynamic(finding, dynamic)) continue;
+          if (aboutDynamic(finding, dynamic)) continue;
           context.report({
             node: locateFinding(finding) as ESLintRule.Node,
             messageId: "finding",

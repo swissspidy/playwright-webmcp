@@ -456,36 +456,36 @@ Rules see the whole page: every frame, declarative forms, and all tools together
 
 The table below is the tour. [`docs/rules/`](docs/rules/README.md) is the reference: one page per rule, generated from the rules themselves, with each one's options and their defaults.
 
-| Rule                               | Severity | Scope | Checks                                                                                                |
-| ---------------------------------- | -------- | ----- | ----------------------------------------------------------------------------------------------------- |
-| `tool-name-valid`                  | error    | tool  | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                              |
-| `tool-name-style`                  | off      | tool  | Name follows the project's `style` (`snake_case`) and `prefix`. Opt in per project.                   |
-| `tool-title-missing`               | off      | tool  | The tool has a `title` for clients to show people. Opt in.                                            |
-| `description-missing`              | error    | tool  | Imperative tools have a description.                                                                  |
-| `description-length`               | warning  | tool  | Between `min` (20) and `max` (600) characters.                                                        |
-| `description-when-to-use`          | off      | tool  | The description says when to call the tool, not only what it does. Heuristic; opt in.                 |
-| `param-description-missing`        | warning  | tool  | Every input property has a description.                                                               |
-| `param-description-length`         | warning  | tool  | Each parameter description, at any depth, is at most `max` (150) characters.                          |
-| `schema-shape`                     | error    | tool  | Object schema; `required` entries exist in `properties`.                                              |
-| `schema-no-null-literals`          | error    | tool  | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                    |
-| `schema-depth`                     | warning  | tool  | Property nesting at most `max` (3) levels.                                                            |
-| `schema-unsupported-keywords`      | warning  | tool  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.              |
-| `sensitive-params`                 | warning  | tool  | Parameter names that look like credentials or payment data.                                           |
-| `duplicate-tool-name`              | error    | page  | Same name registered more than once across frames.                                                    |
-| `tool-shadowing`                   | error    | page  | Names that read alike, registered from different frames, origins or scripts.                          |
-| `third-party-registration`         | warning  | page  | A tool registered by a script from another origin than the frame's.                                   |
-| `similar-descriptions`             | warning  | page  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied.      |
-| `too-many-tools`                   | warning  | page  | More than `max` (20) tools on a page.                                                                 |
-| `no-tools`                         | info     | page  | Page exposes nothing.                                                                                 |
-| `declarative-description`          | error    | tool  | `<form toolname>` also has `tooldescription`.                                                         |
-| `declarative-field-description`    | warning  | tool  | Each named field has a label or `toolparamdescription`.                                               |
-| `declarative-autosubmit-sensitive` | error    | tool  | `toolautosubmit` on forms with a password field, or an `autocomplete` naming a card or one-time code. |
-| `description-injection`            | error    | tool  | Instructions to the agent, role markers, or hidden characters in any tool text.                       |
-| `naming-consistency`               | warning  | page  | Mixed naming styles across tool or parameter names.                                                   |
-| `exposed-to-secure-origins`        | error    | tool  | `exposedTo` lists something the API rejects: an insecure origin, or `"*"`.                            |
-| `exposed-to-origin-only`           | warning  | tool  | An `exposedTo` entry carries a path, query, fragment or credentials, which the API ignores.           |
-| `annotations-explicit`             | off      | tool  | The hints in `fields` are declared on every tool. Opt in.                                             |
-| `capability-trifecta`              | warning  | page  | An undeclared source of third-party content sits on a page whose other tools act.                     |
+| Rule                               | Severity | Scope | Checks                                                                                                       |
+| ---------------------------------- | -------- | ----- | ------------------------------------------------------------------------------------------------------------ |
+| `tool-name-valid`                  | error    | tool  | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                                     |
+| `tool-name-style`                  | off      | tool  | Name follows the project's `style` (`snake_case`) and `prefix`. Opt in per project.                          |
+| `tool-title-missing`               | off      | tool  | The tool has a `title` for clients to show people. Opt in.                                                   |
+| `description-missing`              | error    | tool  | Imperative tools have a description.                                                                         |
+| `description-length`               | warning  | tool  | Between `min` (20) and `max` (600) characters.                                                               |
+| `description-when-to-use`          | off      | tool  | The description says when to call the tool, not only what it does. Heuristic; opt in.                        |
+| `param-description-missing`        | warning  | tool  | Every input property has a description.                                                                      |
+| `param-description-length`         | warning  | tool  | Each parameter description, at any depth, is at most `max` (150) characters.                                 |
+| `schema-shape`                     | error    | tool  | Object schema; `required` entries exist in `properties`.                                                     |
+| `schema-no-null-literals`          | error    | tool  | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                           |
+| `schema-depth`                     | warning  | tool  | Property nesting at most `max` (3) levels.                                                                   |
+| `schema-unsupported-keywords`      | warning  | tool  | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`, `dependentSchemas`. |
+| `sensitive-params`                 | warning  | tool  | Parameter names that look like credentials or payment data.                                                  |
+| `duplicate-tool-name`              | error    | page  | Same name registered more than once across frames.                                                           |
+| `tool-shadowing`                   | error    | page  | Names that read alike, registered from different frames, origins or scripts.                                 |
+| `third-party-registration`         | warning  | page  | A tool registered by a script from another origin than the frame's.                                          |
+| `similar-descriptions`             | warning  | page  | Lexical description similarity above `threshold` (0.7). A `similarity` function can be supplied.             |
+| `too-many-tools`                   | warning  | page  | More than `max` (20) tools on a page.                                                                        |
+| `no-tools`                         | info     | page  | Page exposes nothing.                                                                                        |
+| `declarative-description`          | error    | tool  | `<form toolname>` also has `tooldescription`.                                                                |
+| `declarative-field-description`    | warning  | tool  | Each named field has a label or `toolparamdescription`.                                                      |
+| `declarative-autosubmit-sensitive` | error    | tool  | `toolautosubmit` on forms with a password field, or an `autocomplete` naming a card or one-time code.        |
+| `description-injection`            | error    | tool  | Instructions to the agent, role markers, or hidden characters in any tool text.                              |
+| `naming-consistency`               | warning  | page  | Mixed naming styles across tool or parameter names.                                                          |
+| `exposed-to-secure-origins`        | error    | tool  | `exposedTo` lists something the API rejects: an insecure origin, or `"*"`.                                   |
+| `exposed-to-origin-only`           | warning  | tool  | An `exposedTo` entry carries a path, query, fragment or credentials, which the API ignores.                  |
+| `annotations-explicit`             | off      | tool  | The hints in `fields` are declared on every tool. Opt in.                                                    |
+| `capability-trifecta`              | warning  | page  | An undeclared source of third-party content sits on a page whose other tools act.                            |
 
 The declarative rules read `<form>` markup: from the page at runtime, or statically from JSX (`<form toolname="...">` in a React component) through the ESLint plugin.
 

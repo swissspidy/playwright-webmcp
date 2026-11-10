@@ -9,6 +9,7 @@ import { formatFindings, lint } from "./lint.js";
 import { toGitHubAnnotations } from "./github.js";
 import { toSnapshot } from "./from-tools.js";
 import { severityRank } from "./rules/helpers.js";
+import { rulesById } from "./rules/index.js";
 import type { LintOptions, Severity } from "./types.js";
 
 export const HELP = `Usage: webmcp-lint <file.json> [options]
@@ -23,8 +24,9 @@ Options:
                         error (default), warning, info, or never
   --format <format>     text (default), json, or github (one workflow-command
                         annotation per finding, for GitHub Actions)
-  --rule <id=value>     Configure a rule; repeatable. Value is off, error, warning,
-                        info, or a JSON object of options, e.g.
+  --rule <id=value>     Configure a rule; repeatable. Value is on (for a rule that
+                        is off by default), off, error, warning, info, or a JSON
+                        object of options, e.g.
                         --rule too-many-tools='{"max":40}' --rule no-tools=off
   --scope <scope>       all (default) or tool: skip rules that need the whole page
   --url <url>           Page URL to report for inputs that have none
@@ -48,6 +50,8 @@ function parseRule(spec: string): [string, RuleConfig] {
   const eq = spec.indexOf("=");
   if (eq <= 0) throw new UsageError(`--rule expects id=value, got ${JSON.stringify(spec)}`);
   const id = spec.slice(0, eq).trim();
+  // The CLI runs the built-in rules only, so an id it does not know is a typo that would otherwise configure nothing.
+  if (!(id in rulesById)) throw new UsageError(`--rule ${id}: no such rule`);
   const raw = spec.slice(eq + 1).trim();
   if (raw === "off" || raw === "false") return [id, false];
   if (raw === "on" || raw === "true") return [id, {}];
@@ -58,7 +62,7 @@ function parseRule(spec: string): [string, RuleConfig] {
   } catch {
     /* fall through */
   }
-  throw new UsageError(`--rule ${id}: expected off, error, warning, info or a JSON object, got ${JSON.stringify(raw)}`);
+  throw new UsageError(`--rule ${id}: expected on, off, error, warning, info or a JSON object, got ${JSON.stringify(raw)}`);
 }
 
 export function parseCliArgs(argv: string[]) {
@@ -126,6 +130,8 @@ export async function runLintCli(argv: string[], io: CliIo): Promise<number> {
     } catch (err) {
       throw new UsageError(`${args.file}: ${(err as Error).message}`);
     }
+    if (!snapshot.tools.every((t) => t && typeof t === "object" && typeof t.name === "string"))
+      throw new UsageError(`${args.file}: every entry of "tools" must be an object with a name`);
     const result = lint(snapshot, { rules: args.rules, scope: args.scope });
     if (args.format === "json") io.stdout(JSON.stringify({ url: snapshot.url, ...result }, null, 2) + "\n");
     else if (args.format === "github") {

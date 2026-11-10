@@ -1,7 +1,7 @@
 {
   "name": "@swissspidy/webmcp-audit",
   "version": "0.4.0",
-  "description": "Crawl a site and audit its WebMCP tools: lint, smoke runs, cross-page drift and an agent-readiness score. CLI and library.",
+  "description": "Crawl a site and audit its WebMCP tools: lint, smoke runs, cross-page drift and changes since a baseline. CLI and library.",
   "keywords": [
     "webmcp",
     "audit",

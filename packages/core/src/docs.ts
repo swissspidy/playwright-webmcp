@@ -13,9 +13,14 @@ export interface DocsOptions {
   url?: string;
 }
 
-function typeOf(prop: Record<string, unknown>): string {
-  if (Array.isArray(prop.enum)) return prop.enum.map((e) => JSON.stringify(e)).join(" \\| ");
-  const t = prop.type;
+/** Text for a Markdown table cell: one line, with the column separator escaped. */
+function cell(text: string): string {
+  return text.replace(/\s*\n\s*/g, " ").replace(/\|/g, "\\|");
+}
+
+function typeOf(prop: Record<string, unknown> | null | undefined): string {
+  if (Array.isArray(prop?.enum)) return prop.enum.map((e) => cell(JSON.stringify(e))).join(" \\| ");
+  const t = prop?.type;
   return Array.isArray(t) ? t.join(" \\| ") : typeof t === "string" ? t : "any";
 }
 
@@ -42,9 +47,7 @@ export function renderToolDocs(contract: ToolContract, options: DocsOptions = {}
       lines.push("| Parameter | Type | Required | Description |", "| --- | --- | --- | --- |");
       for (const name of names) {
         const p = props[name];
-        lines.push(
-          `| \`${name}\` | ${typeOf(p)} | ${required.has(name) ? "yes" : "no"} | ${typeof p.description === "string" ? p.description.replace(/\|/g, "\\|") : ""} |`,
-        );
+        lines.push(`| \`${name}\` | ${typeOf(p)} | ${required.has(name) ? "yes" : "no"} | ${typeof p?.description === "string" ? cell(p.description) : ""} |`);
       }
       lines.push("");
     } else {

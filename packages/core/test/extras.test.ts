@@ -179,3 +179,33 @@ test("toGitHubAnnotations escapes data and properties", () => {
   ]);
   assert.equal(toGitHubAnnotations([]), "");
 });
+
+test("a clean page with full coverage scores 100, and the categories add up", () => {
+  const clean = { findings: [], counts: { error: 0, warning: 0, info: 0 }, rulesRun: [] };
+  const coverage = { total: 1, called: 1, ratio: 1, parameterRatio: 1, uncalled: [], tools: [] };
+  const score = computeScore({ lint: clean, coverage });
+  assert.equal(score.score, 100);
+  assert.equal(
+    score.categories.reduce((n, c) => n + c.points, 0),
+    100,
+  );
+});
+
+test("codegen keeps a quote inside a key, and docs keep a parameter on one table row", () => {
+  const source = toPlaywrightTest({ name: "t", calls: [{ name: "x", args: { 'a"b': 1, plain: 2 }, startedAt: 0, durationMs: 1, via: "fixture" }] });
+  assert.match(source, /"a\\"b": 1/);
+  assert.match(source, /plain: 2/);
+  const docs = renderToolDocs({
+    version: 1,
+    tools: [
+      {
+        name: "x",
+        description: "d",
+        source: "imperative",
+        origin: "o",
+        inputSchema: { type: "object", properties: { q: { type: "string", description: "first line\nsecond | line" }, broken: null } },
+      },
+    ],
+  } as never);
+  assert.match(docs, /\| `q` \| string \| no \| first line second \\\| line \|/);
+});

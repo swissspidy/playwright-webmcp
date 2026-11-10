@@ -22,7 +22,7 @@ npx @swissspidy/webmcp-audit https://shop.example --max-pages 20 --smoke --out .
 The browser has to implement WebMCP. Playwright's Chromium does behind a flag, which the audit passes on its own (`--enable-features=WebMCP`); `--executable` points it at another build, such as Chrome Beta or Canary.
 
 ```
-Usage: @swissspidy/webmcp-audit <url> [options]
+Usage: webmcp-audit <url> [options]
 
   --max-pages <n>       Maximum pages to visit (default 10)
   --no-crawl            Audit only <url>; do not follow links
