@@ -10,7 +10,6 @@ import {
   formatChanges,
   judgeTimeline,
   lint,
-  reconcileCalls,
   renderToolDocs,
   serializeContract,
   toContract,
@@ -18,13 +17,11 @@ import {
   type CodegenOptions,
   type ContractChange,
   type CoverageReport,
-  type EvalCase,
   type FrameCollectResult,
   type LintOptions,
   type LintResult,
   type PageSnapshot,
   type RecordedCall,
-  type ReconcileOptions,
   type RegistrationEvent,
   type ToolEvent,
   type Score,
@@ -35,13 +32,13 @@ import {
   type ToolSnapshot,
 } from "@swissspidy/webmcp-lint";
 import { CdpCollector, type CdpTool } from "./cdp.js";
+import { runSmoke, watchPage, type SmokeOptions } from "./smoke.js";
+import { RECORDER_SOURCE } from "./recorder.js";
+import { PromptApiHarness } from "./prompt-api.js";
 
 const debug = process.env.WEBMCP_DEBUG
   ? (...args: unknown[]) => console.error(`[webmcp fixture ${new Date().toISOString().slice(11, 23)}]`, ...args)
   : () => {};
-import { runSmoke, watchPage, type SmokeOptions } from "./smoke.js";
-import { RECORDER_SOURCE } from "./recorder.js";
-import { PromptApiHarness } from "./prompt-api.js";
 
 export interface WebMCPOptions {
   /** Record tool executions triggered from inside the page. */
@@ -185,8 +182,8 @@ export class WebMCP {
           this.toolEvents = [];
         }
       });
+      await this.page.addInitScript(RECORDER_SOURCE);
     }
-    if (this.options.record) await this.page.addInitScript(RECORDER_SOURCE);
     if (this.options.cdp === "auto") await this.attachCdp();
   }
 
@@ -235,7 +232,7 @@ export class WebMCP {
       await this.cdp.refreshFrames();
       for (let attempt = 0; attempt < 20; attempt++) {
         const lagging = frames
-          .map((f, i) => i)
+          .map((_f, i) => i)
           .filter((i) => {
             const r = results[i];
             if (!r || r.frame.error) return false; // filled from the registry below
@@ -566,8 +563,8 @@ export class WebMCP {
 
   /**
    * Whether the page's modelContext fires `toolactivated` and `toolcancel`.
-   * Chromium added them after the rest of the API (153 has none); a call can
-   * still be canceled without them.
+   * Chromium added them after the rest of the API; a call can still be
+   * canceled without them.
    */
   async supportsToolEvents(): Promise<boolean> {
     return this.page

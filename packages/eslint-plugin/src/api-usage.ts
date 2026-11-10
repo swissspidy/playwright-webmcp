@@ -3,18 +3,13 @@
  * has no `webmcp-lint` counterpart because what it catches never survives to
  * runtime: a listener for an event nothing fires simply never runs.
  */
-import type { Rule as ESLintRule, Scope } from "eslint";
+import type { Rule as ESLintRule } from "eslint";
 import type * as ESTree from "estree";
-import { unwrap } from "./extract.js";
+import { memberName, unwrap } from "./extract.js";
+import { findVariable, type SourceCode } from "./scope.js";
 import { ruleDocsUrl } from "./docs-url.js";
 
 const DOCS = ruleDocsUrl("valid-event-name");
-
-/** The name of a non-computed property, or of a computed one written as a string. */
-function memberName(node: ESTree.MemberExpression): string | undefined {
-  if (!node.computed) return node.property.type === "Identifier" ? node.property.name : undefined;
-  return node.property.type === "Literal" && typeof node.property.value === "string" ? node.property.value : undefined;
-}
 
 /**
  * True for `x.modelContext`, and for a `const` (or never reassigned `let`)
@@ -22,27 +17,17 @@ function memberName(node: ESTree.MemberExpression): string | undefined {
  * does not treat `mc.ontoolchange = f` as a reason to stop following `mc`:
  * a property written on the object does not change what the binding holds.
  */
-function isModelContext(node: ESTree.Node, sourceCode: ESLintRule.RuleContext["sourceCode"], seen = new Set<string>()): boolean {
+function isModelContext(node: ESTree.Node, sourceCode: SourceCode, seen = new Set<string>()): boolean {
   const n = unwrap(node);
   if (n.type === "MemberExpression") return memberName(n) === "modelContext";
   if (n.type !== "Identifier" || seen.has(n.name)) return false;
-  let scope: Scope.Scope | null;
-  try {
-    scope = sourceCode.getScope(n);
-  } catch {
-    return false;
-  }
-  for (; scope; scope = scope.upper) {
-    const variable = scope.set.get(n.name);
-    if (!variable) continue;
-    if (variable.defs.length !== 1) return false;
-    const def = variable.defs[0];
-    if (def.type !== "Variable" || def.node.type !== "VariableDeclarator" || !def.node.init || def.node.id.type !== "Identifier") return false;
-    if (variable.references.some((ref) => ref.isWrite() && !ref.init)) return false;
-    seen.add(n.name);
-    return isModelContext(def.node.init as ESTree.Node, sourceCode, seen);
-  }
-  return false;
+  const variable = findVariable(n, sourceCode);
+  if (variable?.defs.length !== 1) return false;
+  const def = variable.defs[0];
+  if (def.type !== "Variable" || def.node.type !== "VariableDeclarator" || !def.node.init || def.node.id.type !== "Identifier") return false;
+  if (variable.references.some((ref) => ref.isWrite() && !ref.init)) return false;
+  seen.add(n.name);
+  return isModelContext(def.node.init as ESTree.Node, sourceCode, seen);
 }
 
 const EVENTS = ["toolchange", "toolactivated", "toolcancel"];

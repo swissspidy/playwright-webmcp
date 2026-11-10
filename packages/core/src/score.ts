@@ -72,12 +72,19 @@ export function computeScore(input: ScoreInput): Score {
     categories.push({ name: "coverage", weight: 15, value: v, points: 0, notes: [`${input.coverage.called}/${input.coverage.total} tools called`] });
   }
   const totalWeight = categories.reduce((n, c) => n + c.weight, 0);
-  let score = 0;
-  for (const c of categories) {
-    c.points = Math.round((c.value * c.weight * 100) / totalWeight);
-    score += c.points;
+  // Round the total once and hand out the points by largest remainder; rounding each category on its
+  // own made a perfect page without a smoke run add up to 99.
+  const exact = categories.map((c) => (c.value * c.weight * 100) / totalWeight);
+  const score = Math.min(100, Math.round(exact.reduce((n, p) => n + p, 0) + 1e-9));
+  for (const [i, c] of categories.entries()) c.points = Math.floor(exact[i] + 1e-9);
+  const byRemainder = categories.map((_c, i) => i).sort((a, b) => exact[b] - Math.floor(exact[b] + 1e-9) - (exact[a] - Math.floor(exact[a] + 1e-9)));
+  let left = score - categories.reduce((n, c) => n + c.points, 0);
+  for (const i of byRemainder) {
+    if (left <= 0) break;
+    categories[i].points++;
+    left--;
   }
-  return { score: Math.min(100, score), categories };
+  return { score, categories };
 }
 
 export function formatScore(score: Score): string {

@@ -8,11 +8,17 @@ Tool names, titles and descriptions should be written out, not assembled at runt
 
 This rule has no counterpart in the `@swissspidy/webmcp-lint` engine: it reads the source, and what it catches does not survive to runtime for a page rule to see.
 
+## Options
+
+| Option   | Values                                                                    |
+| -------- | ------------------------------------------------------------------------- |
+| `fields` | any of `"name"`, `"title"`, `"description"`, `"parameters"`; default: all |
+
 ## Configuring it
 
 ```js
 // eslint.config.js
-{ rules: { "webmcp/no-interpolated-text": ["warn", { /* options */ }] } }
+{ rules: { "webmcp/no-interpolated-text": ["warn", { fields: ["name","title"] }] } }
 ```
 
 ---

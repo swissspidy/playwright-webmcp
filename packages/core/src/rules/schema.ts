@@ -1,5 +1,5 @@
 import type { Finding } from "../types.js";
-import { defineRule, finding, forEachTool, opt, walk } from "./helpers.js";
+import { defineRule, finding, forEachTool, opt, schemaProperties, walk } from "./helpers.js";
 
 export const schemaShape = defineRule({
   id: "schema-shape",
@@ -131,8 +131,7 @@ export const sensitiveParams = defineRule({
   check: (ctx) => {
     const re = new RegExp(opt(ctx, "pattern", SENSITIVE_RE.source), "i");
     return forEachTool(ctx, (tool) => {
-      const props = (tool.inputSchema?.properties ?? {}) as Record<string, unknown>;
-      return Object.keys(props)
+      return Object.keys(schemaProperties(tool.inputSchema))
         .filter((name) => re.test(name))
         .map((name) =>
           finding(sensitiveParams, `Parameter "${name}" of "${tool.name}" looks like sensitive data.`, {

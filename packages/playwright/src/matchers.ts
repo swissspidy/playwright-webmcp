@@ -1,8 +1,11 @@
 import { expect as baseExpect, type Page } from "@playwright/test";
 import {
   explainMismatch,
+  findingsAtOrAbove,
   formatChanges,
   formatFindings,
+  formatScore,
+  lintTools,
   matchesArgument,
   reconcileCalls,
   type EvalCase,
@@ -11,9 +14,10 @@ import {
   type RecordedCall,
   type ReconcileOptions,
   type Severity,
+  type TimelineBudgets,
+  type ToolDefinitionLike,
   type ToolSource,
 } from "@swissspidy/webmcp-lint";
-import { formatScore, lintTools, type ToolDefinitionLike, type TimelineBudgets } from "@swissspidy/webmcp-lint";
 import { WebMCP } from "./fixture.js";
 import { evaluateAgent, isEvalAgent, type EvalAgent, type EvalRunOptions } from "./agent.js";
 import type { SmokeOptions } from "./smoke.js";
@@ -112,8 +116,6 @@ function callsOf(received: unknown, matcher: string): RecordedCall[] {
   return resolve(received, matcher).calls();
 }
 
-const RANK: Record<Severity, number> = { error: 3, warning: 2, info: 1 };
-
 interface MatcherContext {
   isNot?: boolean;
   timeout?: number;
@@ -204,7 +206,7 @@ export const expect = baseExpect.extend({
     const result = isNativeWebMCP(received)
       ? lintTools((await nativeTools(received, Date.now() + ((this as MatcherContext).timeout ?? 5000))).map(fromNative), lintOptions)
       : await resolve(received, "toPassLint").lint(lintOptions);
-    const failing = result.findings.filter((f) => RANK[f.severity] >= RANK[failOn]);
+    const failing = findingsAtOrAbove(result.findings, failOn);
     const pass = failing.length === 0;
     return {
       pass,
@@ -239,7 +241,7 @@ export const expect = baseExpect.extend({
     const { failOn = "error", ...smokeOptions } = options;
     const webmcp = resolve(received, "toPassSmoke");
     const report = await webmcp.smoke(smokeOptions);
-    const failing = report.findings.filter((f) => RANK[f.severity] >= RANK[failOn]);
+    const failing = findingsAtOrAbove(report.findings, failOn);
     const pass = failing.length === 0;
     return {
       pass,

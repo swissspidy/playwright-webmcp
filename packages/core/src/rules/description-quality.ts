@@ -55,7 +55,7 @@ export const paramDescriptionMissing = defineRule({
   check: (ctx) =>
     forEachTool(ctx, (tool) =>
       Object.entries(schemaProperties(tool.inputSchema)).flatMap(([name, prop]) =>
-        typeof prop.description === "string" && prop.description.trim()
+        typeof prop?.description === "string" && prop.description.trim()
           ? []
           : [
               finding(paramDescriptionMissing, `Parameter "${name}" of "${tool.name}" has no description.`, {

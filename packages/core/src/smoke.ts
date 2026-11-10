@@ -255,8 +255,9 @@ export function judgeRun(run: SmokeRun, budgets: SmokeBudgets = {}): Finding[] {
 
   if (typeof run.result === "string") {
     try {
-      JSON.parse(run.result);
-      out.push(make("result-string-json", run, `${where} returned JSON as a string.`));
+      // A string that happens to parse as a number, a boolean or a quoted string is just text.
+      const parsed: unknown = JSON.parse(run.result);
+      if (parsed !== null && typeof parsed === "object") out.push(make("result-string-json", run, `${where} returned JSON as a string.`));
     } catch {
       /* plain text is fine */
     }

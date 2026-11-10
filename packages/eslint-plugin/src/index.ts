@@ -1,14 +1,15 @@
 /**
  * @swissspidy/eslint-plugin-webmcp: the tool-scoped rules of `webmcp-lint`,
- * run statically against `registerTool()` literals.
+ * run statically against `registerTool()` literals and `<form toolname>` in
+ * JSX, plus a few rules that only the source can answer.
  *
  *   // eslint.config.js
  *   import webmcp from "@swissspidy/eslint-plugin-webmcp";
  *   export default [webmcp.configs.recommended];
  *
  * Page-level rules (duplicate names, similar descriptions, tool count,
- * cross-origin frames) and declarative `<form toolname>` rules need a live
- * page; run those with `playwright-webmcp` or `webmcp-audit`.
+ * cross-origin frames) need a live page; run those with
+ * `@swissspidy/playwright-webmcp` or `@swissspidy/webmcp-audit`.
  */
 import { createRequire } from "node:module";
 import type { ESLint, Linter, Rule as ESLintRule } from "eslint";

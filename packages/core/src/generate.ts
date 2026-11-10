@@ -28,8 +28,6 @@ function firstType(schema: JsonSchema): string | undefined {
 }
 
 function sampleString(schema: JsonSchema, name: string): string {
-  if (Array.isArray(schema.enum) && schema.enum.length) return String(schema.enum[0]);
-  if (typeof schema.const === "string") return schema.const;
   if (typeof schema.default === "string") return schema.default;
   if (Array.isArray(schema.examples) && typeof schema.examples[0] === "string") return schema.examples[0];
   const format = schema.format;
@@ -47,8 +45,6 @@ function sampleString(schema: JsonSchema, name: string): string {
 }
 
 function sampleNumber(schema: JsonSchema): number {
-  if (Array.isArray(schema.enum) && schema.enum.length) return Number(schema.enum[0]);
-  if (typeof schema.const === "number") return schema.const;
   if (typeof schema.default === "number") return schema.default;
   const min = typeof schema.minimum === "number" ? schema.minimum : typeof schema.exclusiveMinimum === "number" ? schema.exclusiveMinimum + 1 : undefined;
   const max = typeof schema.maximum === "number" ? schema.maximum : typeof schema.exclusiveMaximum === "number" ? schema.exclusiveMaximum - 1 : undefined;
@@ -89,20 +85,33 @@ export function sampleValue(schema: JsonSchema | undefined, name = ""): unknown 
   }
 }
 
+/** Longest string a boundary case builds; a larger maxLength is not exercised. */
+const MAX_BOUNDARY_LENGTH = 100_000;
+
+/** A value of none of the types the property declares, or NO_WRONG_TYPE when it declares none or accepts them all. */
+const NO_WRONG_TYPE = Symbol("no wrong type");
 function wrongTypeValue(schema: JsonSchema): unknown {
-  const type = firstType(schema) ?? "string";
-  if (type === "string") return 12345;
-  if (type === "number" || type === "integer") return "not-a-number";
-  if (type === "boolean") return "yes";
-  if (type === "array") return "not-an-array";
-  if (type === "object") return "not-an-object";
-  return {};
+  const declared = (Array.isArray(schema.type) ? schema.type : [schema.type]).filter((t): t is string => typeof t === "string");
+  if (!declared.length) return NO_WRONG_TYPE;
+  const types = new Set(declared);
+  // Any string is wrong where strings are not accepted.
+  if (!types.has("string")) {
+    const names: Record<string, string> = { number: "not-a-number", integer: "not-a-number", boolean: "yes", array: "not-an-array", object: "not-an-object" };
+    return names[declared[0]] ?? "not-the-declared-type";
+  }
+  if (!types.has("number") && !types.has("integer")) return 12345;
+  if (!types.has("boolean")) return true;
+  if (!types.has("array")) return [];
+  if (!types.has("object")) return {};
+  return NO_WRONG_TYPE;
 }
 
 export function generateArguments(schema: JsonSchema | null | undefined, options: GenerateOptions = {}): GeneratedArguments[] {
   const maxBoundary = options.maxBoundary ?? 8;
   const maxInvalid = options.maxInvalid ?? 6;
-  const props = ((schema?.properties ?? {}) as Record<string, JsonSchema>) || {};
+  // A property that is not a schema (null, a string) has nothing to derive a value from.
+  const declared = schema?.properties && typeof schema.properties === "object" && !Array.isArray(schema.properties) ? schema.properties : {};
+  const props = Object.fromEntries(Object.entries(declared).filter(([, v]) => v && typeof v === "object" && !Array.isArray(v))) as Record<string, JsonSchema>;
   const required = Array.isArray(schema?.required) ? (schema!.required as string[]).filter((r) => r in props) : [];
   const out: GeneratedArguments[] = [];
 
@@ -121,10 +130,11 @@ export function generateArguments(schema: JsonSchema | null | undefined, options
       if (typeof v.minimum === "number") boundary.push({ kind: "boundary", label: `${k} at minimum`, args: { ...minimal, [k]: v.minimum } });
       if (typeof v.maximum === "number") boundary.push({ kind: "boundary", label: `${k} at maximum`, args: { ...minimal, [k]: v.maximum } });
     }
-    if (type === "string" && typeof v.maxLength === "number") {
+    if (type === "string" && typeof v.maxLength === "number" && v.maxLength >= 0 && v.maxLength <= MAX_BOUNDARY_LENGTH) {
       boundary.push({ kind: "boundary", label: `${k} at maxLength`, args: { ...minimal, [k]: "x".repeat(v.maxLength) } });
     }
-    if (type === "string" && !("maxLength" in v) && !Array.isArray(v.enum)) {
+    // An empty string is a boundary only where the schema allows one.
+    if (type === "string" && !("maxLength" in v) && !Array.isArray(v.enum) && !(typeof v.minLength === "number" && v.minLength > 0)) {
       boundary.push({ kind: "boundary", label: `${k} empty string`, args: { ...minimal, [k]: "" } });
     }
     if (Array.isArray(v.enum)) {
@@ -141,7 +151,8 @@ export function generateArguments(schema: JsonSchema | null | undefined, options
     invalid.push({ kind: "invalid", label: `missing required ${r}`, args: rest });
   }
   for (const [k, v] of Object.entries(props)) {
-    invalid.push({ kind: "invalid", label: `${k} has wrong type`, args: { ...minimal, [k]: wrongTypeValue(v) } });
+    const wrong = wrongTypeValue(v);
+    if (wrong !== NO_WRONG_TYPE) invalid.push({ kind: "invalid", label: `${k} has wrong type`, args: { ...minimal, [k]: wrong } });
     if (Array.isArray(v.enum)) invalid.push({ kind: "invalid", label: `${k} outside enum`, args: { ...minimal, [k]: "__not_in_enum__" } });
     if (typeof v.minimum === "number") invalid.push({ kind: "invalid", label: `${k} below minimum`, args: { ...minimal, [k]: v.minimum - 1 } });
     if (typeof v.maximum === "number") invalid.push({ kind: "invalid", label: `${k} above maximum`, args: { ...minimal, [k]: v.maximum + 1 } });

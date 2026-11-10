@@ -126,3 +126,19 @@ test("usage errors exit 2 with help", async () => {
   assert.equal(await runLintCli(["--help"], w.api), 0);
   assert.match(w.out(), /--fail-on/);
 });
+
+test("a mistyped rule id and a tools entry that is not a tool are usage errors", async () => {
+  assert.throws(() => parseCliArgs(["tools.json", "--rule", "tool-name-vald=off"]), UsageError);
+  const t = io({ "snap.json": JSON.stringify({ frames: [], tools: [null] }) });
+  assert.equal(await runLintCli(["snap.json"], t.api), 2);
+  assert.match(t.err(), /every entry of "tools" must be an object with a name/);
+});
+
+test("an option value a rule does not take is a usage error", () => {
+  assert.throws(() => parseCliArgs(["tools.json", "--rule", 'tool-name-style={"style":"snake-case"}']), /"style" must be one of/);
+});
+
+test("names inherited from Object.prototype are not rules or enum options", () => {
+  assert.throws(() => parseCliArgs(["tools.json", "--rule", "constructor=off"]), /no such rule/);
+  assert.doesNotThrow(() => parseCliArgs(["tools.json", "--rule", 'tool-name-style={"constructor":"x"}']));
+});

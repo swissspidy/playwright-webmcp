@@ -2,10 +2,8 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { toGitHubAnnotations, type Severity } from "@swissspidy/webmcp-lint";
+import { UsageError, findingsAtOrAbove, toGitHubAnnotations, type Severity } from "@swissspidy/webmcp-lint";
 import { audit, renderMarkdown, type AuditReport } from "./index.js";
-
-const SEVERITY_RANK: Record<Severity, number> = { error: 3, warning: 2, info: 1 };
 
 const HELP = `Usage: webmcp-audit <url> [options]
 
@@ -40,7 +38,9 @@ Options:
   --header <name: value>
                         HTTP header sent with every request to the audited origin
                         (not to third-party frames or resources), e.g. an
-                        Authorization header for a protected staging site; repeatable
+                        Authorization header for a protected staging site; repeatable.
+                        Each page is then requested twice: once to see where its
+                        redirects lead, so the header never follows one off the origin
   --settle <ms>         Wait this long after load for tools to register, then for the
                         tool list to hold still for as long again (default 500)
   --out <dir>           Output directory (default .webmcp-audit)
@@ -54,8 +54,6 @@ Options:
   --quiet               Do not print the report to stdout
   -h, --help            Show this help
 `;
-
-class UsageError extends Error {}
 
 function fail(message: string): never {
   throw new UsageError(message);
@@ -138,11 +136,8 @@ async function main(): Promise<number> {
   const url = positionals[0];
   if (!url) fail("missing <url>");
   if (positionals.length > 1) fail(`unexpected argument ${JSON.stringify(positionals[1])}`);
-  try {
-    new URL(url);
-  } catch {
-    fail(`${JSON.stringify(url)} is not a valid URL`);
-  }
+  // "localhost:4173" parses as a URL with the scheme "localhost:", which no browser can load.
+  if (!URL.canParse(url) || !/^https?:$/.test(new URL(url).protocol)) fail(`${JSON.stringify(url)} is not an http(s) URL`);
   const failOn = String(values["fail-on"]);
   if (!["error", "warning", "info", "never"].includes(failOn)) fail(`--fail-on expects error, warning, info or never, got ${JSON.stringify(failOn)}`);
   const format = String(values.format);
@@ -159,14 +154,24 @@ async function main(): Promise<number> {
   const integer = (name: "max-pages" | "settle"): number | undefined => {
     const raw = values[name];
     if (raw === undefined) return undefined;
-    const n = Number(raw);
-    if (!Number.isInteger(n) || n < 0) fail(`--${name} expects a non-negative integer, got ${JSON.stringify(raw)}`);
-    return n;
+    const min = name === "max-pages" ? 1 : 0;
+    // Digits only, and few enough of them that the number is exact: a longer run converts to Infinity.
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)) || Number(raw) < min)
+      fail(`--${name} expects an integer of ${min} or more, got ${JSON.stringify(raw)}`);
+    return Number(raw);
   };
+  const maxPages = integer("max-pages");
+  const settleMs = integer("settle");
+  // Before the crawl, so a directory that cannot be written is found out now rather than after it.
+  try {
+    mkdirSync(values.out, { recursive: true });
+  } catch (err) {
+    fail(`cannot write to --out ${values.out}: ${(err as Error).message}`);
+  }
 
   const report = await audit({
     url,
-    maxPages: integer("max-pages"),
+    maxPages,
     crawl: !values["no-crawl"],
     smoke: values.smoke,
     smokeOptions: {
@@ -174,7 +179,7 @@ async function main(): Promise<number> {
       ...((values["ignore-request"] as string[]).length ? { ignoreRequests: values["ignore-request"] as string[] } : {}),
       ...((values["first-party-origin"] as string[]).length ? { firstPartyOrigins: values["first-party-origin"] as string[] } : {}),
     },
-    settleMs: integer("settle"),
+    settleMs,
     executablePath: values.executable ?? process.env.PW_CHROMIUM,
     args: values.arg,
     headers,
@@ -182,22 +187,21 @@ async function main(): Promise<number> {
     onPage: (p) => console.error(`${p.status === "ok" ? "audited" : "failed "} ${p.url}`),
   });
 
-  mkdirSync(values.out, { recursive: true });
+  const markdown = renderMarkdown(report);
   writeFileSync(join(values.out, "report.json"), JSON.stringify(report, null, 2) + "\n");
-  writeFileSync(join(values.out, "report.md"), renderMarkdown(report));
+  writeFileSync(join(values.out, "report.md"), markdown);
   // The step summary is a report destination like --out, not console output, so --quiet does not suppress it.
-  if (format === "github" && process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, renderMarkdown(report) + "\n");
+  if (format === "github" && process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, markdown + "\n");
   if (!values.quiet) {
     if (format === "json") console.log(JSON.stringify(report, null, 2));
     else if (format === "github") {
       const annotations = toGitHubAnnotations(report.findings, { tool: "webmcp-audit" });
       if (annotations) console.log(annotations);
-    } else console.log(renderMarkdown(report));
+    } else console.log(markdown);
   }
   const failedPages = report.pages.filter((p) => p.status === "error");
   if (failedPages.length) console.error(`webmcp-audit: ${failedPages.length} page(s) could not be audited`);
-  const threshold = failOn === "never" ? Infinity : SEVERITY_RANK[failOn as Severity];
-  return failedPages.length || report.findings.some((f) => SEVERITY_RANK[f.severity] >= threshold) ? 1 : 0;
+  return failedPages.length || findingsAtOrAbove(report.findings, failOn as Severity | "never").length ? 1 : 0;
 }
 
 try {

@@ -30,10 +30,20 @@ createServer(async (req, res) => {
     res.end();
     return;
   }
-  let path = normalize(decodeURIComponent(url.pathname));
+  let path;
+  try {
+    path = normalize(decodeURIComponent(url.pathname));
+  } catch {
+    // A malformed escape such as "/%" must not take the server down.
+    res.writeHead(400);
+    res.end("bad request");
+    return;
+  }
   if (path.endsWith("/")) path += "index.html";
   try {
-    const body = await readFile(join(root, path));
+    let body = await readFile(join(root, path));
+    // The pages name each other's origin; __PORT__ stands for whichever port this server got.
+    if (extname(path) === ".html") body = body.toString("utf8").replaceAll("__PORT__", String(port));
     res.writeHead(200, { "content-type": types[extname(path)] ?? "application/octet-stream" });
     res.end(body);
   } catch {

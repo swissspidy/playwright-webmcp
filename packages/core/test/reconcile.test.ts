@@ -47,3 +47,26 @@ test("result expectations", () => {
   const bad = reconcileCalls([{ functionName: "search", result: { total: { $gte: 5 } } }], [{ name: "search", args: {}, result: { total: 3 } }]);
   assert.equal(bad.ok, false);
 });
+
+test("an unordered group finds the assignment even when a loose node could take a stricter node's call", () => {
+  const actual = [
+    { name: "a", args: { x: 1 } },
+    { name: "a", args: { x: 2 } },
+  ];
+  const r = reconcileCalls([{ unordered: [{ functionName: "a" }, { functionName: "a", arguments: { x: 1 } }] }], actual, { strict: true });
+  assert.deepEqual(r, { ok: true, problems: [], consumed: [0, 1] });
+  // Still a failure, reported once, when no assignment exists.
+  const missing = reconcileCalls(
+    [
+      {
+        unordered: [
+          { functionName: "a", arguments: { x: 1 } },
+          { functionName: "a", arguments: { x: 3 } },
+        ],
+      },
+    ],
+    actual,
+  );
+  assert.equal(missing.ok, false);
+  assert.deepEqual(missing.problems, ['missing call a({"x":3})']);
+});

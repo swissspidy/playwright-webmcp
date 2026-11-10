@@ -371,3 +371,29 @@ test("description-when-to-use asks for a trigger, not only a summary", () => {
   ])
     assert.ok(!ids(lint(snap([{ description }]), on)).includes("description-when-to-use"), description);
 });
+
+test("a property that is not a schema is reported, not crashed on", () => {
+  const r = lint(snap([{ name: "search", inputSchema: { type: "object", properties: { query: null, password: "text" } } as never }]));
+  assert.ok(r.findings.some((f) => f.ruleId === "schema-no-null-literals" && f.path === "/properties/query"));
+  assert.ok(r.findings.some((f) => f.ruleId === "param-description-missing" && f.path === "/properties/query"));
+  assert.ok(r.findings.some((f) => f.ruleId === "sensitive-params" && f.path === "/properties/password"));
+});
+
+test("properties given as an array or a string are not read as parameters", () => {
+  for (const properties of [[{ type: "string" }], "password"]) {
+    const r = lint(snap([{ name: "search", inputSchema: { type: "object", properties } as never }]));
+    assert.deepEqual(
+      r.findings.filter((f) => f.path?.startsWith("/properties/")),
+      [],
+    );
+  }
+});
+
+test("an option that takes one of a set of values rejects anything else", () => {
+  const tools = snap([{ name: "searchProducts" }]);
+  assert.throws(
+    () => lint(tools, { rules: { "tool-name-style": { style: "snake-case" } } }),
+    /tool-name-style: "style" must be one of snake_case, .*got "snake-case"/,
+  );
+  assert.equal(lint(tools, { rules: { "tool-name-style": { style: "snake_case" } } }).findings.filter((f) => f.ruleId === "tool-name-style").length, 1);
+});

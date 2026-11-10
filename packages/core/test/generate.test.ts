@@ -198,3 +198,33 @@ test("a write to another origin is a warning, not an error", () => {
   );
   assert.doesNotMatch(both.findings[0].message, /analytics/);
 });
+
+test("result-string-json is for encoded objects and arrays, not text that parses as a primitive", () => {
+  const base = { tool: "t", kind: "valid-minimal" as const, label: "x", args: {}, ok: true, durationMs: 10 };
+  const ids = (result: string) => judgeRuns([{ ...base, result }]).findings.map((f) => f.ruleId);
+  for (const text of ["42", "true", '"quoted"', "plain text"]) assert.deepEqual(ids(text), [], text);
+  assert.deepEqual(ids("[1,2]"), ["result-string-json"]);
+  assert.deepEqual(ids('{"a":1}'), ["result-string-json"]);
+});
+
+test("generated inputs are what their labels say", () => {
+  const cases = generateArguments({
+    type: "object",
+    required: ["name"],
+    properties: {
+      name: { type: "string", minLength: 1 },
+      either: { type: ["string", "number"] },
+      untyped: { description: "anything" },
+      huge: { type: "string", maxLength: 2 ** 31 },
+      broken: null,
+    },
+  } as never);
+  const labels = cases.map((c) => c.label);
+  // An empty string is invalid under minLength 1, so it is not a boundary of valid input.
+  assert.ok(!labels.includes("name empty string"));
+  // A number is valid for string|number, and anything is valid for a property without a type.
+  assert.equal(cases.find((c) => c.label === "either has wrong type")?.args.either, true);
+  assert.ok(!labels.includes("untyped has wrong type"));
+  assert.ok(!labels.includes("huge at maxLength"));
+  assert.ok(!labels.some((l) => l.startsWith("broken")));
+});

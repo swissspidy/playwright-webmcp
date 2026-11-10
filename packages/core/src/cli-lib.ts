@@ -5,10 +5,11 @@
  * Playwright reporter writes.
  */
 import { parseArgs } from "node:util";
-import { formatFindings, lint } from "./lint.js";
+import { enumProblem, findingsAtOrAbove, formatFindings, lint } from "./lint.js";
+import { UsageError } from "./usage.js";
 import { toGitHubAnnotations } from "./github.js";
 import { toSnapshot } from "./from-tools.js";
-import { severityRank } from "./rules/helpers.js";
+import { rulesById } from "./rules/index.js";
 import type { LintOptions, Severity } from "./types.js";
 
 export const HELP = `Usage: webmcp-lint <file.json> [options]
@@ -23,15 +24,16 @@ Options:
                         error (default), warning, info, or never
   --format <format>     text (default), json, or github (one workflow-command
                         annotation per finding, for GitHub Actions)
-  --rule <id=value>     Configure a rule; repeatable. Value is off, error, warning,
-                        info, or a JSON object of options, e.g.
+  --rule <id=value>     Configure a rule; repeatable. Value is on (for a rule that
+                        is off by default), off, error, warning, info, or a JSON
+                        object of options, e.g.
                         --rule too-many-tools='{"max":40}' --rule no-tools=off
   --scope <scope>       all (default) or tool: skip rules that need the whole page
   --url <url>           Page URL to report for inputs that have none
   -h, --help            Show this help
 `;
 
-export class UsageError extends Error {}
+export { UsageError };
 
 export interface CliIo {
   stdout: (text: string) => void;
@@ -48,17 +50,26 @@ function parseRule(spec: string): [string, RuleConfig] {
   const eq = spec.indexOf("=");
   if (eq <= 0) throw new UsageError(`--rule expects id=value, got ${JSON.stringify(spec)}`);
   const id = spec.slice(0, eq).trim();
+  // The CLI runs the built-in rules only, so an id it does not know is a typo that would otherwise configure nothing.
+  if (!Object.hasOwn(rulesById, id)) throw new UsageError(`--rule ${id}: no such rule`);
   const raw = spec.slice(eq + 1).trim();
   if (raw === "off" || raw === "false") return [id, false];
   if (raw === "on" || raw === "true") return [id, {}];
   if (SEVERITIES.includes(raw as Severity)) return [id, raw as Severity];
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return [id, parsed as Record<string, unknown>];
+    parsed = JSON.parse(raw);
   } catch {
-    /* fall through */
+    /* not JSON: reported below */
   }
-  throw new UsageError(`--rule ${id}: expected off, error, warning, info or a JSON object, got ${JSON.stringify(raw)}`);
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    for (const [option, value] of Object.entries(parsed)) {
+      const problem = enumProblem(rulesById[id], option, value);
+      if (problem) throw new UsageError(`--rule ${problem}`);
+    }
+    return [id, parsed as Record<string, unknown>];
+  }
+  throw new UsageError(`--rule ${id}: expected on, off, error, warning, info or a JSON object, got ${JSON.stringify(raw)}`);
 }
 
 export function parseCliArgs(argv: string[]) {
@@ -126,6 +137,8 @@ export async function runLintCli(argv: string[], io: CliIo): Promise<number> {
     } catch (err) {
       throw new UsageError(`${args.file}: ${(err as Error).message}`);
     }
+    if (!snapshot.tools.every((t) => t && typeof t === "object" && typeof t.name === "string"))
+      throw new UsageError(`${args.file}: every entry of "tools" must be an object with a name`);
     const result = lint(snapshot, { rules: args.rules, scope: args.scope });
     if (args.format === "json") io.stdout(JSON.stringify({ url: snapshot.url, ...result }, null, 2) + "\n");
     else if (args.format === "github") {
@@ -135,9 +148,7 @@ export async function runLintCli(argv: string[], io: CliIo): Promise<number> {
       io.stdout(formatFindings(result) + "\n");
       io.stdout(`\n${result.counts.error} error(s), ${result.counts.warning} warning(s), ${result.counts.info} info in ${snapshot.tools.length} tool(s).\n`);
     }
-    if (args.failOn === "never") return 0;
-    const threshold = severityRank(args.failOn);
-    return result.findings.some((f) => severityRank(f.severity) >= threshold) ? 1 : 0;
+    return findingsAtOrAbove(result.findings, args.failOn).length ? 1 : 0;
   } catch (err) {
     if (err instanceof UsageError) {
       io.stderr(`webmcp-lint: ${err.message}\n\n${HELP}`);

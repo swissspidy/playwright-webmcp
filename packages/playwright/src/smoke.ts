@@ -64,9 +64,6 @@ export function requestFilter(ignore: SmokeOptions["ignoreRequests"]): ((request
   return (request) => patterns.some((p) => p.test(request.url));
 }
 
-/** @deprecated Import `isReadOnlyTool` from `webmcp-lint` instead. */
-export const isReadOnly = isReadOnlyTool;
-
 /**
  * Decide which tools a smoke run may execute. Without an explicit list or
  * `all: true`, only tools annotated as read-only are considered safe.

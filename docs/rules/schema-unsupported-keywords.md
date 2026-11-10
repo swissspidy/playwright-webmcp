@@ -37,9 +37,26 @@ A tool rule judges one tool from its own definition, so it runs everywhere: `lin
 ## Configuring it
 
 ```ts
-lint(snapshot, { rules: { "schema-unsupported-keywords": false } });          // off
-lint(snapshot, { rules: { "schema-unsupported-keywords": "warning" } });      // change severity
-lint(snapshot, { rules: { "schema-unsupported-keywords": { keywords: /* see the table above */ } } });
+lint(snapshot, { rules: { "schema-unsupported-keywords": false } }); // off
+lint(snapshot, { rules: { "schema-unsupported-keywords": "warning" } }); // change severity
+lint(snapshot, {
+  rules: {
+    "schema-unsupported-keywords": {
+      keywords: [
+        "$ref",
+        "allOf",
+        "oneOf",
+        "anyOf",
+        "not",
+        "patternProperties",
+        "if",
+        "then",
+        "else",
+        "dependentSchemas",
+      ],
+    },
+  },
+});
 ```
 
 ```bash

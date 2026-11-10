@@ -126,6 +126,8 @@ export interface Rule {
   scope?: RuleScope;
   /** Default options, merged with user options. */
   defaults?: Record<string, unknown>;
+  /** Options that take one of a fixed set of values; `lint()` throws on any other. */
+  enums?: Record<string, readonly string[]>;
   check(ctx: RuleContext): Finding[];
 }
 

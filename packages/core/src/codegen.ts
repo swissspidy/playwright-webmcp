@@ -18,19 +18,22 @@ export interface CodegenOptions {
 }
 
 function literal(value: unknown): string {
-  return JSON.stringify(value, null, 2)
-    .replace(/\n/g, "\n  ")
-    .replace(/"([A-Za-z_$][A-Za-z0-9_$]*)":/g, "$1:");
+  return (
+    JSON.stringify(value, null, 2)
+      .replace(/\n/g, "\n  ")
+      // Unquote keys that are identifiers. Not after a backslash: that quote is inside a string, not the start of a key.
+      .replace(/(?<!\\)"([A-Za-z_$][A-Za-z0-9_$]*)":/g, "$1:")
+  );
 }
 
 export function toPlaywrightTest(options: CodegenOptions): string {
   const { name, url = "/", calls, prompt, argumentsMode = "exact", importFrom = "@swissspidy/playwright-webmcp" } = options;
   const lines: string[] = [];
   lines.push(`import { test, expect } from ${JSON.stringify(importFrom)};`, "");
-  lines.push(`test(${JSON.stringify(name)}, async ({ page, webmcp${prompt ? ", promptApi" : ""} }) => {`);
-  lines.push(`  await page.goto(${JSON.stringify(url)});`);
   const agentCalls = calls.filter((c) => c.via === "agent");
   const directCalls = calls.filter((c) => c.via !== "agent");
+  lines.push(`test(${JSON.stringify(name)}, async ({ page, webmcp${prompt && agentCalls.length ? ", promptApi" : ""} }) => {`);
+  lines.push(`  await page.goto(${JSON.stringify(url)});`);
   if (prompt && agentCalls.length) {
     lines.push(`  const run = await promptApi.run(${JSON.stringify(prompt)});`);
     lines.push(`  expect(run.status).toBe("ok");`);

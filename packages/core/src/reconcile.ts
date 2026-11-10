@@ -46,6 +46,16 @@ function callMatches(expected: EvalFunctionCall, actual: ActualCall): boolean {
   return true;
 }
 
+/** Unordered groups up to this size have every ordering tried (720 at most); larger ones are matched greedily. */
+const MAX_PERMUTED_GROUP = 6;
+
+function* permutations<T>(items: T[]): Generator<T[]> {
+  if (items.length <= 1) return yield items;
+  for (let i = 0; i < items.length; i++) {
+    for (const rest of permutations([...items.slice(0, i), ...items.slice(i + 1)])) yield [items[i], ...rest];
+  }
+}
+
 function describe(node: EvalFunctionCall): string {
   return node.arguments ? `${node.functionName}(${JSON.stringify(node.arguments)})` : `${node.functionName}(…)`;
 }
@@ -77,6 +87,12 @@ export function reconcileCalls(expected: ExpectedCallNode[] | null | undefined, 
   }
   const consumed = new Set<number>();
   const problems: string[] = [];
+  /** Above zero while an ordering of an unordered group is being tried; a failed try is not a problem to report. */
+  let trying = 0;
+  const restore = (snapshot: Set<number>) => {
+    consumed.clear();
+    for (const c of snapshot) consumed.add(c);
+  };
 
   // Returns the index after the last consumed call, or -1 on failure.
   function matchOrdered(nodes: ExpectedCallNode[], from: number): number {
@@ -90,7 +106,33 @@ export function reconcileCalls(expected: ExpectedCallNode[] | null | undefined, 
   }
 
   function matchUnordered(nodes: ExpectedCallNode[], from: number): number {
-    // Greedy: try each remaining node against the earliest possible position.
+    // Which node takes which call matters: a loose node matched first can take the only call a stricter
+    // one accepts. So try the orderings of a small group, each node taking its earliest free call; when
+    // an assignment exists, the ordering by the calls it assigns finds it.
+    if (nodes.length > 1 && nodes.length <= MAX_PERMUTED_GROUP) {
+      const snapshot = new Set(consumed);
+      trying++;
+      try {
+        for (const order of permutations(nodes)) {
+          let maxCursor = from;
+          let ok = true;
+          for (const node of order) {
+            const next = matchNode(node, from);
+            if (next === -1) {
+              ok = false;
+              break;
+            }
+            maxCursor = Math.max(maxCursor, next);
+          }
+          if (ok) return maxCursor;
+          restore(snapshot);
+        }
+      } finally {
+        trying--;
+      }
+    }
+    // No ordering satisfies the group (or it is too large to try them all): match greedily, each remaining
+    // node against the earliest possible position, and report what is left over.
     const remaining = [...nodes];
     let maxCursor = from;
     while (remaining.length) {
@@ -109,7 +151,7 @@ export function reconcileCalls(expected: ExpectedCallNode[] | null | undefined, 
         // Anything left that is not optional is a failure.
         const hard = remaining.filter((n) => !(isFunctionCall(n) && n.optional));
         if (hard.length) {
-          for (const n of hard) {
+          for (const n of trying ? [] : hard) {
             if (isFunctionCall(n)) problems.push(`missing call ${describe(n)}`);
             else problems.push(`unsatisfied ${"ordered" in n ? "ordered" : "unordered"} group`);
           }
@@ -131,15 +173,14 @@ export function reconcileCalls(expected: ExpectedCallNode[] | null | undefined, 
         }
       }
       if (node.optional) return from;
-      if (!probe) problems.push(`missing call ${describe(node)}`);
+      if (!probe && !trying) problems.push(`missing call ${describe(node)}`);
       return -1;
     }
     if ("ordered" in node) {
       if (probe) {
         const snapshot = new Set(consumed);
         const r = matchOrdered(node.ordered, from);
-        consumed.clear();
-        for (const c of snapshot) consumed.add(c);
+        restore(snapshot);
         return r;
       }
       return matchOrdered(node.ordered, from);
@@ -147,8 +188,7 @@ export function reconcileCalls(expected: ExpectedCallNode[] | null | undefined, 
     if (probe) {
       const snapshot = new Set(consumed);
       const r = matchUnordered(node.unordered, from);
-      consumed.clear();
-      for (const c of snapshot) consumed.add(c);
+      restore(snapshot);
       return r;
     }
     return matchUnordered(node.unordered, from);

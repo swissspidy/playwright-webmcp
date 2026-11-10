@@ -25,7 +25,7 @@
             return { country, weightKg, price: Math.round(weightKg * 7.5 * 100) / 100, currency: "CHF" };
           },
         },
-        { exposedTo: ["http://localhost:4173"] },
+        { exposedTo: ["http://localhost:__PORT__"] },
       );
       mc.registerTool({
         name: "partner_private",

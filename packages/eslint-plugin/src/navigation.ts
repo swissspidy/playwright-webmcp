@@ -13,10 +13,11 @@
  * functions defined in the same file are followed a few levels deep, so a
  * handler written next to the tool is read too.
  */
-import type { Rule as ESLintRule, Scope } from "eslint";
+import type { Rule as ESLintRule } from "eslint";
 import type * as ESTree from "estree";
 import { toolHints } from "@swissspidy/webmcp-lint";
-import { DYNAMIC, findProperty, staticValue, unwrap, type Resolver } from "./extract.js";
+import { DYNAMIC, findProperty, memberName, staticValue, unwrap, type Resolver } from "./extract.js";
+import { findVariable, type SourceCode } from "./scope.js";
 import { discoverTools } from "./discover.js";
 import { makeResolver } from "./rule.js";
 import { ruleDocsUrl } from "./docs-url.js";
@@ -40,19 +41,34 @@ function lastName(node: Node): string | undefined {
   const n = unwrap(node);
   if (n.type === "Identifier") return n.name;
   if (n.type === "ThisExpression") return "this";
-  if (n.type !== "MemberExpression") return undefined;
-  if (!n.computed) return n.property.type === "Identifier" ? n.property.name : undefined;
-  return n.property.type === "Literal" && typeof n.property.value === "string" ? n.property.value : undefined;
+  return n.type === "MemberExpression" ? memberName(n) : undefined;
 }
 
-const isLocation = (node: Node) => lastName(node) === "location";
+const GLOBAL_OBJECTS = new Set(["window", "document", "globalThis", "self"]);
+
+/** True when the identifier is a parameter of an enclosing function: tool input, not the browser's global. */
+function isParameter(identifier: ESTree.Identifier, sourceCode: SourceCode): boolean {
+  return findVariable(identifier, sourceCode)?.defs.some((def) => def.type === "Parameter") ?? false;
+}
+
+/**
+ * `location`, `window.location`, `document.location`: the browser's own object. Not `args.location`
+ * or a `location` parameter, which are data that happens to share the name.
+ */
+function isLocation(node: Node, sourceCode: SourceCode): boolean {
+  const n = unwrap(node);
+  if (n.type === "Identifier") return n.name === "location" && !isParameter(n, sourceCode);
+  if (n.type !== "MemberExpression" || lastName(n) !== "location") return false;
+  const object = unwrap(n.object as Node);
+  return object.type === "Identifier" && GLOBAL_OBJECTS.has(object.name);
+}
 
 /** A short description of how a node navigates, or undefined when it does not. */
-function navigationAt(node: Node): string | undefined {
+function navigationAt(node: Node, sourceCode: SourceCode): string | undefined {
   if (node.type === "AssignmentExpression") {
     const left = unwrap(node.left as Node);
-    if (isLocation(left)) return "assigns location";
-    if (left.type === "MemberExpression" && isLocation(left.object as Node)) {
+    if (isLocation(left, sourceCode)) return "assigns location";
+    if (left.type === "MemberExpression" && isLocation(left.object as Node, sourceCode)) {
       const prop = lastName(left);
       if (prop && LOCATION_PROPS.has(prop)) return `sets location.${prop}`;
     }
@@ -64,8 +80,12 @@ function navigationAt(node: Node): string | undefined {
   if (callee.type !== "MemberExpression") return undefined;
   const method = lastName(callee);
   if (!method) return undefined;
-  const receiver = lastName(callee.object as Node) ?? "";
-  if (receiver === "location" && LOCATION_METHODS.has(method)) return `calls location.${method}()`;
+  const object = unwrap(callee.object as Node);
+  if (isLocation(object, sourceCode)) return LOCATION_METHODS.has(method) ? `calls location.${method}()` : undefined;
+  // A parameter named history or router is the tool's input (a list, a string), not the API.
+  if (object.type === "Identifier" && isParameter(object, sourceCode)) return undefined;
+  const receiver = lastName(object) ?? "";
+  if (receiver === "location") return undefined;
   if (receiver === "history" && HISTORY_METHODS.has(method)) return `calls history.${method}()`;
   if (receiver === "navigation" && NAVIGATION_METHODS.has(method)) return `calls navigation.${method}()`;
   if (/router$/i.test(receiver) && ROUTER_METHODS.has(method)) return `calls ${receiver}.${method}()`;
@@ -74,23 +94,13 @@ function navigationAt(node: Node): string | undefined {
 }
 
 /** The function a node stands for: a function literal, or an identifier bound to one in this file. */
-export function functionOf(node: Node, resolve: Resolver, sourceCode: ESLintRule.RuleContext["sourceCode"]): AnyFunction | undefined {
+export function functionOf(node: Node, resolve: Resolver, sourceCode: SourceCode): AnyFunction | undefined {
   const n = unwrap(resolve(node));
   if (n.type === "FunctionExpression" || n.type === "ArrowFunctionExpression" || n.type === "FunctionDeclaration") return n;
   if (n.type !== "Identifier") return undefined;
-  let scope: Scope.Scope | null;
-  try {
-    scope = sourceCode.getScope(n);
-  } catch {
-    return undefined;
-  }
-  for (; scope; scope = scope.upper) {
-    const variable = scope.set.get(n.name);
-    if (!variable) continue;
-    const def = variable.defs.length === 1 ? variable.defs[0] : undefined;
-    return def?.type === "FunctionName" ? (def.node as ESTree.FunctionDeclaration) : undefined;
-  }
-  return undefined;
+  const variable = findVariable(n, sourceCode);
+  const def = variable?.defs.length === 1 ? variable.defs[0] : undefined;
+  return def?.type === "FunctionName" ? (def.node as ESTree.FunctionDeclaration) : undefined;
 }
 
 const SKIP_KEYS = new Set(["parent", "loc", "range", "start", "end", "typeAnnotation", "returnType", "typeParameters"]);
@@ -110,19 +120,13 @@ interface Hit {
 }
 
 /** The first navigation reachable from a function body, following calls to local functions. */
-function findNavigation(
-  fn: AnyFunction,
-  resolve: Resolver,
-  sourceCode: ESLintRule.RuleContext["sourceCode"],
-  depth = 0,
-  seen = new Set<AnyFunction>(),
-): Hit | undefined {
+function findNavigation(fn: AnyFunction, resolve: Resolver, sourceCode: SourceCode, depth = 0, seen = new Set<AnyFunction>()): Hit | undefined {
   if (seen.has(fn)) return undefined;
   seen.add(fn);
   const stack: Node[] = [fn.body as Node];
   while (stack.length) {
     const node = stack.pop()!;
-    const how = navigationAt(node);
+    const how = navigationAt(node, sourceCode);
     if (how) return { node, how };
     if (node.type === "CallExpression" && depth < MAX_DEPTH) {
       const target = functionOf(node.callee as Node, resolve, sourceCode);

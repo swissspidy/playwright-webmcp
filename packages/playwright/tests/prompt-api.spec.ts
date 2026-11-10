@@ -50,7 +50,7 @@ test.describe("prompt api harness", () => {
     expect(webmcp).toHaveCalledTool("add_to_cart", { quantity: { $gte: 2 } });
   });
 
-  test("evaluate() reconciles the model's calls against an evals case", async ({ page, webmcp, promptApi }) => {
+  test("evaluate() reconciles the model's calls against an evals case", async ({ page, promptApi }) => {
     await promptApi.useFake({
       turns: [
         { match: "hat", calls: [{ name: "search_products", args: { query: "hat" } }], response: "Found a hat." },
@@ -76,7 +76,7 @@ test.describe("prompt api harness", () => {
     await expect(promptApi).not.toPassEval({ ...evalCase, expectedCall: [{ functionName: "add_to_cart" }] });
   });
 
-  test("evaluate() uses webmcp-evals semantics: extra calls fail unless lenient", async ({ page, webmcp, promptApi }) => {
+  test("evaluate() uses webmcp-evals semantics: extra calls fail unless lenient", async ({ page, promptApi }) => {
     await promptApi.useFake({
       turns: [
         {
@@ -126,7 +126,7 @@ test.describe("prompt api harness", () => {
     await expect(promptApi).toPassEval(evalCase);
   });
 
-  test("tool results returned to the model have nulls stripped", async ({ page, webmcp, promptApi }) => {
+  test("tool results returned to the model have nulls stripped", async ({ page, promptApi }) => {
     await promptApi.useFake({ turns: [{ calls: [{ name: "nullable", args: {} }], response: "{{result:0}}" }] });
     await page.goto("/");
     await page.evaluate(async () => {
@@ -142,7 +142,7 @@ test.describe("prompt api harness", () => {
     expect(result.responses[0]).toBe('{"a":1,"c":[2],"d":{}}');
   });
 
-  test("a build without tool use is reported as unavailable", async ({ page, webmcp, promptApi }) => {
+  test("a build without tool use is reported as unavailable", async ({ page, promptApi }) => {
     await promptApi.useFake({ rejectTools: true, turns: [] });
     await page.goto("/");
     const result = await promptApi.run("hello");

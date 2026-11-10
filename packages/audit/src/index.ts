@@ -2,7 +2,7 @@
  * Crawl a site with Playwright and audit every page's WebMCP surface.
  */
 import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { WebMCP, runSmoke, watchPage, type SmokeOptions } from "@swissspidy/playwright-webmcp";
+import { DEFAULT_OPTIONS, WebMCP, runSmoke, watchPage, type SmokeOptions } from "@swissspidy/playwright-webmcp";
 import {
   formatChanges,
   formatFindings,
@@ -41,7 +41,9 @@ export interface AuditOptions {
   /**
    * HTTP headers sent with every request to the audited origin, e.g. an
    * Authorization header for a staging site. Requests to other origins
-   * (third-party frames, CDNs) do not carry them.
+   * (third-party frames, CDNs) do not carry them. Each page document is then
+   * requested twice: once to follow its redirects, so the headers are not sent
+   * along one that leaves the origin, and once by the browser.
    */
   headers?: Record<string, string>;
   /** A previous report to compare tool contracts against, page by page. */
@@ -100,7 +102,14 @@ async function discoverLinks(page: Page, base: string): Promise<string[]> {
 }
 
 export async function auditPage(page: Page, url: string, options: AuditOptions): Promise<PageAudit> {
-  const webmcp = new WebMCP(page, undefined, { record: true, lint: options.lint ?? {}, cdp: "auto" });
+  return (await auditPageAndLinks(page, url, options, false)).result;
+}
+
+/** Audits the page and, for the crawl, reads its links before smoke calls anything: a tool may navigate. */
+async function auditPageAndLinks(page: Page, url: string, options: AuditOptions, crawl: boolean): Promise<{ result: PageAudit; links: string[] }> {
+  let links: string[] = [];
+  // The audit reads snapshots and makes its own calls; nothing here needs the in-page recorder.
+  const webmcp = new WebMCP(page, undefined, { ...DEFAULT_OPTIONS, record: false });
   await webmcp.install();
   try {
     await page.goto(url, { waitUntil: "load" });
@@ -112,9 +121,10 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
     await webmcp.settle({ quietMs: Math.max(150, Math.min(settleMs, 1000)), timeoutMs: 5000 });
     const snapshot = await webmcp.snapshot();
     const lintResult = lint(snapshot, options.lint ?? {});
+    if (crawl) links = await discoverLinks(page, options.url).catch(() => []);
     let smoke: PageAudit["smoke"];
     if (options.smoke) smoke = await runSmoke(snapshot.tools, (name, args) => webmcp.call(name, args), options.smokeOptions ?? {}, watchPage(page));
-    return {
+    const result: PageAudit = {
       url,
       status: "ok",
       snapshot,
@@ -124,8 +134,9 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
       api: snapshot.frames[0]?.api,
       cdp: Boolean(webmcp.cdp?.enabled),
     };
+    return { result, links };
   } catch (err) {
-    return { url, status: "error", error: String((err as Error)?.message ?? err) };
+    return { result: { url, status: "error", error: String((err as Error)?.message ?? err) }, links: [] };
   } finally {
     await webmcp.flush().catch(() => {});
   }
@@ -194,8 +205,10 @@ export const WEBMCP_ARGS = ["--enable-features=WebMCP"];
  * chain is followed here first, with the headers, up to the first hop that
  * leaves the origin; the browser is then sent to that hop directly and goes
  * without them. A document that stays on the origin is loaded by the browser
- * itself (a fulfilled document breaks its cross-origin frames); anything else
- * is served from the response fetched here.
+ * itself, which requests it a second time: a document fulfilled from the
+ * response fetched here loses the tools of its cross-origin frames (the audit
+ * suite fails on Chromium 156 without this). Anything else is served from the
+ * response fetched here.
  */
 async function sendHeadersToOrigin(context: BrowserContext, origin: string, headers: Record<string, string>): Promise<void> {
   const isRedirect = (status: number) => status >= 300 && status < 400;
@@ -230,36 +243,37 @@ export async function audit(options: AuditOptions): Promise<AuditReport> {
   const maxPages = options.maxPages ?? 10;
   const ownBrowser = !options.browser;
   const browser = options.browser ?? (await chromium.launch({ executablePath: options.executablePath, args: [...WEBMCP_ARGS, ...(options.args ?? [])] }));
-  const context = await browser.newContext();
-  if (options.headers && Object.keys(options.headers).length) await sendHeadersToOrigin(context, new URL(options.url).origin, options.headers);
-  const queue = [normalize(options.url)];
-  const visited = new Set<string>();
   const pages: PageAudit[] = [];
+  let context: BrowserContext | undefined;
+  // Everything after the launch is inside the try, so a bad URL does not leave the browser running.
   try {
+    context = await browser.newContext();
+    if (options.headers && Object.keys(options.headers).length) await sendHeadersToOrigin(context, new URL(options.url).origin, options.headers);
+    const queue = [normalize(options.url)];
+    /** Every URL that has been queued, visited or not. */
+    const known = new Set(queue);
     while (queue.length && pages.length < maxPages) {
       const url = queue.shift()!;
-      if (visited.has(url)) continue;
-      visited.add(url);
       const page = await context.newPage();
-      const result = await auditPage(page, url, options);
-      if (options.crawl !== false && result.status === "ok") {
-        for (const link of await discoverLinks(page, options.url)) if (!visited.has(link) && !queue.includes(link)) queue.push(link);
+      const { result, links } = await auditPageAndLinks(page, url, options, options.crawl !== false);
+      for (const link of links) {
+        if (known.has(link)) continue;
+        known.add(link);
+        queue.push(link);
       }
       await page.close();
       pages.push(result);
       options.onPage?.(result);
     }
   } finally {
-    await context.close();
+    await context?.close();
     if (ownBrowser) await browser.close();
   }
   const drift = detectDrift(pages);
   const tools = [...new Set(pages.flatMap((p) => p.contract?.tools.map((t) => t.name) ?? []))].sort();
   const baseline = options.baseline ? compareWithBaseline(pages, options.baseline) : undefined;
   const findings: Finding[] = [
-    ...pages.flatMap((p) =>
-      [...(p.lint?.findings ?? []), ...(p.smoke?.findings ?? [])].map((f) => ({ ...f, help: f.help, message: `${p.url}: ${f.message}` })),
-    ),
+    ...pages.flatMap((p) => [...(p.lint?.findings ?? []), ...(p.smoke?.findings ?? [])].map((f) => ({ ...f, message: `${p.url}: ${f.message}` }))),
     ...drift.map((d) => ({
       ruleId: "cross-page-drift",
       severity: "warning" as const,

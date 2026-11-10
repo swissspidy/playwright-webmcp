@@ -42,28 +42,28 @@ Definition rules judge what a tool declares. They are the tool-scoped rules of `
 
 Each rule has a page under [`docs/rules/`](https://github.com/swissspidy/playwright-webmcp/blob/main/docs/rules/README.md) listing its options and defaults, which is also the URL your editor opens from a finding.
 
-| Rule                                      | Recommended | Checks                                                                                             |
-| ----------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------- |
-| `webmcp/tool-name-valid`                  | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                           |
-| `webmcp/tool-name-style`                  | off         | Name follows the project's `style` (`snake_case` by default) and `prefix`.                         |
-| `webmcp/tool-title-missing`               | off         | The tool has a `title` for clients to show people.                                                 |
-| `webmcp/description-missing`              | error       | The tool has a description.                                                                        |
-| `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                                     |
-| `webmcp/description-when-to-use`          | off         | The description says when to call the tool, not only what it does. Heuristic; opt in.              |
-| `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                            |
-| `webmcp/param-description-length`         | warn        | Each parameter description, at any depth, is at most `max` (150) characters.                       |
-| `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                           |
-| `webmcp/schema-no-null-literals`          | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                 |
-| `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                                         |
-| `webmcp/schema-unsupported-keywords`      | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`.           |
-| `webmcp/sensitive-params`                 | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).                  |
-| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in any tool text.                    |
-| `webmcp/annotations-explicit`             | off         | The hints listed in `fields` (`readOnlyHint`, `consequentialHint`) are declared on every tool.     |
-| `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists something the API rejects: an insecure origin, or `"*"`. |
-| `webmcp/exposed-to-origin-only`           | warn        | An `exposedTo` entry carries a path, query, fragment or credentials, which the API ignores.        |
-| `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                                  |
-| `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.              |
-| `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field or a payment/one-time-code `autocomplete`.        |
+| Rule                                      | Recommended | Checks                                                                                                       |
+| ----------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------ |
+| `webmcp/tool-name-valid`                  | error       | Name is 1-128 chars of `[A-Za-z0-9_.-]`.                                                                     |
+| `webmcp/tool-name-style`                  | off         | Name follows the project's `style` (`snake_case` by default) and `prefix`.                                   |
+| `webmcp/tool-title-missing`               | off         | The tool has a `title` for clients to show people.                                                           |
+| `webmcp/description-missing`              | error       | The tool has a description.                                                                                  |
+| `webmcp/description-length`               | warn        | Between `min` (20) and `max` (600) characters.                                                               |
+| `webmcp/description-when-to-use`          | off         | The description says when to call the tool, not only what it does. Heuristic; opt in.                        |
+| `webmcp/param-description-missing`        | warn        | Every input property has a description.                                                                      |
+| `webmcp/param-description-length`         | warn        | Each parameter description, at any depth, is at most `max` (150) characters.                                 |
+| `webmcp/schema-shape`                     | error       | Object schema; `required` entries exist in `properties`.                                                     |
+| `webmcp/schema-no-null-literals`          | error       | No `null` anywhere in the schema (Chrome's Prompt API rejects it).                                           |
+| `webmcp/schema-depth`                     | warn        | Property nesting at most `max` (3) levels.                                                                   |
+| `webmcp/schema-unsupported-keywords`      | warn        | Flags `$ref`, `allOf`, `oneOf`, `anyOf`, `not`, `if`/`then`/`else`, `patternProperties`, `dependentSchemas`. |
+| `webmcp/sensitive-params`                 | warn        | Parameter names that look like credentials or payment data (`pattern` overrides).                            |
+| `webmcp/description-injection`            | error       | Instructions to the agent, role markers, or hidden characters in any tool text.                              |
+| `webmcp/annotations-explicit`             | off         | The hints listed in `fields` (`readOnlyHint`, `consequentialHint`) are declared on every tool.               |
+| `webmcp/exposed-to-secure-origins`        | error       | `registerTool(tool, { exposedTo })` lists something the API rejects: an insecure origin, or `"*"`.           |
+| `webmcp/exposed-to-origin-only`           | warn        | An `exposedTo` entry carries a path, query, fragment or credentials, which the API ignores.                  |
+| `webmcp/declarative-description`          | error       | JSX `<form toolname>` also has `tooldescription`.                                                            |
+| `webmcp/declarative-field-description`    | warn        | Each named field in the form has a `<label>`, `aria-label` or `toolparamdescription`.                        |
+| `webmcp/declarative-autosubmit-sensitive` | error       | `toolautosubmit` on a form with a password field or a payment/one-time-code `autocomplete`.                  |
 
 Source rules judge the code that calls the API. They have no `@swissspidy/webmcp-lint` counterpart because nothing they catch survives to runtime. Shape mistakes in the dictionaries themselves (an unknown property, a missing `execute`, a misspelt hint) are TypeScript's job, with the [`webmcp-types`](https://www.npmjs.com/package/webmcp-types) package installed.
 
@@ -156,6 +156,8 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-shape": "error",
     "webmcp/schema-no-null-literals": "error",
     "webmcp/exposed-to-secure-origins": "error",
+    "webmcp/declarative-description": "error",
+    "webmcp/declarative-autosubmit-sensitive": "error",
     "webmcp/valid-event-name": "error",
     "webmcp/no-interpolated-text": "warn",
     "webmcp/navigation-consequential": "warn",
@@ -166,6 +168,8 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-depth": "warn",
     "webmcp/schema-unsupported-keywords": "warn",
     "webmcp/sensitive-params": "warn",
+    "webmcp/exposed-to-origin-only": "warn",
+    "webmcp/declarative-field-description": "warn",
   },
 }
 ```

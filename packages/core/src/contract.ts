@@ -90,7 +90,8 @@ export function serializeContract(contract: ToolContract): string {
 }
 
 function props(schema: JsonSchema | null): Record<string, JsonSchema> {
-  return ((schema?.properties ?? {}) as Record<string, JsonSchema>) || {};
+  const properties = schema?.properties;
+  return properties && typeof properties === "object" && !Array.isArray(properties) ? (properties as Record<string, JsonSchema>) : {};
 }
 
 function schemaChanges(tool: string, before: JsonSchema | null, after: JsonSchema | null): ContractChange[] {
@@ -102,10 +103,11 @@ function schemaChanges(tool: string, before: JsonSchema | null, after: JsonSchem
   for (const k of Object.keys(b)) if (!(k in a)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" removed` });
   for (const k of Object.keys(a)) {
     if (!(k in b)) continue;
-    if (JSON.stringify(a[k].type) !== JSON.stringify(b[k].type))
-      out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" type ${JSON.stringify(b[k].type)} -> ${JSON.stringify(a[k].type)}` });
-    if (JSON.stringify(a[k].enum) !== JSON.stringify(b[k].enum)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" enum changed` });
-    if (a[k].description !== b[k].description) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" description changed` });
+    // A property is whatever the author wrote; null or a string has no keys to compare.
+    if (JSON.stringify(a[k]?.type) !== JSON.stringify(b[k]?.type))
+      out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" type ${JSON.stringify(b[k]?.type)} -> ${JSON.stringify(a[k]?.type)}` });
+    if (JSON.stringify(a[k]?.enum) !== JSON.stringify(b[k]?.enum)) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" enum changed` });
+    if (a[k]?.description !== b[k]?.description) out.push({ kind: "schema-changed", tool, detail: `parameter "${k}" description changed` });
   }
   const rb = new Set((before?.required as string[] | undefined) ?? []);
   const ra = new Set((after?.required as string[] | undefined) ?? []);
