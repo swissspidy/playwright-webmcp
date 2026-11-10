@@ -14,7 +14,7 @@ export {
   type CallOptions,
 } from "./fixture.js";
 export { CdpCollector, type CdpLikeSession, type CdpTool, type CdpAnnotations } from "./cdp.js";
-export { runSmoke, selectSmokeTools, isReadOnly, watchPage, requestFilter, type SmokeOptions, type SmokeWatch, type ToolCaller } from "./smoke.js";
+export { runSmoke, selectSmokeTools, watchPage, requestFilter, type SmokeOptions, type SmokeWatch, type ToolCaller } from "./smoke.js";
 export {
   toolsForAgent,
   runAgent,

@@ -1,6 +1,6 @@
 import { builtinRules } from "./rules/index.js";
 import { severityRank } from "./rules/helpers.js";
-import type { Finding, LintOptions, LintResult, PageSnapshot, Severity } from "./types.js";
+import type { Finding, LintOptions, LintResult, PageSnapshot, Rule, Severity } from "./types.js";
 
 const SEVERITIES: Severity[] = ["error", "warning", "info"];
 
@@ -21,6 +21,10 @@ export function lint(snapshot: PageSnapshot, options: LintOptions = {}): LintRes
       ruleOptions = { ...ruleOptions, ...cfg };
       if (typeof cfg.severity === "string" && SEVERITIES.includes(cfg.severity as Severity)) severity = cfg.severity as Severity;
     }
+    for (const name of Object.keys(rule.enums ?? {})) {
+      const problem = enumProblem(rule, name, ruleOptions[name]);
+      if (problem) throw new TypeError(problem);
+    }
     rulesRun.push(rule.id);
     for (const f of rule.check({ snapshot, options: ruleOptions })) findings.push({ ...f, severity });
   }
@@ -29,6 +33,20 @@ export function lint(snapshot: PageSnapshot, options: LintOptions = {}): LintRes
   const counts: Record<Severity, number> = { error: 0, warning: 0, info: 0 };
   for (const f of findings) counts[f.severity]++;
   return { findings, counts, rulesRun };
+}
+
+/** Why a value is not one of the values a rule's option takes, or undefined when it is (or the option is free-form). */
+export function enumProblem(rule: Pick<Rule, "id" | "enums">, option: string, value: unknown): string | undefined {
+  const allowed = rule.enums?.[option];
+  if (!allowed || value === undefined || allowed.includes(value as string)) return undefined;
+  return `${rule.id}: "${option}" must be one of ${allowed.join(", ")}, got ${JSON.stringify(value)}`;
+}
+
+/** The findings at this severity or worse; none for "never". What `failOn` and `--fail-on` mean everywhere. */
+export function findingsAtOrAbove<T extends Pick<Finding, "severity">>(findings: T[], severity: Severity | "never"): T[] {
+  if (severity === "never") return [];
+  const threshold = severityRank(severity);
+  return findings.filter((f) => severityRank(f.severity) >= threshold);
 }
 
 export function formatFindings(result: LintResult): string {

@@ -49,7 +49,9 @@ Usage: webmcp-audit <url> [options]
   --header <name: value>
                         HTTP header sent with every request to the audited origin
                         (not to third-party frames or resources), e.g. an
-                        Authorization header for a protected staging site; repeatable
+                        Authorization header for a protected staging site; repeatable.
+                        Each page is then requested twice: once to see where its
+                        redirects lead, so the header never follows one off the origin
   --settle <ms>         Wait this long after load for tools to register, then for the
                         tool list to hold still for as long again (default 500)
   --out <dir>           Output directory (default .webmcp-audit)

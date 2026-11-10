@@ -796,3 +796,14 @@ test("a schema's own title is not mistaken for the tool's", () => {
     invalid: [{ code, errors: [{ messageId: "finding", data: { message: 'inputSchema of "search" contains a null literal at /title.' } }] }],
   });
 });
+
+test("tool-name-style rejects a style it does not know instead of reporting nothing", () => {
+  const linter = new Linter();
+  const run = (style: string) =>
+    linter.verify(`mc.registerTool({ name: "searchProducts", description: "Search the catalogue by keyword and return matches." });`, {
+      plugins: { webmcp: plugin },
+      rules: { "webmcp/tool-name-style": ["error", { style }] },
+    });
+  assert.equal(run("snake_case").length, 1);
+  assert.throws(() => run("snake-case"), /snake-case|must be equal to one of the allowed values/);
+});

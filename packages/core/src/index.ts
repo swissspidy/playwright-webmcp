@@ -3,7 +3,8 @@ export * from "./evals-types.js";
 export { matchesArgument, matchesConstraint, isConstraint, explainMismatch, type Constraint } from "./matcher.js";
 export { reconcileCalls, type ActualCall, type ReconcileMode, type ReconcileOptions, type ReconcileResult } from "./reconcile.js";
 export { evaluateTrajectory, describeTrajectoryRow, functionCallOutcome, type TrajectoryRow } from "./trajectory.js";
-export { lint, formatFindings } from "./lint.js";
+export { lint, formatFindings, findingsAtOrAbove } from "./lint.js";
+export { UsageError } from "./usage.js";
 export { toGitHubAnnotations, type GitHubAnnotationOptions } from "./github.js";
 export {
   lintTools,

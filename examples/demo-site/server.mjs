@@ -41,7 +41,9 @@ createServer(async (req, res) => {
   }
   if (path.endsWith("/")) path += "index.html";
   try {
-    const body = await readFile(join(root, path));
+    let body = await readFile(join(root, path));
+    // The pages name each other's origin; __PORT__ stands for whichever port this server got.
+    if (extname(path) === ".html") body = body.toString("utf8").replaceAll("__PORT__", String(port));
     res.writeHead(200, { "content-type": types[extname(path)] ?? "application/octet-stream" });
     res.end(body);
   } catch {

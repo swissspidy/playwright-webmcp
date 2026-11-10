@@ -22,8 +22,8 @@ export async function collectFrame(options: { getToolsTimeoutMs?: number } = {})
   };
 
   const declarativeByName = new Map<string, ReturnType<typeof describeForm>>();
-  document.querySelectorAll("form[toolname]").forEach((form, index) => {
-    const info = describeForm(form as HTMLFormElement, index);
+  document.querySelectorAll("form[toolname]").forEach((form) => {
+    const info = describeForm(form as HTMLFormElement);
     declarativeByName.set(info.name, info);
   });
 
@@ -122,7 +122,7 @@ export async function collectFrame(options: { getToolsTimeoutMs?: number } = {})
     return false;
   }
 
-  function describeForm(form: HTMLFormElement, index: number) {
+  function describeForm(form: HTMLFormElement) {
     const name = form.getAttribute("toolname") ?? "";
     const description = form.getAttribute("tooldescription") ?? "";
     const fields: DeclarativeField[] = [];
@@ -169,7 +169,7 @@ export async function collectFrame(options: { getToolsTimeoutMs?: number } = {})
       description,
       schema,
       info: {
-        formLocator: id ? `form#${id}` : `form[toolname="${name}"]:nth-of-type(${index + 1})`,
+        formLocator: id ? `form#${id}` : `form[toolname="${name}"]`,
         autosubmit: form.hasAttribute("toolautosubmit"),
         hasDescription: Boolean(description.trim()),
         fields,

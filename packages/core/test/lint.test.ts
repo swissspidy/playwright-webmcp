@@ -388,3 +388,12 @@ test("properties given as an array or a string are not read as parameters", () =
     );
   }
 });
+
+test("an option that takes one of a set of values rejects anything else", () => {
+  const tools = snap([{ name: "searchProducts" }]);
+  assert.throws(
+    () => lint(tools, { rules: { "tool-name-style": { style: "snake-case" } } }),
+    /tool-name-style: "style" must be one of snake_case, .*got "snake-case"/,
+  );
+  assert.equal(lint(tools, { rules: { "tool-name-style": { style: "snake_case" } } }).findings.filter((f) => f.ruleId === "tool-name-style").length, 1);
+});

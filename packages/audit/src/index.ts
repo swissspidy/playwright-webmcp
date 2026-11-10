@@ -2,7 +2,7 @@
  * Crawl a site with Playwright and audit every page's WebMCP surface.
  */
 import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
-import { WebMCP, runSmoke, watchPage, type SmokeOptions } from "@swissspidy/playwright-webmcp";
+import { DEFAULT_OPTIONS, WebMCP, runSmoke, watchPage, type SmokeOptions } from "@swissspidy/playwright-webmcp";
 import {
   formatChanges,
   formatFindings,
@@ -41,7 +41,9 @@ export interface AuditOptions {
   /**
    * HTTP headers sent with every request to the audited origin, e.g. an
    * Authorization header for a staging site. Requests to other origins
-   * (third-party frames, CDNs) do not carry them.
+   * (third-party frames, CDNs) do not carry them. Each page document is then
+   * requested twice: once to follow its redirects, so the headers are not sent
+   * along one that leaves the origin, and once by the browser.
    */
   headers?: Record<string, string>;
   /** A previous report to compare tool contracts against, page by page. */
@@ -106,7 +108,8 @@ export async function auditPage(page: Page, url: string, options: AuditOptions):
 /** Audits the page and, for the crawl, reads its links before smoke calls anything: a tool may navigate. */
 async function auditPageAndLinks(page: Page, url: string, options: AuditOptions, crawl: boolean): Promise<{ result: PageAudit; links: string[] }> {
   let links: string[] = [];
-  const webmcp = new WebMCP(page, undefined, { record: true, lint: options.lint ?? {}, cdp: "auto" });
+  // The audit reads snapshots and makes its own calls; nothing here needs the in-page recorder.
+  const webmcp = new WebMCP(page, undefined, { ...DEFAULT_OPTIONS, record: false });
   await webmcp.install();
   try {
     await page.goto(url, { waitUntil: "load" });
@@ -202,8 +205,10 @@ export const WEBMCP_ARGS = ["--enable-features=WebMCP"];
  * chain is followed here first, with the headers, up to the first hop that
  * leaves the origin; the browser is then sent to that hop directly and goes
  * without them. A document that stays on the origin is loaded by the browser
- * itself (a fulfilled document breaks its cross-origin frames); anything else
- * is served from the response fetched here.
+ * itself, which requests it a second time: a document fulfilled from the
+ * response fetched here loses the tools of its cross-origin frames (the audit
+ * suite fails on Chromium 156 without this). Anything else is served from the
+ * response fetched here.
  */
 async function sendHeadersToOrigin(context: BrowserContext, origin: string, headers: Record<string, string>): Promise<void> {
   const isRedirect = (status: number) => status >= 300 && status < 400;

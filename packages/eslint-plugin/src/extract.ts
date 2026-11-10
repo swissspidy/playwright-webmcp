@@ -36,7 +36,7 @@ export interface ExtractedTool {
   exposedToNode?: Node;
 }
 
-const TS_WRAPPERS = new Set(["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"]);
+export const TS_WRAPPERS = new Set(["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"]);
 
 /** Unwrap TypeScript-only wrappers (`x as T`, `x satisfies T`, `x!`). */
 export function unwrap(node: Node): Node {
@@ -190,12 +190,16 @@ export function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: ExposedT
   return { node: obj, definition, dynamic, exposedToNode: exposedTo.node };
 }
 
+/** The name of a non-computed property, or of a computed one written as a string. */
+export function memberName(node: ESTree.MemberExpression): string | undefined {
+  if (!node.computed) return node.property.type === "Identifier" ? node.property.name : undefined;
+  return node.property.type === "Literal" && typeof node.property.value === "string" ? node.property.value : undefined;
+}
+
 function calleeName(callee: Node): string | undefined {
   const c = unwrap(callee);
   if (c.type === "Identifier") return c.name;
-  if (c.type !== "MemberExpression") return undefined;
-  if (c.computed) return c.property.type === "Literal" && typeof c.property.value === "string" ? c.property.value : undefined;
-  return c.property.type === "Identifier" ? c.property.name : undefined;
+  return c.type === "MemberExpression" ? memberName(c) : undefined;
 }
 
 function argumentAt(call: ESTree.CallExpression, index: number): Node | undefined {

@@ -156,6 +156,8 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-shape": "error",
     "webmcp/schema-no-null-literals": "error",
     "webmcp/exposed-to-secure-origins": "error",
+    "webmcp/declarative-description": "error",
+    "webmcp/declarative-autosubmit-sensitive": "error",
     "webmcp/valid-event-name": "error",
     "webmcp/no-interpolated-text": "warn",
     "webmcp/navigation-consequential": "warn",
@@ -166,6 +168,8 @@ The rules use only the ESLint rule contract (a `CallExpression` visitor, `contex
     "webmcp/schema-depth": "warn",
     "webmcp/schema-unsupported-keywords": "warn",
     "webmcp/sensitive-params": "warn",
+    "webmcp/exposed-to-origin-only": "warn",
+    "webmcp/declarative-field-description": "warn",
   },
 }
 ```

@@ -6,13 +6,14 @@
  * (CallExpression visitor, `context.sourceCode.getScope`, `context.settings`,
  * `context.report`), so the rules also load in oxlint's JS plugin runner.
  */
-import type { Rule as ESLintRule, Scope } from "eslint";
+import type { Rule as ESLintRule } from "eslint";
 import type * as ESTree from "estree";
 import { builtinRules, lintTools, type Finding, type Rule as LintRule } from "@swissspidy/webmcp-lint";
 import { findProperty, nodeAtPath, toolFromObject, unwrap, type ExtractedTool, type Resolver } from "./extract.js";
 import { discoverTools, mutates } from "./discover.js";
 import { formTool, type ExtractedForm, type JSXElementNode } from "./jsx.js";
 import { ruleDocsUrl } from "./docs-url.js";
+import { findVariable, type SourceCode } from "./scope.js";
 
 /**
  * Which field of the definition a finding was derived from, so findings about
@@ -60,7 +61,8 @@ function optionSchema(rule: LintRule): ESLintRule.RuleMetaData["schema"] {
   const defaults = rule.defaults ?? {};
   const properties: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(defaults)) {
-    if (typeof value === "number") properties[key] = { type: "number" };
+    if (rule.enums?.[key]) properties[key] = { enum: [...rule.enums[key]] };
+    else if (typeof value === "number") properties[key] = { type: "number" };
     else if (typeof value === "string") properties[key] = { type: "string" };
     else if (typeof value === "boolean") properties[key] = { type: "boolean" };
     else if (Array.isArray(value)) properties[key] = { type: "array", items: { type: "string" } };
@@ -109,40 +111,59 @@ function locateInForm(form: ExtractedForm, finding: Finding): ESTree.Node {
  * Follows an identifier to the literal it was initialised with, when it is a
  * `const` or `let` declared once in this file. Anything else is returned as is.
  */
-export function makeResolver(sourceCode: ESLintRule.RuleContext["sourceCode"]): Resolver {
+export function makeResolver(sourceCode: SourceCode): Resolver {
+  // Every rule asks for the same file's resolver; they share one.
+  const cached = fileCache(sourceCode);
+  return (cached.resolve ??= createResolver(sourceCode));
+}
+
+/**
+ * What the rules work out about a file, kept for as long as its SourceCode lives. Each rule runs on
+ * its own, but all of them read the same definitions, so the extraction is done once per file
+ * rather than once per rule.
+ */
+interface FileCache {
+  resolve?: Resolver;
+  /** Extracted tools by definition literal, then by the `exposedTo` node of the call that registered it. */
+  tools: Map<ESTree.ObjectExpression, Map<ESTree.Node | undefined, ExtractedTool | undefined>>;
+  forms: Map<JSXElementNode, ExtractedForm | undefined>;
+}
+
+const fileCaches = new WeakMap<object, FileCache>();
+
+function fileCache(sourceCode: SourceCode): FileCache {
+  let cache = fileCaches.get(sourceCode);
+  if (!cache) fileCaches.set(sourceCode, (cache = { tools: new Map(), forms: new Map() }));
+  return cache;
+}
+
+function createResolver(sourceCode: SourceCode): Resolver {
   const seen = new Set<ESTree.Node>();
   const resolve: Resolver = (node) => {
     const n = unwrap(node);
     if (n.type !== "Identifier" || seen.has(n)) return node;
-    let scope: Scope.Scope | null;
-    try {
-      scope = sourceCode.getScope(n);
-    } catch {
-      return node;
-    }
-    for (; scope; scope = scope.upper) {
-      const variable = scope.set.get(n.name);
-      if (!variable) continue;
-      if (variable.defs.length !== 1) return node;
-      const def = variable.defs[0];
-      if (def.type !== "Variable" || def.node.type !== "VariableDeclarator" || !def.node.init) return node;
-      const declarator = def.node as ESTree.VariableDeclarator & { parent?: ESTree.Node };
-      const declaration = ((def as { parent?: ESTree.Node | null }).parent ?? declarator.parent) as ESTree.VariableDeclaration | undefined;
-      if (declaration?.type === "VariableDeclaration" && declaration.kind === "var") return node;
-      if (def.node.id.type !== "Identifier") return node;
-      // Only a binding that is never written after its initialiser, and whose value is not
-      // visibly mutated in place, can be trusted. A reference handed to another function is
-      // assumed not to mutate it.
-      if (variable.references.some((ref) => (ref.isWrite() && !ref.init) || mutates(ref.identifier as ESTree.Node))) return node;
-      seen.add(n);
-      const target = resolve(def.node.init as ESTree.Node);
-      seen.delete(n);
-      return target;
-    }
-    return node;
+    const variable = findVariable(n, sourceCode);
+    if (variable?.defs.length !== 1) return node;
+    const def = variable.defs[0];
+    if (def.type !== "Variable" || def.node.type !== "VariableDeclarator" || !def.node.init) return node;
+    const declarator = def.node as ESTree.VariableDeclarator & { parent?: ESTree.Node };
+    const declaration = ((def as { parent?: ESTree.Node | null }).parent ?? declarator.parent) as ESTree.VariableDeclaration | undefined;
+    if (declaration?.type === "VariableDeclaration" && declaration.kind === "var") return node;
+    if (def.node.id.type !== "Identifier") return node;
+    // Only a binding that is never written after its initialiser, and whose value is not
+    // visibly mutated in place, can be trusted. A reference handed to another function is
+    // assumed not to mutate it.
+    if (variable.references.some((ref) => (ref.isWrite() && !ref.init) || mutates(ref.identifier as ESTree.Node))) return node;
+    seen.add(n);
+    const target = resolve(def.node.init as ESTree.Node);
+    seen.delete(n);
+    return target;
   };
   return resolve;
 }
+
+/** Every built-in rule switched off; a rule's own entry is then set to its options. */
+const ALL_OFF: Record<string, false> = Object.fromEntries(builtinRules.map((r) => [r.id, false]));
 
 export function createRule(rule: LintRule): ESLintRule.RuleModule {
   return {
@@ -158,7 +179,8 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
     create(context) {
       const options = (context.options[0] ?? {}) as Record<string, unknown>;
       const resolve = makeResolver(context.sourceCode);
-      const rules = Object.fromEntries(builtinRules.map((r) => [r.id, r.id === rule.id ? options : false]));
+      const cache = fileCache(context.sourceCode);
+      const rules = { ...ALL_OFF, [rule.id]: options };
       const report = (definition: ExtractedTool["definition"], dynamic: Set<string>, locateFinding: (finding: Finding) => ESTree.Node) => {
         if (dynamic.has("*")) return;
         const result = lintTools([definition], { scope: "tool", rules, url: context.filename });
@@ -178,14 +200,19 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
           ({ node, exposedTo }, repeat) => {
             // A second registration of a judged literal only brings its own exposedTo.
             if (repeat && !EXPOSED_TO_RULES.has(rule.id)) return;
-            const tool = toolFromObject(node, exposedTo, resolve);
+            let byExposedTo = cache.tools.get(node);
+            if (!byExposedTo) cache.tools.set(node, (byExposedTo = new Map()));
+            if (!byExposedTo.has(exposedTo.node)) byExposedTo.set(exposedTo.node, toolFromObject(node, exposedTo, resolve));
+            const tool = byExposedTo.get(exposedTo.node);
             if (tool) report(tool.definition, tool.dynamic, (finding) => locate(tool, finding, resolve));
           },
           { repeats: true },
         ),
         // `<form toolname="...">` in JSX: the declarative tool the browser would derive from it.
         JSXElement(node: unknown) {
-          const form = formTool(node as JSXElementNode, resolve);
+          const el = node as JSXElementNode;
+          if (!cache.forms.has(el)) cache.forms.set(el, formTool(el, resolve));
+          const form = cache.forms.get(el);
           if (form) report(form.definition, form.dynamic, (finding) => locateInForm(form, finding));
         },
       } as ESLintRule.RuleListener;

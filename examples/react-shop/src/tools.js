@@ -1,7 +1,8 @@
 /**
  * Tool definitions kept next to the data they operate on. They are plain
  * objects, so `useWebMCP(searchTool)` registers them and the ESLint plugin
- * lints them where they are written (it follows `const` bindings).
+ * lints them where they are written: it recognises a tool by its shape
+ * (`name`, `inputSchema`, `execute`), whichever file registers it.
  */
 export const catalogue = [
   { id: 1, name: "Red shirt", price: 20 },

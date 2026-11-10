@@ -57,6 +57,7 @@ export const toolNameStyle = defineRule({
   severity: "warning",
   enabled: false,
   defaults: { style: "snake_case", prefix: "" },
+  enums: { style: STYLES },
   check: (ctx) => {
     const style = opt<string>(ctx, "style", "snake_case");
     const prefix = opt<string>(ctx, "prefix", "");
@@ -66,7 +67,7 @@ export const toolNameStyle = defineRule({
         out.push(finding(toolNameStyle, `Tool name "${tool.name}" does not start with "${prefix}".`, { tool: tool.name, frame: tool.frame }));
       const bare = prefix && tool.name.startsWith(prefix) ? tool.name.slice(prefix.length) : tool.name;
       const actual = namingStyle(bare);
-      if (STYLES.includes(style as NamingStyle) && actual !== "single" && actual !== style)
+      if (actual !== "single" && actual !== style)
         out.push(finding(toolNameStyle, `Tool name "${tool.name}" is ${actual}; the project uses ${style}.`, { tool: tool.name, frame: tool.frame }));
       return out;
     });

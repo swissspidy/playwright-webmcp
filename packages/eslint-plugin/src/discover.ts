@@ -18,7 +18,7 @@
  */
 import type { Rule as ESLintRule } from "eslint";
 import type * as ESTree from "estree";
-import { findProperty, staticValue, toolObjectsFromCall, unwrap, type Resolver, type ToolObject } from "./extract.js";
+import { TS_WRAPPERS, findProperty, staticValue, toolObjectsFromCall, unwrap, type Resolver, type ToolObject } from "./extract.js";
 import { definitionSites, toolObjectsEnabled } from "./settings.js";
 
 type WithParent = ESTree.Node & { parent?: WithParent };
@@ -66,8 +66,6 @@ function typeName(annotation: unknown): string | undefined {
   if (t?.type !== "TSTypeReference" || !t.typeName) return undefined;
   return t.typeName.type === "TSQualifiedName" ? t.typeName.right?.name : t.typeName.name;
 }
-
-const TS_WRAPPERS = new Set(["TSAsExpression", "TSSatisfiesExpression", "TSNonNullExpression", "TSTypeAssertion"]);
 
 /**
  * True when the literal is written as a `ModelContextTool`: `x satisfies T`,

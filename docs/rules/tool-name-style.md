@@ -15,6 +15,8 @@ A tool rule judges one tool from its own definition, so it runs everywhere: `lin
 | `style`  | `"snake_case"` |
 | `prefix` | `""`           |
 
+`style` is one of `"snake_case"`, `"camelCase"`, `"kebab-case"`, `"dot.separated"`, `"PascalCase"`.
+
 ## Configuring it
 
 ```ts

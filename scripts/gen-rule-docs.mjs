@@ -57,7 +57,7 @@ const eslintOnly = eslintRules.filter(([id]) => !coreIds.has(id)).sort(([a], [b]
 const recommended = new Set(Object.keys(plugin.configs?.recommended?.rules ?? {}).map((k) => k.replace(/^webmcp\//, "")));
 const inEslint = new Set(eslintRules.map(([id]) => id));
 
-function optionsSection(defaults) {
+function optionsSection(defaults, enums = {}) {
   const entries = Object.entries(defaults ?? {});
   if (entries.length === 0) return "";
   const rows = entries.map(([name, value]) => `| \`${name}\` | ${inline(value) ?? "see below"} |`);
@@ -67,7 +67,8 @@ function optionsSection(defaults) {
       ([name, value]) =>
         `\n<details>\n<summary><code>${name}</code> default</summary>\n\n\`\`\`json\n${JSON.stringify(value, null, 2)}\n\`\`\`\n\n</details>\n`,
     );
-  return ["", "## Options", "", "| Option | Default |", "| --- | --- |", ...rows, ...blocks].join("\n");
+  const allowed = Object.entries(enums).map(([name, values]) => `\n\`${name}\` is one of ${values.map((v) => `\`"${v}"\``).join(", ")}.`);
+  return ["", "## Options", "", "| Option | Default |", "| --- | --- |", ...rows, ...allowed, ...blocks].join("\n");
 }
 
 /**
@@ -99,7 +100,7 @@ function corePage(rule) {
     scope === "page"
       ? "A page rule judges the tool surface as a whole, so it needs a full snapshot: the Playwright fixture, the audit crawler, or `lint()` over a snapshot you collected yourself. Static analysis of a single `registerTool()` call cannot run it."
       : "A tool rule judges one tool from its own definition, so it runs everywhere: `lint()`, `lintTools()`, the CLI, the Playwright fixture, the audit crawler and the ESLint plugin.",
-    optionsSection(rule.defaults),
+    optionsSection(rule.defaults, rule.enums),
     "",
     "## Configuring it",
     "",
@@ -122,9 +123,18 @@ function corePage(rule) {
   return lines.join("\n");
 }
 
+/** The options an ESLint-only rule's schema declares, with the values each takes. */
+function eslintOptions(rule) {
+  const properties = (Array.isArray(rule.meta?.schema) ? rule.meta.schema[0]?.properties : undefined) ?? {};
+  return Object.entries(properties).map(([name, schema]) => ({ name, list: schema.type === "array", values: schema.enum ?? schema.items?.enum ?? [] }));
+}
+
 function eslintPage(id, rule) {
   const docs = rule.meta?.docs ?? {};
-  const hasOptions = Array.isArray(rule.meta?.schema) && rule.meta.schema.length > 0;
+  const options = eslintOptions(rule);
+  const example = options.length
+    ? `["warn", { ${options[0].name}: ${JSON.stringify(options[0].list ? options[0].values.slice(0, 2) : (options[0].values[0] ?? true))} }]`
+    : '"warn"';
   return [
     BANNER,
     "",
@@ -136,11 +146,21 @@ function eslintPage(id, rule) {
     "",
     "This rule has no counterpart in the `@swissspidy/webmcp-lint` engine: it reads the source, and what it catches does not survive to runtime for a page rule to see.",
     "",
+    ...(options.length
+      ? [
+          "## Options",
+          "",
+          "| Option | Values |",
+          "| --- | --- |",
+          ...options.map((o) => `| \`${o.name}\` | ${o.list ? "any of " : ""}${o.values.map((v) => `\`"${v}"\``).join(", ")}; default: all |`),
+          "",
+        ]
+      : []),
     "## Configuring it",
     "",
     "```js",
     "// eslint.config.js",
-    `{ rules: { "webmcp/${id}": ${hasOptions ? '["warn", { /* options */ }]' : '"warn"'} } }`,
+    `{ rules: { "webmcp/${id}": ${example} } }`,
     "```",
     "",
     "---",

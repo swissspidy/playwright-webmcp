@@ -2,10 +2,8 @@
 import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs } from "node:util";
-import { toGitHubAnnotations, type Severity } from "@swissspidy/webmcp-lint";
+import { UsageError, findingsAtOrAbove, toGitHubAnnotations, type Severity } from "@swissspidy/webmcp-lint";
 import { audit, renderMarkdown, type AuditReport } from "./index.js";
-
-const SEVERITY_RANK: Record<Severity, number> = { error: 3, warning: 2, info: 1 };
 
 const HELP = `Usage: webmcp-audit <url> [options]
 
@@ -40,7 +38,9 @@ Options:
   --header <name: value>
                         HTTP header sent with every request to the audited origin
                         (not to third-party frames or resources), e.g. an
-                        Authorization header for a protected staging site; repeatable
+                        Authorization header for a protected staging site; repeatable.
+                        Each page is then requested twice: once to see where its
+                        redirects lead, so the header never follows one off the origin
   --settle <ms>         Wait this long after load for tools to register, then for the
                         tool list to hold still for as long again (default 500)
   --out <dir>           Output directory (default .webmcp-audit)
@@ -54,8 +54,6 @@ Options:
   --quiet               Do not print the report to stdout
   -h, --help            Show this help
 `;
-
-class UsageError extends Error {}
 
 function fail(message: string): never {
   throw new UsageError(message);
@@ -201,8 +199,7 @@ async function main(): Promise<number> {
   }
   const failedPages = report.pages.filter((p) => p.status === "error");
   if (failedPages.length) console.error(`webmcp-audit: ${failedPages.length} page(s) could not be audited`);
-  const threshold = failOn === "never" ? Infinity : SEVERITY_RANK[failOn as Severity];
-  return failedPages.length || report.findings.some((f) => SEVERITY_RANK[f.severity] >= threshold) ? 1 : 0;
+  return failedPages.length || findingsAtOrAbove(report.findings, failOn as Severity | "never").length ? 1 : 0;
 }
 
 try {

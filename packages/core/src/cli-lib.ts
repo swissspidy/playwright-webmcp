@@ -5,10 +5,10 @@
  * Playwright reporter writes.
  */
 import { parseArgs } from "node:util";
-import { formatFindings, lint } from "./lint.js";
+import { enumProblem, findingsAtOrAbove, formatFindings, lint } from "./lint.js";
+import { UsageError } from "./usage.js";
 import { toGitHubAnnotations } from "./github.js";
 import { toSnapshot } from "./from-tools.js";
-import { severityRank } from "./rules/helpers.js";
 import { rulesById } from "./rules/index.js";
 import type { LintOptions, Severity } from "./types.js";
 
@@ -33,7 +33,7 @@ Options:
   -h, --help            Show this help
 `;
 
-export class UsageError extends Error {}
+export { UsageError };
 
 export interface CliIo {
   stdout: (text: string) => void;
@@ -56,11 +56,18 @@ function parseRule(spec: string): [string, RuleConfig] {
   if (raw === "off" || raw === "false") return [id, false];
   if (raw === "on" || raw === "true") return [id, {}];
   if (SEVERITIES.includes(raw as Severity)) return [id, raw as Severity];
+  let parsed: unknown;
   try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return [id, parsed as Record<string, unknown>];
+    parsed = JSON.parse(raw);
   } catch {
-    /* fall through */
+    /* not JSON: reported below */
+  }
+  if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+    for (const [option, value] of Object.entries(parsed)) {
+      const problem = enumProblem(rulesById[id], option, value);
+      if (problem) throw new UsageError(`--rule ${problem}`);
+    }
+    return [id, parsed as Record<string, unknown>];
   }
   throw new UsageError(`--rule ${id}: expected on, off, error, warning, info or a JSON object, got ${JSON.stringify(raw)}`);
 }
@@ -141,9 +148,7 @@ export async function runLintCli(argv: string[], io: CliIo): Promise<number> {
       io.stdout(formatFindings(result) + "\n");
       io.stdout(`\n${result.counts.error} error(s), ${result.counts.warning} warning(s), ${result.counts.info} info in ${snapshot.tools.length} tool(s).\n`);
     }
-    if (args.failOn === "never") return 0;
-    const threshold = severityRank(args.failOn);
-    return result.findings.some((f) => severityRank(f.severity) >= threshold) ? 1 : 0;
+    return findingsAtOrAbove(result.findings, args.failOn).length ? 1 : 0;
   } catch (err) {
     if (err instanceof UsageError) {
       io.stderr(`webmcp-lint: ${err.message}\n\n${HELP}`);
