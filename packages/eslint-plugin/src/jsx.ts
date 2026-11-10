@@ -76,6 +76,15 @@ function hasSpread(el: JSXOpeningElementNode): boolean {
   return el.attributes.some((a) => a.type === "JSXSpreadAttribute");
 }
 
+/** Whether a spread comes after the last time the attribute is written (or it is not written): the spread's value then wins. */
+function spreadMaySet(el: JSXOpeningElementNode, name: string): boolean {
+  let written = -1;
+  el.attributes.forEach((a, i) => {
+    if (a.type === "JSXAttribute" && attributeName(a) === name.toLowerCase()) written = i;
+  });
+  return el.attributes.some((a, i) => a.type === "JSXSpreadAttribute" && i > written);
+}
+
 /** JSX elements inside a node, in document order, not descending into nested forms. */
 export function* elementsWithin(node: unknown, seen = new Set<unknown>()): Generator<JSXElementNode> {
   if (!node || typeof node !== "object" || seen.has(node)) return;
@@ -132,8 +141,8 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
   const fields: DeclarativeField[] = [];
   const fieldNodes = new Map<string, JSXOpeningElementNode>();
   const dynamic = new Set<string>();
-  // A spread on the form may carry the description.
-  if (description === DYNAMIC || (description === undefined && hasSpread(opening))) dynamic.add("description");
+  // A spread on the form may carry the description, unless an attribute written after it overrides it.
+  if (description === DYNAMIC || (description === undefined && spreadMaySet(opening, "tooldescription"))) dynamic.add("description");
   const properties: Record<string, JsonSchema> = {};
   const required: string[] = [];
   const labelledIds = new Set<string>();
@@ -220,13 +229,18 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
     );
     // A boolean attribute is present whatever its value, as in HTML (`required="false"` still requires).
     const isRequired = isPresent(requiredValue) || requiredValue === DYNAMIC;
-    // Controls that share a name (a radio group) are one parameter.
-    const sameName = fields.find((f) => f.name === fieldName);
-    if (sameName) {
-      sameName.hasLabel ||= hasLabel;
-      sameName.paramDescription ??= paramDescription;
-      if (isRequired && !sameName.required) {
-        sameName.required = true;
+    // The browser uses the label's text as the description when toolparamdescription is absent.
+    const description = paramDescription ?? labelText ?? (labelledNames.has(fieldName) ? wrappingLabelTexts.get(fieldName) : undefined);
+    // The radios of a group are one parameter, reported once: labelled when every option is, described
+    // when any option is. Other controls that share a name stay separate fields, so that a password
+    // input is still seen next to a text input of the same name.
+    const group = type === "radio" ? fields.find((f) => f.name === fieldName && f.type === "radio") : undefined;
+    if (group) {
+      group.hasLabel &&= hasLabel;
+      group.paramDescription ??= paramDescription;
+      if (description && !properties[fieldName].description) properties[fieldName].description = description;
+      if (isRequired && !group.required) {
+        group.required = true;
         required.push(fieldName);
       }
       continue;
@@ -234,11 +248,9 @@ export function formTool(el: JSXElementNode, resolve: Resolver): ExtractedForm |
     fields.push({ name: fieldName, type, required: isRequired, hasLabel, paramDescription, autocomplete });
     fieldNodes.set(fieldName, child.openingElement);
     const prop: JsonSchema = { type: type === "number" || type === "range" ? "number" : type === "checkbox" ? "boolean" : "string" };
-    // The browser uses the label's text as the description when toolparamdescription is absent.
-    const description = paramDescription ?? labelText ?? (labelledNames.has(fieldName) ? wrappingLabelTexts.get(fieldName) : undefined);
     if (description) prop.description = description;
     properties[fieldName] = prop;
-    if (isRequired) required.push(fieldName);
+    if (isRequired && !required.includes(fieldName)) required.push(fieldName);
   }
 
   const schema: JsonSchema = { type: "object", properties };

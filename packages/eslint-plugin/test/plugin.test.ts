@@ -807,3 +807,34 @@ test("tool-name-style rejects a style it does not know instead of reporting noth
   assert.equal(run("snake_case").length, 1);
   assert.throws(() => run("snake-case"), /snake-case|must be equal to one of the allowed values/);
 });
+
+test("JSX forms: same-name controls are only grouped when they are radios, and attribute order decides what a spread can set", () => {
+  const form = (inner: string, attrs = `tooldescription="Search the catalogue by keyword and return matches."`) =>
+    `const x = <form toolname="search" ${attrs}>${inner}</form>;`;
+  // A password input that shares a name with a text input is still a password input.
+  tester.run("declarative-autosubmit-sensitive", plugin.rules["declarative-autosubmit-sensitive"], {
+    valid: [],
+    invalid: [
+      {
+        code: form(
+          `<input name="secret" aria-label="A" /><input type="password" name="secret" aria-label="B" />`,
+          `tooldescription="Signs the person in with the details given." toolautosubmit`,
+        ),
+        errors: 1,
+      },
+    ],
+  });
+  tester.run("declarative-field-description", plugin.rules["declarative-field-description"], {
+    valid: [form(`<input type="radio" name="size" aria-label="Small" /><input type="radio" name="size" aria-label="Large" />`)],
+    // One labelled option does not cover an unlabelled one; the group is still reported once.
+    invalid: [{ code: form(`<input type="radio" name="size" aria-label="Small" /><input type="radio" name="size" />`), errors: 1 }],
+  });
+  tester.run("param-description-missing", plugin.rules["param-description-missing"], {
+    valid: [form(`<input type="radio" name="size" /><input type="radio" name="size" toolparamdescription="Shirt size" />`)],
+    invalid: [],
+  });
+  tester.run("declarative-description", plugin.rules["declarative-description"], {
+    valid: [form(`<input name="q" aria-label="Query" />`, `tooldescription={undefined} {...props}`)],
+    invalid: [{ code: form(`<input name="q" aria-label="Query" />`, `{...props} tooldescription={undefined}`), errors: 1 }],
+  });
+});

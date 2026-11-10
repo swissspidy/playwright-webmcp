@@ -155,7 +155,9 @@ async function main(): Promise<number> {
     const raw = values[name];
     if (raw === undefined) return undefined;
     const min = name === "max-pages" ? 1 : 0;
-    if (!/^\d+$/.test(raw) || Number(raw) < min) fail(`--${name} expects an integer of ${min} or more, got ${JSON.stringify(raw)}`);
+    // Digits only, and few enough of them that the number is exact: a longer run converts to Infinity.
+    if (!/^\d+$/.test(raw) || !Number.isSafeInteger(Number(raw)) || Number(raw) < min)
+      fail(`--${name} expects an integer of ${min} or more, got ${JSON.stringify(raw)}`);
     return Number(raw);
   };
   const maxPages = integer("max-pages");

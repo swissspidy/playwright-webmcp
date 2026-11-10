@@ -137,3 +137,8 @@ test("a mistyped rule id and a tools entry that is not a tool are usage errors",
 test("an option value a rule does not take is a usage error", () => {
   assert.throws(() => parseCliArgs(["tools.json", "--rule", 'tool-name-style={"style":"snake-case"}']), /"style" must be one of/);
 });
+
+test("names inherited from Object.prototype are not rules or enum options", () => {
+  assert.throws(() => parseCliArgs(["tools.json", "--rule", "constructor=off"]), /no such rule/);
+  assert.doesNotThrow(() => parseCliArgs(["tools.json", "--rule", 'tool-name-style={"constructor":"x"}']));
+});

@@ -51,7 +51,7 @@ function parseRule(spec: string): [string, RuleConfig] {
   if (eq <= 0) throw new UsageError(`--rule expects id=value, got ${JSON.stringify(spec)}`);
   const id = spec.slice(0, eq).trim();
   // The CLI runs the built-in rules only, so an id it does not know is a typo that would otherwise configure nothing.
-  if (!(id in rulesById)) throw new UsageError(`--rule ${id}: no such rule`);
+  if (!Object.hasOwn(rulesById, id)) throw new UsageError(`--rule ${id}: no such rule`);
   const raw = spec.slice(eq + 1).trim();
   if (raw === "off" || raw === "false") return [id, false];
   if (raw === "on" || raw === "true") return [id, {}];

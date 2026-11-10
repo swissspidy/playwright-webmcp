@@ -37,7 +37,7 @@ export function lint(snapshot: PageSnapshot, options: LintOptions = {}): LintRes
 
 /** Why a value is not one of the values a rule's option takes, or undefined when it is (or the option is free-form). */
 export function enumProblem(rule: Pick<Rule, "id" | "enums">, option: string, value: unknown): string | undefined {
-  const allowed = rule.enums?.[option];
+  const allowed = rule.enums && Object.hasOwn(rule.enums, option) ? rule.enums[option] : undefined;
   if (!allowed || value === undefined || allowed.includes(value as string)) return undefined;
   return `${rule.id}: "${option}" must be one of ${allowed.join(", ")}, got ${JSON.stringify(value)}`;
 }
