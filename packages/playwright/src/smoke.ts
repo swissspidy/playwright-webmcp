@@ -64,7 +64,7 @@ export function requestFilter(ignore: SmokeOptions["ignoreRequests"]): ((request
   return (request) => patterns.some((p) => p.test(request.url));
 }
 
-/** @deprecated Import `isReadOnlyTool` from `webmcp-lint` instead. */
+/** @deprecated Import `isReadOnlyTool` from `@swissspidy/webmcp-lint` instead. */
 export const isReadOnly = isReadOnlyTool;
 
 /**

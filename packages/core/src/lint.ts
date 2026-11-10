@@ -1,6 +1,6 @@
 import { builtinRules } from "./rules/index.js";
 import { severityRank } from "./rules/helpers.js";
-import type { Finding, LintOptions, LintResult, PageSnapshot, Rule, Severity } from "./types.js";
+import type { Finding, LintOptions, LintResult, PageSnapshot, Severity } from "./types.js";
 
 const SEVERITIES: Severity[] = ["error", "warning", "info"];
 
@@ -21,9 +21,8 @@ export function lint(snapshot: PageSnapshot, options: LintOptions = {}): LintRes
       ruleOptions = { ...ruleOptions, ...cfg };
       if (typeof cfg.severity === "string" && SEVERITIES.includes(cfg.severity as Severity)) severity = cfg.severity as Severity;
     }
-    const effective: Rule = { ...rule, severity };
     rulesRun.push(rule.id);
-    for (const f of rule.check({ snapshot, options: ruleOptions })) findings.push({ ...f, severity: effective.severity });
+    for (const f of rule.check({ snapshot, options: ruleOptions })) findings.push({ ...f, severity });
   }
 
   findings.sort((a, b) => severityRank(b.severity) - severityRank(a.severity) || a.ruleId.localeCompare(b.ruleId));

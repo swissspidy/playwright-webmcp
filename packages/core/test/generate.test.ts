@@ -198,3 +198,11 @@ test("a write to another origin is a warning, not an error", () => {
   );
   assert.doesNotMatch(both.findings[0].message, /analytics/);
 });
+
+test("result-string-json is for encoded objects and arrays, not text that parses as a primitive", () => {
+  const base = { tool: "t", kind: "valid-minimal" as const, label: "x", args: {}, ok: true, durationMs: 10 };
+  const ids = (result: string) => judgeRuns([{ ...base, result }]).findings.map((f) => f.ruleId);
+  for (const text of ["42", "true", '"quoted"', "plain text"]) assert.deepEqual(ids(text), [], text);
+  assert.deepEqual(ids("[1,2]"), ["result-string-json"]);
+  assert.deepEqual(ids('{"a":1}'), ["result-string-json"]);
+});

@@ -20,7 +20,7 @@ export const descriptionInjection = defineRule({
       const texts: Array<[string, string]> = [["description", tool.description ?? ""]];
       if (typeof tool.title === "string") texts.push(["/title", tool.title]);
       for (const [name, prop] of Object.entries(schemaProperties(tool.inputSchema))) {
-        if (typeof prop.description === "string") texts.push([`/properties/${name}/description`, prop.description]);
+        if (typeof prop?.description === "string") texts.push([`/properties/${name}/description`, prop.description]);
       }
       // Annotations are an open record; scan every string leaf under it.
       for (const { path, hits } of scanValue(tool.annotations)) {

@@ -3,6 +3,8 @@ import {
   explainMismatch,
   formatChanges,
   formatFindings,
+  formatScore,
+  lintTools,
   matchesArgument,
   reconcileCalls,
   type EvalCase,
@@ -11,9 +13,10 @@ import {
   type RecordedCall,
   type ReconcileOptions,
   type Severity,
+  type TimelineBudgets,
+  type ToolDefinitionLike,
   type ToolSource,
 } from "@swissspidy/webmcp-lint";
-import { formatScore, lintTools, type ToolDefinitionLike, type TimelineBudgets } from "@swissspidy/webmcp-lint";
 import { WebMCP } from "./fixture.js";
 import { evaluateAgent, isEvalAgent, type EvalAgent, type EvalRunOptions } from "./agent.js";
 import type { SmokeOptions } from "./smoke.js";

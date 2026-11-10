@@ -17,9 +17,13 @@ export function opt<T>(ctx: RuleContext, key: string, fallback: T): T {
   return (v === undefined ? fallback : v) as T;
 }
 
+/**
+ * The schema's `properties`, or nothing when it is not an object. The values are whatever the author
+ * wrote: a property can be `null` or a string, so read its keys with `?.`.
+ */
 export function schemaProperties(schema: JsonSchema | null): Record<string, JsonSchema> {
   const props = schema?.properties;
-  if (!props || typeof props !== "object") return {};
+  if (!props || typeof props !== "object" || Array.isArray(props)) return {};
   return props as Record<string, JsonSchema>;
 }
 

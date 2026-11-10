@@ -371,3 +371,20 @@ test("description-when-to-use asks for a trigger, not only a summary", () => {
   ])
     assert.ok(!ids(lint(snap([{ description }]), on)).includes("description-when-to-use"), description);
 });
+
+test("a property that is not a schema is reported, not crashed on", () => {
+  const r = lint(snap([{ name: "search", inputSchema: { type: "object", properties: { query: null, password: "text" } } as never }]));
+  assert.ok(r.findings.some((f) => f.ruleId === "schema-no-null-literals" && f.path === "/properties/query"));
+  assert.ok(r.findings.some((f) => f.ruleId === "param-description-missing" && f.path === "/properties/query"));
+  assert.ok(r.findings.some((f) => f.ruleId === "sensitive-params" && f.path === "/properties/password"));
+});
+
+test("properties given as an array or a string are not read as parameters", () => {
+  for (const properties of [[{ type: "string" }], "password"]) {
+    const r = lint(snap([{ name: "search", inputSchema: { type: "object", properties } as never }]));
+    assert.deepEqual(
+      r.findings.filter((f) => f.path?.startsWith("/properties/")),
+      [],
+    );
+  }
+});

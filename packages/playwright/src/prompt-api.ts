@@ -269,8 +269,10 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
     }
     result.usage = { inputUsage: session.inputUsage, inputQuota: session.inputQuota };
   } catch (err) {
-    if (controller.signal.aborted) result.status = "timeout";
-    else {
+    if (controller.signal.aborted) {
+      result.status = "timeout";
+      result.reason = `The run exceeded ${options.timeoutMs} ms.`;
+    } else {
       result.status = "error";
       result.reason = `prompt() failed: ${String((err as Error)?.message ?? err)}`;
     }
