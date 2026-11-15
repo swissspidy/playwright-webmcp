@@ -1,5 +1,27 @@
 # @swissspidy/playwright-webmcp
 
+## 0.5.0
+
+### Minor Changes
+
+- [#77](https://github.com/swissspidy/playwright-webmcp/pull/77) [`38d5c2a`](https://github.com/swissspidy/playwright-webmcp/commit/38d5c2a8527835c881e6f2d58437f88ba0ed298a) Thanks [@swissspidy](https://github.com/swissspidy)! - Breaking: `isReadOnly` is no longer exported from `@swissspidy/playwright-webmcp`; it was a deprecated alias of `isReadOnlyTool` from `@swissspidy/webmcp-lint`.
+  
+  A rule option that takes one of a fixed set of values now rejects anything else: `tool-name-style` with a `style` it does not know throws from `lint()`, is a usage error in the `webmcp-lint` CLI and fails ESLint's option validation, where it used to report nothing. Rules declare such options with `enums`.
+  
+  `@swissspidy/webmcp-lint` exports `findingsAtOrAbove()` (what `failOn` and `--fail-on` mean) and `UsageError`.
+
+### Patch Changes
+
+- [#77](https://github.com/swissspidy/playwright-webmcp/pull/77) [`38d5c2a`](https://github.com/swissspidy/playwright-webmcp/commit/38d5c2a8527835c881e6f2d58437f88ba0ed298a) Thanks [@swissspidy](https://github.com/swissspidy)! - Fixes from a pass over the whole repository.
+  
+  - `@swissspidy/webmcp-lint`: `lint()`, `diffContracts()`, `generateArguments()` and `renderToolDocs()` no longer throw on an `inputSchema` whose property is `null`. A clean page with full coverage scores 100 instead of 99. Lenient `reconcileCalls()` finds the assignment in an unordered group where a loose expectation could take a stricter one's call. Smoke inputs match their labels: no empty string under `minLength`, no "wrong type" that the declared types accept, no string of `maxLength` beyond 100,000 characters. `result-string-json` fires only for a string that encodes an object or an array. The `webmcp-lint` CLI exits 2 on an unknown `--rule` id and on a `tools` entry that is not a tool. Generated code keeps a quote inside an argument key, and `TOOLS.md` keeps a multi-line parameter description on one table row.
+  - `@swissspidy/webmcp-audit`: with `--smoke`, links are read before tools are called, so a tool that navigates no longer sends the crawl to the wrong page's links. The browser is closed when setup fails. The CLI rejects a URL that is not http(s) and `--max-pages 0`, and creates `--out` before the crawl.
+  - `@swissspidy/eslint-plugin-webmcp`: a tool-shaped literal that is changed after it is written (`tool.description = ...`) is left alone. `navigation-consequential` no longer takes `args.location.replace()`, a `location` or `history` parameter, or `state.location = ...` for navigation. In JSX forms, a spread on the `<form>` may carry the description, a `<label htmlFor>` outside the form counts, a radio group is one parameter, and an empty `aria-label` is not a label. A null `title` inside `inputSchema` is reported at the schema.
+  - `@swissspidy/playwright-webmcp`: a `promptApi` run that times out says so in `reason`.
+  - A declarative tool's `formLocator` no longer ends in an `:nth-of-type()` that did not identify the form. The ESLint plugin extracts each file's tools once instead of once per rule. The audit no longer installs the in-page recorder it never read, and its help says that `--header` requests each page twice.
+- Updated dependencies [[`38d5c2a`](https://github.com/swissspidy/playwright-webmcp/commit/38d5c2a8527835c881e6f2d58437f88ba0ed298a), [`38d5c2a`](https://github.com/swissspidy/playwright-webmcp/commit/38d5c2a8527835c881e6f2d58437f88ba0ed298a)]:
+  - @swissspidy/webmcp-lint@0.5.0
+
 ## 0.4.0
 
 ### Minor Changes
