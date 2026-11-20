@@ -28,7 +28,7 @@
     "@changesets/cli": "^3.0.3",
     "@playwright/test": "1.64.1",
     "@types/node": "^26.6.6",
-    "prettier": "^3.9.10",
+    "prettier": "^3.10.1",
     "publint": "^0.3.25",
     "typescript": "^7.0.2"
   }
