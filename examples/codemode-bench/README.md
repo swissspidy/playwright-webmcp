@@ -46,5 +46,6 @@ Results from before the code mode fixes (3e8a10e and earlier) used three arms: `
 
 ## Results
 
+- [2026-11-21, 3 runs per task and arm, harness at a247612 (description nudges)](results/2026-11-21T22-37-16-925Z.md)
 - [2026-11-21, 3 runs per task and arm, harness at 9e9a9d9 (after the code mode fixes)](results/2026-11-21T21-59-20-690Z.md)
 - [2026-11-21, 3 runs per task and arm, harness at 3e8a10e](results/2026-11-21T19-55-40-463Z.md)
