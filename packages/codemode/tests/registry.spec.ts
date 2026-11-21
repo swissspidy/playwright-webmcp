@@ -199,3 +199,38 @@ test.describe("review fixes", () => {
     }
   });
 });
+
+test.describe("pages that register their tools late", () => {
+  test("settle() waits for the first tool after a navigation, up to firstToolWaitMs", async () => {
+    const { s, r } = await setup({ firstToolWaitMs: 1000 });
+    s.addTools({ name: "old" });
+    s.emit("Page.frameNavigated", { frame: { id: "main", url: "http://shop/product" } });
+    setTimeout(() => s.addTools({ name: "late" }), 300);
+    const started = Date.now();
+    await r.settle(20, 5000);
+    expect(r.list().map((t) => t.name)).toEqual(["late"]);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(290);
+    expect(Date.now() - started).toBeLessThan(900);
+  });
+
+  test("settle() gives up on a page without tools once firstToolWaitMs has passed since its navigation", async () => {
+    const { s, r } = await setup({ firstToolWaitMs: 200 });
+    s.emit("Page.frameNavigated", { frame: { id: "main", url: "http://shop/empty" } });
+    const started = Date.now();
+    await r.settle(20, 5000);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(150);
+    expect(Date.now() - started).toBeLessThan(600);
+    // Long after the navigation, an empty page no longer holds settle() up.
+    const again = Date.now();
+    await r.settle(20, 5000);
+    expect(Date.now() - again).toBeLessThan(100);
+  });
+
+  test("settle() does not wait for tools when the main frame has some", async () => {
+    const { s, r } = await setup({ firstToolWaitMs: 2000 });
+    s.addTools({ name: "here" });
+    const started = Date.now();
+    await r.settle(20, 5000);
+    expect(Date.now() - started).toBeLessThan(200);
+  });
+});

@@ -6,7 +6,7 @@ import { FakeSession } from "./fake-session.js";
 
 async function serve() {
   const s = new FakeSession();
-  const cm = await CodeMode.create(s, { toolWaitMs: 50 });
+  const cm = await CodeMode.create(s, { toolWaitMs: 50, firstToolWaitMs: 0 });
   s.addTools({ name: "add", inputSchema: { type: "object", properties: { a: { type: "number" }, b: { type: "number" } }, required: ["a", "b"] } });
   s.answer((input) => ({ status: "Completed", output: (input.a as number) + (input.b as number) }));
   const input = new PassThrough();
@@ -26,13 +26,17 @@ async function serve() {
       waiting.set(n, resolve);
       input.write(JSON.stringify({ jsonrpc: "2.0", id: n, method, params }) + "\n");
     });
-  return { input, rpc, done, replies, waiting };
+  return { input, rpc, done, replies, waiting, s };
 }
 
 test("handshake, ping and tool listing", async () => {
   const { rpc, input, done } = await serve();
   const init = await rpc("initialize", { protocolVersion: "1999-01-01" });
-  expect(init.result).toMatchObject({ protocolVersion: "2025-11-25", capabilities: { tools: {} }, serverInfo: { name: "webmcp-codemode", version: "9.9.9" } });
+  expect(init.result).toMatchObject({
+    protocolVersion: "2025-11-25",
+    capabilities: { tools: { listChanged: true } },
+    serverInfo: { name: "webmcp-codemode", version: "9.9.9" },
+  });
   expect((await rpc("ping")).result).toEqual({});
   const { result } = await rpc("tools/list");
   expect(result.tools.map((t: any) => t.name)).toEqual(["webmcp_api", "webmcp_execute"]);
@@ -86,6 +90,44 @@ test("does not negotiate the batch-only protocol version 2025-03-26", async () =
   const { rpc, input, done } = await serve();
   expect((await rpc("initialize", { protocolVersion: "2025-03-26" })).result.protocolVersion).toBe("2025-11-25");
   expect((await rpc("initialize", { protocolVersion: "2024-11-05" })).result.protocolVersion).toBe("2024-11-05");
+  input.end();
+  await done;
+});
+
+test("webmcp_execute's description holds the page's API; clients hear when it changes", async () => {
+  const { rpc, input, done, replies, s } = await serve();
+  const { result } = await rpc("tools/list");
+  const execute = result.tools.find((t: any) => t.name === "webmcp_execute");
+  expect(execute.description).toContain("The current page's API");
+  expect(execute.description).toContain("add(args: {");
+  expect(execute.description).toContain("declare const browser");
+  s.addTools({ name: "subtract" });
+  await expect.poll(() => replies.filter((m) => m.method === "notifications/tools/list_changed").length).toBe(1);
+  // Only once until the client lists the tools again.
+  s.addTools({ name: "multiply" });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  expect(replies.filter((m) => m.method === "notifications/tools/list_changed")).toEqual([{ jsonrpc: "2.0", method: "notifications/tools/list_changed" }]);
+  const relisted = await rpc("tools/list");
+  expect(relisted.result.tools[1].description).toContain("multiply(args?: {");
+  s.addTools({ name: "divide" });
+  await expect.poll(() => replies.filter((m) => m.method === "notifications/tools/list_changed").length).toBe(2);
+  input.end();
+  await done;
+});
+
+test("after the tools change, webmcp_execute returns only the tools declaration", async () => {
+  const { rpc, input, done, s } = await serve();
+  s.answer((_input, name) => {
+    if (name === "add") setTimeout(() => s.addTools({ name: "subtract" }), 0);
+    return { status: "Completed", output: 1 };
+  });
+  const r = await rpc("tools/call", { name: "webmcp_execute", arguments: { code: "return await tools.add({ a: 1, b: 2 });" } });
+  const text: string = r.result.content[0].text;
+  expect(text).toContain("Tools changed: +subtract");
+  expect(text).toContain("Updated API:\n// Page: http://shop/\ndeclare const tools: {");
+  expect(text).toContain("subtract(args?: {");
+  expect(text).not.toContain("declare const browser");
+  expect(text).not.toContain("declare const codemode");
   input.end();
   await done;
 });

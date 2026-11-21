@@ -3,6 +3,7 @@
 <h1>Shop</h1>
 <script type="module">
   import { products, mc, json, cart } from "./shop.js";
+  import { orderHistory } from "./orders.js";
   mc.registerTool({
     name: "search_products",
     description: "Search the catalog by keyword and optional category. Returns matching products with id, name and price.",
@@ -52,6 +53,16 @@
     inputSchema: { type: "object", properties: {} },
     async execute() {
       throw new Error("out of stock");
+    },
+  });
+  mc.registerTool({
+    name: "get_order_history",
+    description:
+      "The customer's past orders, oldest first: id, date (YYYY-MM-DD), status (delivered, returned or canceled), shipping, items (productId, name, category, quantity, unitPrice) and total.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true },
+    async execute() {
+      return json(orderHistory());
     },
   });
   mc.registerTool({

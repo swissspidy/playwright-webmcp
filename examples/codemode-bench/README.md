@@ -4,23 +4,23 @@ Measures whether code mode saves tokens, turns and time compared with classic to
 
 ## Arms
 
-All three use the same model (Claude Opus 5.5 by default) and effort (`medium`), the same system prompt preamble, and a plain Messages API loop with no prompt caching. Only the tools differ:
+Both use the same model (Claude Opus 5.5 by default) and effort (`medium`), the same system prompt preamble, and a plain Messages API loop with no prompt caching. Only the tools differ:
 
-| Arm               | Tools the model sees                                                                                                         |
-| ----------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `classic`         | One tool per page tool, rebuilt after every navigation, the way Playwright MCP exposes WebMCP tools, plus a `navigate` tool. |
-| `codemode`        | The package's two MCP tools, `webmcp_api` and `webmcp_execute`.                                                              |
-| `codemode-inline` | `webmcp_execute` alone, with the current page's API in its description, which saves the `webmcp_api` round trip.             |
+| Arm        | Tools the model sees                                                                                                                                                                                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `classic`  | One tool per page tool, rebuilt after every navigation, the way Playwright MCP exposes WebMCP tools, plus a `navigate` tool.                                                                                                                                                 |
+| `codemode` | The package's MCP tools as its server lists them: `webmcp_execute` with the current page's API in its description (relisted every turn, as a client does on `tools/list_changed`), and `webmcp_api`. Results carry only the new page's tool declarations after a navigation. |
 
 Tool calls in every arm go through the same `CodeMode` machinery, so registration waits, navigation handling and result unwrapping are identical. The classic arm runs one tool per script.
 
 ## Tasks
 
-| Task       | Shape                                            | Checked by                                                         |
-| ---------- | ------------------------------------------------ | ------------------------------------------------------------------ |
-| `lookup`   | One page, read-only: a search, then arithmetic.  | The answer contains the right total.                               |
-| `purchase` | Three pages: find, open, add two, read the cart. | The cart holds exactly two grinders, and the answer has the total. |
-| `fan-out`  | Many pages: add every product of a category.     | The cart holds one of each kitchen product.                        |
+| Task       | Shape                                                                           | Checked by                                                         |
+| ---------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| `lookup`   | One page, read-only: a search, then arithmetic.                                 | The answer contains the right total.                               |
+| `purchase` | Three pages: find, open, add two, read the cart.                                | The cart holds exactly two grinders, and the answer has the total. |
+| `fan-out`  | Many pages: add every product of a category.                                    | The cart holds one of each kitchen product.                        |
+| `orders`   | One page, one large result: 200 orders (about 67 KB of JSON) to filter and sum. | The answer has the right amount, computed from the same data.      |
 
 Each run starts in a fresh browser context with an empty cart. A run counts as a success only if the model ends its turn and the check passes.
 
@@ -41,6 +41,8 @@ Options: `--runs`, `--tasks`, `--arms`, `--model`, `--effort`, `--max-turns` (de
 **It costs money.** A full run is 27 model loops of a few turns each. Expect a few dollars at Claude Opus 5.5 list prices. Start with `--runs 1`.
 
 CI only typechecks this script; it never runs it.
+
+Results from before the code mode fixes (3e8a10e and earlier) used three arms: `codemode` then meant the two tools without the API inlined, and a third arm, `codemode-inline`, inlined it.
 
 ## Results
 

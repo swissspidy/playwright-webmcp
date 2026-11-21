@@ -30,7 +30,7 @@ export const TOOL_DEFINITIONS = [
       "Write an async function body (use await, return the value you want back) or `async () => { ... }`.",
       "Available globals: `tools.<name>(args)` calls a page tool, `browser.goto/back/reload/url/tools/waitForTool/sleep`, `console.log`. There is no DOM, network or file access.",
       "Tool calls survive navigation: after a tool or browser.goto() loads another page, calling a tool that page registers waits for it to appear.",
-      "The response lists every tool call, console output, and, when the page's tools changed, the updated API.",
+      "The response lists every tool call, console output, and, when the page's tools changed, the updated `tools` declaration.",
     ].join("\n"),
     inputSchema: {
       type: "object",
@@ -40,6 +40,18 @@ export const TOOL_DEFINITIONS = [
     },
   },
 ] as const;
+
+/**
+ * The two tools with the page's current API appended to `webmcp_execute`'s description, so a model
+ * can write its first script without calling `webmcp_api` first. Pass `codeMode.declarations()`.
+ */
+export function toolDefinitions(declarations: string) {
+  const [api, execute] = TOOL_DEFINITIONS;
+  return [
+    api,
+    { ...execute, description: `${execute.description}\n\nThe current page's API (webmcp_api returns it again after navigation):\n\n${declarations}` },
+  ] as const;
+}
 
 export interface McpServerOptions {
   input?: Readable;
@@ -55,6 +67,16 @@ export function createMcpServer(codeMode: CodeMode, options: McpServerOptions = 
   const send = (msg: unknown) => output.write(JSON.stringify(msg) + "\n");
   const rl = createInterface({ input, crlfDelay: Infinity });
   const inflight = new Set<Promise<unknown>>();
+  // The tool names the client last listed. The description of webmcp_execute embeds the page's API,
+  // so when the tools change the client is told to list them again.
+  const toolNames = () => [...new Set(codeMode.registry.list().map((t) => t.name))].sort().join(",");
+  let listed: string | undefined;
+  const offChange = codeMode.registry.onChange(() => {
+    if (listed !== undefined && listed !== toolNames()) {
+      listed = undefined;
+      send({ jsonrpc: "2.0", method: "notifications/tools/list_changed" });
+    }
+  });
 
   const handle = async (msg: any): Promise<unknown> => {
     switch (msg.method) {
@@ -62,15 +84,18 @@ export function createMcpServer(codeMode: CodeMode, options: McpServerOptions = 
         const requested = msg.params?.protocolVersion;
         return {
           protocolVersion: PROTOCOL_VERSIONS.includes(requested) ? requested : PROTOCOL_VERSIONS[0],
-          capabilities: { tools: {} },
+          capabilities: { tools: { listChanged: true } },
           serverInfo: { ...SERVER_INFO, ...(options.version ? { version: options.version } : {}) },
-          instructions: "Call webmcp_api to see the page's tools as a TypeScript API, then webmcp_execute to run a script against them.",
+          instructions:
+            "webmcp_execute runs a script against the page's WebMCP tools; its description holds the page's current API, and webmcp_api returns it again.",
         };
       }
       case "ping":
         return {};
       case "tools/list":
-        return { tools: TOOL_DEFINITIONS };
+        await codeMode.registry.settle();
+        listed = toolNames();
+        return { tools: toolDefinitions(codeMode.declarations()) };
       case "tools/call": {
         const name = msg.params?.name;
         const args = msg.params?.arguments ?? {};
@@ -82,7 +107,7 @@ export function createMcpServer(codeMode: CodeMode, options: McpServerOptions = 
           if (typeof args.code !== "string") return { content: [{ type: "text", text: "`code` must be a string" }], isError: true };
           const result = await codeMode.execute(args.code);
           return {
-            content: [{ type: "text", text: formatResult(result, { declarations: codeMode.declarations() }) }],
+            content: [{ type: "text", text: formatResult(result, { declarations: codeMode.declarations({ compact: true }) }) }],
             isError: !result.ok,
           };
         }
@@ -120,6 +145,7 @@ export function createMcpServer(codeMode: CodeMode, options: McpServerOptions = 
 
   return new Promise((resolve) => {
     rl.on("close", () => {
+      offChange();
       void Promise.all(inflight).then(() => resolve());
     });
   });

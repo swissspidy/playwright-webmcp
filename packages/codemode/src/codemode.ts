@@ -45,6 +45,12 @@ export interface CodeModeOptions extends SandboxLimits {
   /** Passed to the registry: how long to wait for a response once a tool's document navigated away. */
   navigationGraceMs?: number;
   /**
+   * Passed to the registry: after a navigation, how long to wait for a page that has no tools yet to
+   * register its first one before reporting its tool list (in `browser.tools()`, the result, and the
+   * API). Default 2000.
+   */
+  firstToolWaitMs?: number;
+  /**
    * Run scripts with another `@cloudflare/codemode`-compatible executor instead of the built-in
    * QuickJS one. Such executors report errors as plain messages, so error names (for example
    * ToolUnavailableError) and extra properties do not reach the script, and the sandbox limits
@@ -123,7 +129,7 @@ export class CodeMode {
   /** Attach to a Playwright page, a Puppeteer page, or any CDP session with `send` and `on`. */
   static async create(target: PageLike | CdpLikeSession, options: CodeModeOptions = {}): Promise<CodeMode> {
     const session = await sessionFor(target);
-    const registry = new ToolRegistry(session, { navigationGraceMs: options.navigationGraceMs });
+    const registry = new ToolRegistry(session, { navigationGraceMs: options.navigationGraceMs, firstToolWaitMs: options.firstToolWaitMs });
     await registry.start();
     await registry.settle();
     return new CodeMode(registry, options);
@@ -133,9 +139,13 @@ export class CodeMode {
     return this.options.toolWaitMs ?? 5000;
   }
 
-  /** TypeScript declarations of the sandbox API for the tools registered right now. */
-  declarations(): string {
-    return declarations(this.registry.list(), { url: this.registry.url(), toolWaitMs: this.toolWaitMs });
+  /**
+   * TypeScript declarations of the sandbox API for the tools registered right now. `compact` leaves
+   * out everything that does not depend on the page (the notes, `codemode` and `browser`), for
+   * updates to an API the model has already seen.
+   */
+  declarations(options: { compact?: boolean } = {}): string {
+    return declarations(this.registry.list(), { url: this.registry.url(), toolWaitMs: this.toolWaitMs, compact: options.compact });
   }
 
   /** Run a script. Scripts run one at a time per page. */
@@ -164,6 +174,8 @@ export class CodeMode {
         case "url":
           return registry.url();
         case "tools":
+          // Right after a navigation the next page may not have registered its tools yet.
+          await registry.settle();
           return registry.list().map((t) => ({
             name: t.name,
             description: t.description,

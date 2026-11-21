@@ -277,3 +277,14 @@ test.describe("sandbox, more limits", () => {
     expect(r).toMatchObject({ ok: false, error: { name: "TimeoutError", message: "Script did not finish within 100 ms" } });
   });
 });
+
+test("compact declarations hold only the page URL and the tools", () => {
+  const tools = [{ name: "add_to_cart", description: "Add it.", frameId: "f", inputSchema: { type: "object", properties: { quantity: { type: "integer" } } } }];
+  const full = declarations(tools, { url: "http://shop/product", toolWaitMs: 5000 });
+  const compact = declarations(tools, { url: "http://shop/product", toolWaitMs: 5000, compact: true });
+  expect(compact).toBe(
+    "// Page: http://shop/product\ndeclare const tools: {\n  /** Add it. */\n  add_to_cart(args?: {\n    quantity?: number;\n  }): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n",
+  );
+  expect(full).toContain("declare const browser");
+  expect(compact.length).toBeLessThan(full.length / 3);
+});

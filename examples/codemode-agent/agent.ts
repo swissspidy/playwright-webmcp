@@ -10,7 +10,7 @@
  */
 import Anthropic from "@anthropic-ai/sdk";
 import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
-import { CodeMode, formatResult, TOOL_DEFINITIONS } from "@swissspidy/webmcp-codemode";
+import { CodeMode, formatResult, toolDefinitions } from "@swissspidy/webmcp-codemode";
 import { createInterface, type Interface } from "node:readline";
 import { chromium } from "playwright";
 
@@ -96,8 +96,9 @@ try {
     },
   });
 
-  // The same two tools the MCP server offers, wired to the SDK's tool runner.
-  const [api, execute] = TOOL_DEFINITIONS;
+  // The same two tools the MCP server offers, wired to the SDK's tool runner. The starting page's API
+  // is in webmcp_execute's description, so Claude can write its first script right away.
+  const [api, execute] = toolDefinitions(codeMode.declarations());
   const webmcpApi = betaTool({
     name: api.name,
     description: api.description,
@@ -112,7 +113,8 @@ try {
       console.error(`\n--- script\n${code.trim()}`);
       const result = await codeMode.execute(code);
       for (const call of result.calls) console.error(`    ${call.name} → ${call.outcome}`);
-      return formatResult(result, { declarations: codeMode.declarations() });
+      // After a navigation, only the new page's tools: Claude has the rest of the API already.
+      return formatResult(result, { declarations: codeMode.declarations({ compact: true }) });
     },
   });
 

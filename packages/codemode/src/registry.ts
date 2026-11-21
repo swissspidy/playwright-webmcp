@@ -59,6 +59,11 @@ export class ToolTimeoutError extends Error {
 export interface RegistryOptions {
   /** How long to wait for a response after the tool's frame navigated away, before reporting the call as navigated. */
   navigationGraceMs?: number;
+  /**
+   * How long settle() waits, after the main frame navigates, for the new page to register its first
+   * tool. Pages that hydrate register their tools some time after the load event. Default 2000 ms.
+   */
+  firstToolWaitMs?: number;
 }
 
 interface Frame {
@@ -87,6 +92,8 @@ export class ToolRegistry {
   private readonly loadListeners = new Set<() => void>();
   private readonly loading = new Set<string>();
   private lastChange = Date.now();
+  /** When the main frame last loaded a new document (or when the registry started). */
+  private mainNavigatedAt = Date.now();
   private started = false;
   mainFrameId = "";
 
@@ -204,15 +211,37 @@ export class ToolRegistry {
 
   /**
    * Resolves once no frame is loading and neither the tool list nor any frame has changed for
-   * `quietMs`, or after `timeoutMs`.
+   * `quietMs`, or after `timeoutMs`. While the main frame has no tools, it also waits until
+   * `firstToolWaitMs` after the main frame's last navigation, for a page that registers its tools late.
    */
   async settle(quietMs = 150, timeoutMs = 5000): Promise<void> {
     const deadline = Date.now() + timeoutMs;
+    const firstToolWaitMs = this.options.firstToolWaitMs ?? 2000;
     for (;;) {
-      const quietFor = Date.now() - this.lastChange;
-      if ((quietFor >= quietMs && !this.loading.size) || Date.now() >= deadline) return;
-      await sleep(Math.max(10, Math.min(quietMs - quietFor, deadline - Date.now())));
+      const now = Date.now();
+      const quietFor = now - this.lastChange;
+      const waitingForTools = !this.hasMainFrameTools() ? this.mainNavigatedAt + firstToolWaitMs - now : 0;
+      if ((quietFor >= quietMs && !this.loading.size && waitingForTools <= 0) || now >= deadline) return;
+      await this.changeOrTimeout(Math.max(10, Math.min(Math.max(quietMs - quietFor, waitingForTools), deadline - now)));
     }
+  }
+
+  private hasMainFrameTools(): boolean {
+    for (const t of this.tools.values()) if (t.frameId === this.mainFrameId) return true;
+    return false;
+  }
+
+  /** Sleeps for `ms`, or until the next change, whichever comes first. */
+  private changeOrTimeout(ms: number): Promise<void> {
+    return new Promise((resolve) => {
+      const done = () => {
+        clearTimeout(timer);
+        off();
+        resolve();
+      };
+      const timer = setTimeout(done, ms);
+      const off = this.onChange(done);
+    });
   }
 
   /** Invoke a tool and wait for its outcome. */
@@ -385,7 +414,10 @@ export class ToolRegistry {
       parentId: frame.parentId,
       generation: (prev?.generation ?? 0) + 1,
     });
-    if (!frame.parentId) this.mainFrameId = frame.id;
+    if (!frame.parentId) {
+      this.mainFrameId = frame.id;
+      this.mainNavigatedAt = Date.now();
+    }
     // The old document is gone; so are its tools and its child frames.
     for (const [k, t] of this.tools) if (t.frameId === frame.id) this.tools.delete(k);
     for (const [id, f] of this.frames) if (f.parentId === frame.id) this.dropFrame(id);
@@ -411,8 +443,4 @@ export class ToolRegistry {
 
 function key(frameId: string, name: string) {
   return `${frameId}::${name}`;
-}
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
 }

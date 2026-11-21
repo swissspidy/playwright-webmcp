@@ -217,3 +217,23 @@ test("runs on another codemode-compatible executor", async ({ codeMode }) => {
   const failed = await cm.execute(`await tools.fail();`);
   expect(failed.error).toEqual({ name: "Error", message: expect.stringContaining('Tool "fail" is not registered') });
 });
+
+test("browser.tools() and the result include tools the next page registers late", async ({ codeMode }) => {
+  const cm = await codeMode();
+  // The product page registers its tools 300 ms after it loads.
+  const r = await cm.execute(`
+    await tools.open_product({ id: 2 });
+    return (await browser.tools()).map((t) => t.name);
+  `);
+  expect(r.error).toBeUndefined();
+  expect(r.result).toEqual(["get_product", "add_to_cart", "back_to_search"]);
+  expect(r.tools.after).toEqual(["get_product", "add_to_cart", "back_to_search"]);
+  expect(cm.declarations({ compact: true })).toContain("add_to_cart(args?: {");
+});
+
+test("the tool list after a script waits for a late page, even when the script did not ask", async ({ codeMode }) => {
+  const cm = await codeMode();
+  const r = await cm.execute(`await tools.open_product({ id: 1 }); return "opened";`);
+  expect(r.tools.added).toEqual(["get_product", "add_to_cart", "back_to_search"]);
+  expect(formatResult(r, { declarations: cm.declarations({ compact: true }) })).toContain("get_product(args?: {");
+});

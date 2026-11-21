@@ -7,7 +7,7 @@ Code mode for [WebMCP](https://github.com/webmachinelearning/webmcp). Instead of
 What it adds over calling tools one at a time:
 
 - **Scripts survive navigations.** The sandbox lives in Node, not in the page. A tool that loads another page does not end the script. Calling a tool the next page registers waits for it to show up, including tools registered late, while an app hydrates.
-- **It follows the tool list as pages change.** Every result says how the page's tools changed and returns fresh TypeScript declarations. The model writes its next script against the page it is actually on.
+- **It follows the tool list as pages change.** Every result says how the page's tools changed and returns the new page's tool declarations. The model writes its next script against the page it is actually on.
 - **The sandbox is real.** Each script gets a fresh QuickJS context with no DOM, network, timers or host objects. It has memory and stack limits, a wall-clock timeout, a CPU-slice limit for busy loops, and a cap on tool calls. Values cross the boundary as JSON only.
 - **Independent calls run concurrently.** Host functions return guest promises (not the asyncify build), so `Promise.all` works.
 
@@ -30,10 +30,10 @@ npx @swissspidy/webmcp-codemode --cdp http://localhost:9222   # attach to a runn
 
 This launches Chromium with `--enable-features=WebMCP` (it needs the `playwright` package) and serves two tools on stdio:
 
-| Tool             | What it does                                                                                                                                                                                                 |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `webmcp_api`     | TypeScript declarations for the current page's tools, plus the `browser` helpers.                                                                                                                            |
-| `webmcp_execute` | Runs a script. Returns the script's result, console output, every tool call with its outcome and duration, and any navigation and tool-list change. When the tools changed, it also returns the updated API. |
+| Tool             | What it does                                                                                                                                                                                                                                                                              |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `webmcp_api`     | TypeScript declarations for the current page's tools, plus the `browser` helpers. The description of `webmcp_execute` already holds them as of the last `tools/list`, and the server sends `notifications/tools/list_changed` when the page's tools change, so a model rarely needs this. |
+| `webmcp_execute` | Runs a script. Returns the script's result, console output, every tool call with its outcome and duration, and any navigation and tool-list change. When the tools changed, it also returns the updated `tools` declaration.                                                              |
 
 Flags: `--headed`, `--executable-path`, `--allow-origin` (repeatable; limits the URLs `browser.goto()` may request), `--tool-wait <ms>`, `--timeout <ms>`.
 
@@ -131,7 +131,7 @@ With Playwright:
 
 ```ts
 import { chromium } from "playwright";
-import { CodeMode, formatResult } from "@swissspidy/webmcp-codemode";
+import { CodeMode, formatResult, toolDefinitions } from "@swissspidy/webmcp-codemode";
 
 const browser = await chromium.launch({ args: ["--enable-features=WebMCP"] });
 const page = await browser.newPage();
@@ -141,9 +141,11 @@ const codeMode = await CodeMode.create(page, {
   onToolCall: ({ tool }) => (tool.annotations?.consequential ? "needs approval" : true),
   canNavigate: (url) => url.origin === "https://shop.example",
 });
-const api = codeMode.declarations(); // what the model reads before it writes a script
+// The tools to offer the model, with the page's API in webmcp_execute's description.
+const tools = toolDefinitions(codeMode.declarations());
 const result = await codeMode.execute(modelWrittenCode);
-const reply = formatResult(result, { declarations: codeMode.declarations() }); // what it reads after
+// What the model reads after the script: after a navigation, only the new page's tools.
+const reply = formatResult(result, { declarations: codeMode.declarations({ compact: true }) });
 ```
 
 With Puppeteer, pass its page the same way:
@@ -169,21 +171,22 @@ Any object with CDP's `send(method, params)` and `on(event, handler)` works too,
 
 `CodeMode.create()` options:
 
-| Option             | Default | Meaning                                                                                                                                               |
-| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toolWaitMs`       | 5000    | How long a call waits for its tool to be registered.                                                                                                  |
-| `toolTimeoutMs`    | 30000   | How long one tool call may run before it is canceled through the browser.                                                                             |
-| `timeoutMs`        | 60000   | Wall-clock budget per script, including time spent waiting on tools.                                                                                  |
-| `cpuSliceMs`       | 5000    | Longest stretch of computation without awaiting.                                                                                                      |
-| `memoryLimitBytes` | 64 MiB  | QuickJS heap limit.                                                                                                                                   |
-| `maxCalls`         | 100     | Tool calls per script.                                                                                                                                |
-| `onToolCall`       | allow   | Return `true` to allow a call, or `false`/a reason string to deny it. Gets the tool's annotations. Best-effort without registration ids (see Limits). |
-| `canNavigate`      | any web | Narrows the URLs `browser.goto()` may request (redirects and tool-triggered navigations are not checked). Only http(s) URLs are ever allowed.         |
-| `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                                                                             |
+| Option             | Default | Meaning                                                                                                                                                                                |
+| ------------------ | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolWaitMs`       | 5000    | How long a call waits for its tool to be registered.                                                                                                                                   |
+| `toolTimeoutMs`    | 30000   | How long one tool call may run before it is canceled through the browser.                                                                                                              |
+| `timeoutMs`        | 60000   | Wall-clock budget per script, including time spent waiting on tools.                                                                                                                   |
+| `cpuSliceMs`       | 5000    | Longest stretch of computation without awaiting.                                                                                                                                       |
+| `memoryLimitBytes` | 64 MiB  | QuickJS heap limit.                                                                                                                                                                    |
+| `maxCalls`         | 100     | Tool calls per script.                                                                                                                                                                 |
+| `onToolCall`       | allow   | Return `true` to allow a call, or `false`/a reason string to deny it. Gets the tool's annotations. Best-effort without registration ids (see Limits).                                  |
+| `canNavigate`      | any web | Narrows the URLs `browser.goto()` may request (redirects and tool-triggered navigations are not checked). Only http(s) URLs are ever allowed.                                          |
+| `firstToolWaitMs`  | 2000    | After a navigation, how long to wait for a page without tools to register its first one before reporting its tools, so pages that hydrate show up in `browser.tools()` and in results. |
+| `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                                                                                                              |
 
 ### With your own agent
 
-`TOOL_DEFINITIONS` holds the two MCP tools (`name`, `description`, `inputSchema`), so any tool-calling API can offer code mode without the MCP server in between. [`examples/codemode-agent`](../../examples/codemode-agent) wires them to the Anthropic SDK's tool runner in one file:
+`toolDefinitions(codeMode.declarations())` returns the two MCP tools (`name`, `description`, `inputSchema`) with the page's API in the description of `webmcp_execute`, as the server lists them; `TOOL_DEFINITIONS` holds them without it. Any tool-calling API can offer code mode this way, without the MCP server in between. [`examples/codemode-agent`](../../examples/codemode-agent) wires them to the Anthropic SDK's tool runner in one file:
 
 ```sh
 node examples/codemode-agent/agent.ts https://shop.example "Put two of the cheapest grinders in the cart"

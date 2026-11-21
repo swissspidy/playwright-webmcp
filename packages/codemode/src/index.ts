@@ -9,4 +9,4 @@ export { runInSandbox } from "./sandbox.js";
 export type { LogEntry, SandboxError, SandboxLimits, SandboxResult } from "./sandbox.js";
 export { sessionFor } from "./session.js";
 export type { PageLike } from "./session.js";
-export { createMcpServer, TOOL_DEFINITIONS } from "./mcp.js";
+export { createMcpServer, TOOL_DEFINITIONS, toolDefinitions } from "./mcp.js";

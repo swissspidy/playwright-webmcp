@@ -1,6 +1,6 @@
 # codemode-agent
 
-An agent that does a task on a web page through the page's WebMCP tools, in code mode. Claude reads the page's tools as a TypeScript API (`webmcp_api`), then writes scripts that call them (`webmcp_execute`). [`@swissspidy/webmcp-codemode`](../../packages/codemode) runs each script in a QuickJS sandbox in Node, across navigations, and asks you before any tool the page marks as consequential.
+An agent that does a task on a web page through the page's WebMCP tools, in code mode. Claude gets the page's tools as a TypeScript API in the description of `webmcp_execute` and writes scripts that call them; `webmcp_api` returns the API again after the page changed. [`@swissspidy/webmcp-codemode`](../../packages/codemode) runs each script in a QuickJS sandbox in Node, across navigations, and asks you before any tool the page marks as consequential.
 
 `agent.ts` is the whole agent, in one file:
 

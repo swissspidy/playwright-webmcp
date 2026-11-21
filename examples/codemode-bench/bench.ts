@@ -3,20 +3,22 @@
  * in packages/codemode/tests/site. Every arm uses the same model, effort, system prompt preamble and
  * a plain Messages API loop; only the tools the model sees differ:
  *
- *   classic          one tool per page tool, rebuilt after every navigation (as Playwright MCP does),
- *                    plus a `navigate` tool
- *   codemode         the package's two MCP tools: webmcp_api and webmcp_execute
- *   codemode-inline  webmcp_execute alone, with the page's current API in its description
+ *   classic   one tool per page tool, rebuilt after every navigation (as Playwright MCP does), plus a
+ *             `navigate` tool
+ *   codemode  the package's MCP tools as its server lists them: webmcp_execute with the page's current
+ *             API in its description (relisted every turn, as a client does on tools/list_changed),
+ *             and webmcp_api
  *
  *   node bench.ts [--runs 3] [--tasks a,b] [--arms a,b] [--model claude-opus-5-5] [--out results]
  *
  * Reads the API key from TEST_API_KEY or ANTHROPIC_API_KEY. Runs cost money: see README.md.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { CodeMode, formatResult, TOOL_DEFINITIONS, type ToolInfo } from "@swissspidy/webmcp-codemode";
+import { CodeMode, formatResult, TOOL_DEFINITIONS, toolDefinitions, type ToolInfo } from "@swissspidy/webmcp-codemode";
 import { spawn } from "node:child_process";
 import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
+import { orderHistory } from "../../packages/codemode/tests/site/orders.js";
 import { parseArgs } from "node:util";
 import { chromium, type Page } from "playwright";
 
@@ -72,6 +74,13 @@ const quantities = async (page: Page) => {
 /** Whether the text states this exact amount: "$258" and "258.00" count, "258.99", "1258", "-258" and "-$258" do not. */
 const states = (text: string, amount: number) => (text.match(/-?\$?\d[\d,]*(?:\.\d+)?/g) ?? []).some((n) => Number(n.replace(/[$,]/g, "")) === amount);
 
+/** What the order-history task asks for, computed from the same data the page serves. */
+const officeSpend2025 = orderHistory()
+  .filter((o) => o.status === "delivered" && o.date.startsWith("2025-"))
+  .flatMap((o) => o.items)
+  .filter((i) => i.category === "office")
+  .reduce((sum, i) => sum + i.quantity * i.unitPrice, 0);
+
 const TASKS: Task[] = [
   {
     id: "lookup",
@@ -99,6 +108,13 @@ const TASKS: Task[] = [
       const q = await quantities(page);
       return q.size === 3 && q.get(1) === 1 && q.get(2) === 1 && q.get(4) === 1;
     },
+  },
+  {
+    id: "orders",
+    description: "Single page, large result: 200 orders (about 67 KB of JSON) to filter and sum.",
+    start: "/",
+    prompt: "How much did I spend on office products in orders that were delivered in 2025 (quantity times unit price)? Reply with just the number.",
+    check: async (text) => states(text, officeSpend2025),
   },
 ];
 
@@ -149,44 +165,32 @@ const classic: Arm = {
   },
 };
 
-const [apiTool, executeTool] = TOOL_DEFINITIONS;
+const [apiTool] = TOOL_DEFINITIONS;
 
+// The same tools, descriptions and results as the package's MCP server (src/mcp.ts).
 const codemode: Arm = {
   id: "codemode",
   system: PREAMBLE,
-  tools: () =>
-    TOOL_DEFINITIONS.map((t) => ({ name: t.name, description: t.description, input_schema: t.inputSchema as unknown as Anthropic.Tool.InputSchema })),
+  tools: (codeMode) =>
+    toolDefinitions(codeMode.declarations()).map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.inputSchema as unknown as Anthropic.Tool.InputSchema,
+    })),
   run: async (codeMode, _page, call) => {
     if (call.name === apiTool.name) return { text: codeMode.declarations(), isError: false, pageToolCalls: 0 };
-    return runScript(codeMode, call);
+    const code = String((call.input as { code?: unknown }).code ?? "");
+    const r = await codeMode.execute(code);
+    return { text: formatResult(r, { declarations: codeMode.declarations({ compact: true }) }), isError: !r.ok, pageToolCalls: r.calls.length };
   },
 };
-
-const codemodeInline: Arm = {
-  id: "codemode-inline",
-  system: PREAMBLE,
-  tools: (codeMode) => [
-    {
-      name: executeTool.name,
-      description: `${executeTool.description}\n\nThe current page's API:\n\n${codeMode.declarations()}`,
-      input_schema: executeTool.inputSchema as unknown as Anthropic.Tool.InputSchema,
-    },
-  ],
-  run: (codeMode, _page, call) => runScript(codeMode, call),
-};
-
-async function runScript(codeMode: CodeMode, call: Anthropic.ToolUseBlock) {
-  const code = String((call.input as { code?: unknown }).code ?? "");
-  const r = await codeMode.execute(code);
-  return { text: formatResult(r, { declarations: codeMode.declarations() }), isError: !r.ok, pageToolCalls: r.calls.length };
-}
 
 function dedupe(tools: ToolInfo[]): ToolInfo[] {
   const seen = new Set<string>();
   return tools.filter((t) => !seen.has(t.name) && !!seen.add(t.name));
 }
 
-const ARMS: Arm[] = [classic, codemode, codemodeInline];
+const ARMS: Arm[] = [classic, codemode];
 
 // ---------------------------------------------------------------------------------------------
 // One run: a fresh browser context (empty cart), the model loop, then the check.

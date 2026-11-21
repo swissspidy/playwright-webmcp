@@ -91,9 +91,11 @@ function toolHints(tool: ToolInfo): string[] {
 export interface DeclarationOptions {
   url: string;
   toolWaitMs: number;
+  /** Only the page URL and the `tools` declaration. */
+  compact?: boolean;
 }
 
-export function declarations(tools: ToolInfo[], { url, toolWaitMs }: DeclarationOptions): string {
+export function declarations(tools: ToolInfo[], { url, toolWaitMs, compact }: DeclarationOptions): string {
   const seen = new Set<string>();
   const members: string[] = [];
   for (const tool of tools) {
@@ -107,6 +109,8 @@ export function declarations(tools: ToolInfo[], { url, toolWaitMs }: Declaration
     const output = tool.outputSchema ? schemaToTs(tool.outputSchema, "  ") : "unknown";
     members.push(`  ${propName(tool.name)}(args${optional ? "?" : ""}: ${args}): Promise<${output}>;`);
   }
+  if (compact)
+    return `// Page: ${url}\ndeclare const tools: {\n${members.join("\n")}${members.length ? "\n" : ""}  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n`;
   return `// Page: ${url}
 // Tools are the page's WebMCP tools, called by name. A call waits up to ${toolWaitMs} ms for its tool to be
 // registered, so it works right after a navigation. Results are the tool's output; text content that holds
