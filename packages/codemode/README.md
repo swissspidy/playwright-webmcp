@@ -235,6 +235,24 @@ await executor.execute("async () => codemode.add({ a: 2, b: 40 })", {
 
 From Chrome 159, the browser reports registration ids (`toolId`) and `outputSchema`. Both landed in Chromium between revisions 1732152 and 1733639, after the M158 branch point. Calls then target the exact registration. If the tool was re-registered in the meantime, the browser refuses the call before running it, and the call is retried against the current registration. `settle()` waits for loading frames and a quiet tool list before reporting the "after" state. A short grace period also catches tools that navigate just after they answer.
 
+## Benchmark
+
+[`examples/codemode-bench`](../../examples/codemode-bench) runs the same tasks against the test shop in two arms:
+
+- **Classic:** one tool per page tool, rebuilt after every navigation.
+- **Code mode:** the MCP tools above.
+
+The table shows medians of 3 runs per cell. All 24 runs succeeded. The model was Claude Opus 5.5 at `medium` effort, and costs are at list prices without prompt caching ([full results](../../examples/codemode-bench/results/2026-11-21T22-37-16-925Z.md)).
+
+| Task                                          | Classic                    | Code mode                 |
+| --------------------------------------------- | -------------------------- | ------------------------- |
+| One page, one 67 KB result to filter and sum  | 2 turns, 31.7k in, $0.137  | 2 turns, 4.4k in, $0.024  |
+| Add every product of a category, page by page | 11 turns, 12.8k in, $0.062 | 4 turns, 11.3k in, $0.054 |
+| Find a product, add two, read the cart        | 7 turns, 7.0k in, $0.034   | 5 turns, 13.6k in, $0.063 |
+| One search, then arithmetic                   | 2 turns, 2.1k in, $0.011   | 3 turns, 6.8k in, $0.031  |
+
+Code mode pays off when a script can reduce a large tool result before the model sees it, or chain many calls across pages. For one or two small calls, the API in the tool description costs more than it saves. When the model reaches a page it has not seen, it usually lists the page's tools before acting. It does that instead of guessing names, which costs one round trip per new page.
+
 ## Limits of the prototype
 
 - Approvals are exact only with registration ids (Chrome 159+). An approval covers one registration of a tool. With ids, the browser refuses a call to a registration that has been replaced, and the replacement goes through `onToolCall` again. Without ids (Chrome 158 and earlier), calls are routed by tool name: a replacement registered before the call is sent is approved again, but one registered in the few milliseconds before the browser runs the call runs under the earlier approval.
