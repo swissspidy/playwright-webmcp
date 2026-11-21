@@ -274,3 +274,28 @@ test("a tool that keeps being re-registered is not called", async () => {
   expect(r.result).toContain("kept being re-registered");
   expect(s.sent.some((m) => m.method === "WebMCP.invokeTool")).toBe(false);
 });
+
+test("a call whose approval is still pending when the script ends is reported as pending", async () => {
+  // The policy answers "no" once the script is gone; the result must still show the call as pending.
+  const { s, cm } = await setup({
+    timeoutMs: 100,
+    onToolCall: ({ signal }) => new Promise<boolean>((resolve) => signal.addEventListener("abort", () => resolve(false), { once: true })),
+  });
+  s.addTools({ name: "buy" });
+  const r = await cm.execute(`await tools.buy();`);
+  expect(r.error).toMatchObject({ name: "TimeoutError" });
+  expect(r.calls).toEqual([expect.objectContaining({ name: "buy", outcome: "pending" })]);
+});
+
+test("an approval hook that throws fails the call with its error", async () => {
+  const { s, cm } = await setup({
+    onToolCall: () => {
+      throw new Error("approval service down");
+    },
+  });
+  s.addTools({ name: "buy" });
+  const r = await cm.execute(`try { await tools.buy(); } catch (e) { return e.message; }`);
+  expect(r.result).toBe("approval service down");
+  expect(r.calls[0]).toMatchObject({ name: "buy", outcome: "error", error: "approval failed: approval service down" });
+  expect(s.sent.some((m) => m.method === "WebMCP.invokeTool")).toBe(false);
+});

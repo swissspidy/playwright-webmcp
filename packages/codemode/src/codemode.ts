@@ -199,6 +199,9 @@ export class CodeMode {
     };
 
     let sandbox: SandboxResult;
+    // Taken the moment the script ends, before anything that could let a pending call settle: a call
+    // still pending then is reported as pending, whatever happens to it afterwards.
+    let snapshot: CallRecord[] = [];
     try {
       const providers = this.providers(host);
       const executor = this.options.executor ?? new QuickJSExecutor(this.options);
@@ -209,11 +212,13 @@ export class CodeMode {
         sandbox = r.error === undefined ? { ok: true, value: r.result ?? null, logs } : { ok: false, error: { name: "Error", message: r.error }, logs };
       }
     } finally {
+      const endedAt = Date.now();
+      snapshot = calls.map((call) => ({ ...call, ...(call.outcome === "pending" ? { durationMs: endedAt - call.startedAt } : {}) }));
       // Stop waits the script started but no longer needs.
       controller.abort();
     }
     // A tool may schedule a navigation just after answering; give it a moment to start.
-    const lastCallEnd = Math.max(0, ...calls.map((c) => c.startedAt + c.durationMs));
+    const lastCallEnd = Math.max(0, ...snapshot.map((c) => c.startedAt + c.durationMs));
     const grace = lastCallEnd + 250 - Date.now();
     if (grace > 0) await new Promise((resolve) => setTimeout(resolve, grace));
     await registry.settle();
@@ -222,8 +227,7 @@ export class CodeMode {
       ok: sandbox.ok,
       ...(sandbox.ok ? { result: sandbox.value } : { error: sandbox.error }),
       logs: sandbox.logs,
-      // A snapshot: calls still pending when the script ended stay "pending" here even if they settle later.
-      calls: calls.map((call) => ({ ...call, ...(call.outcome === "pending" ? { durationMs: Date.now() - call.startedAt } : {}) })),
+      calls: snapshot,
       url: { before: urlBefore, after: registry.url() },
       tools: {
         before: toolsBefore,
@@ -285,7 +289,14 @@ export class CodeMode {
         );
       }
       if (this.options.onToolCall && !sameRegistration(approved, tool)) {
-        const verdict = await this.options.onToolCall({ name, args, tool, url: registry.url(), signal });
+        let verdict: boolean | string;
+        try {
+          verdict = await this.options.onToolCall({ name, args, tool, url: registry.url(), signal });
+        } catch (err) {
+          // The approval itself failed: record that, and let the error reach the script.
+          finish({ outcome: "error", error: `approval failed: ${err instanceof Error ? err.message : String(err)}` });
+          throw err;
+        }
         if (verdict !== true) {
           const reason = typeof verdict === "string" ? verdict : "denied by policy";
           finish({ outcome: "denied", error: reason });
