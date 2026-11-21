@@ -340,8 +340,8 @@ importers:
         specifier: workspace:*
         version: link:../core
       webmcp-types:
-        specifier: ^0.1.10
-        version: 0.1.10
+        specifier: ^0.1.11
+        version: 0.1.11
     devDependencies:
       '@playwright/test':
         specifier: 1.64.1
@@ -1569,8 +1569,8 @@ packages:
   webdriver-bidi-protocol@1.0.2:
     resolution: {integrity: sha512-nghazPI+J5RrLZ+qb6vMjC6l1/tnwqr2muVEax4Ufd6eIdcjeqNnhLsAxTG9s+7Zf4umgf0DrEwDC8CoU91nAA==}
 
-  webmcp-types@0.1.10:
-    resolution: {integrity: sha512-U4GQ1RpJ0tqCUt2ALMV9Pnhi+hsy8L31f/Q1v4mLVhW64r5sYhh+2+SjP/Lq4/9jP33vZgNkuRZARJl65A/ZIg==}
+  webmcp-types@0.1.11:
+    resolution: {integrity: sha512-eMbboj2UcDVEJ0bdLsKJNRnvcVrAzesVnK5A4R+b9zbPiM6kuGPXQNTWlMlWq1FWr0L2BWZ3iA6e8fr3TN7gVw==}
 
   which@2.0.2:
     resolution: {integrity: sha512-BLI3Tl1TW3Pvl70l3yq3Y64i+awpwXqsGBYWkkqMtnbXgrMD+yj7rhW0kuEDxzJaYXGjEW5ogapKNMEKNMjibA==}
@@ -2618,7 +2618,7 @@ snapshots:
   use-webmcp-tool@0.3.0(react@19.3.1):
     dependencies:
       react: 19.3.1
-      webmcp-types: 0.1.10
+      webmcp-types: 0.1.11
 
   vite@8.3.5(@types/node@26.6.6)(yaml@2.9.1):
     dependencies:
@@ -2634,7 +2634,7 @@ snapshots:
 
   webdriver-bidi-protocol@1.0.2: {}
 
-  webmcp-types@0.1.10: {}
+  webmcp-types@0.1.11: {}
 
   which@2.0.2:
     dependencies:
