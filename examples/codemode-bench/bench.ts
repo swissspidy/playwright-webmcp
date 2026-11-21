@@ -69,8 +69,8 @@ const quantities = async (page: Page) => {
   return byId;
 };
 
-/** Whether the text states this exact amount: "$258" and "258.00" count, "258.99", "1258" and "-258" do not. */
-const states = (text: string, amount: number) => (text.match(/-?\d[\d,]*(?:\.\d+)?/g) ?? []).some((n) => Number(n.replaceAll(",", "")) === amount);
+/** Whether the text states this exact amount: "$258" and "258.00" count, "258.99", "1258", "-258" and "-$258" do not. */
+const states = (text: string, amount: number) => (text.match(/-?\$?\d[\d,]*(?:\.\d+)?/g) ?? []).some((n) => Number(n.replace(/[$,]/g, "")) === amount);
 
 const TASKS: Task[] = [
   {
