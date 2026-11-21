@@ -9,6 +9,11 @@ export interface ToolCallRequest {
   args: Record<string, unknown>;
   tool: ToolInfo;
   url: string;
+  /**
+   * Aborted when the script that made the call ends (finished, failed or timed out). Pass it to a
+   * prompt or request so an unanswered approval does not outlive its script.
+   */
+  signal: AbortSignal;
 }
 
 export interface CodeModeOptions extends SandboxLimits {
@@ -44,7 +49,8 @@ export interface CallRecord {
   url: string;
   startedAt: number;
   durationMs: number;
-  outcome: "completed" | "navigated" | "error" | "canceled" | "denied" | "unavailable";
+  /** `pending`: the script ended (finished, failed or timed out) before the call settled. */
+  outcome: "pending" | "completed" | "navigated" | "error" | "canceled" | "denied" | "unavailable";
   result?: unknown;
   error?: string;
 }
@@ -206,7 +212,8 @@ export class CodeMode {
       ok: sandbox.ok,
       ...(sandbox.ok ? { result: sandbox.value } : { error: sandbox.error }),
       logs: sandbox.logs,
-      calls,
+      // A snapshot: calls still pending when the script ended stay "pending" here even if they settle later.
+      calls: calls.map((call) => ({ ...call, ...(call.outcome === "pending" ? { durationMs: Date.now() - call.startedAt } : {}) })),
       url: { before: urlBefore, after: registry.url() },
       tools: {
         before: toolsBefore,
@@ -245,7 +252,7 @@ export class CodeMode {
 
   private async call(name: string, args: Record<string, unknown>, calls: CallRecord[], signal: AbortSignal): Promise<unknown> {
     const registry = this.registry;
-    const record: CallRecord = { name, args, url: registry.url(), startedAt: Date.now(), durationMs: 0, outcome: "completed" };
+    const record: CallRecord = { name, args, url: registry.url(), startedAt: Date.now(), durationMs: 0, outcome: "pending" };
     calls.push(record);
     const finish = (patch: Partial<CallRecord>) => Object.assign(record, patch, { durationMs: Date.now() - record.startedAt });
 
@@ -268,7 +275,7 @@ export class CodeMode {
         );
       }
       if (this.options.onToolCall && !sameRegistration(approved, tool)) {
-        const verdict = await this.options.onToolCall({ name, args, tool, url: registry.url() });
+        const verdict = await this.options.onToolCall({ name, args, tool, url: registry.url(), signal });
         if (verdict !== true) {
           const reason = typeof verdict === "string" ? verdict : "denied by policy";
           finish({ outcome: "denied", error: reason });
@@ -319,8 +326,9 @@ export class CodeMode {
 function sameRegistration(a: ToolInfo | undefined, b: ToolInfo): boolean {
   if (!a) return false;
   if (a === b) return true;
-  // Without registration ids, the same frame and name is the best identity available.
-  return a.frameId === b.frameId && a.name === b.name && (a.toolId ?? "") === (b.toolId ?? "");
+  // A different object is the same registration only if the browser says so with a registration id.
+  // Without ids, a replacement (possibly with other annotations) cannot be told apart, so it is approved again.
+  return Boolean(a.toolId) && a.toolId === b.toolId && a.frameId === b.frameId && a.name === b.name;
 }
 
 function parseLog(line: string): LogEntry {

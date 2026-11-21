@@ -65,7 +65,7 @@ Clients configured with JSON (Claude Desktop, a project's `.mcp.json`, and most 
 }
 ```
 
-To drive a Chrome you can watch and log in to, start it with `--remote-debugging-port=9222 --enable-features=WebMCP` and pass `--cdp http://localhost:9222` instead of `--url`.
+To drive a Chrome you can watch and log in to, start it with `--remote-debugging-port=9222 --enable-features=WebMCP --user-data-dir=<a dedicated directory>` and pass `--cdp http://localhost:9222` instead of `--url`. Chrome 136 and later only allows remote debugging with a profile directory other than the default one; log in to sites in that dedicated profile.
 
 ### What the model gets back
 
@@ -157,7 +157,7 @@ await page.goto("https://shop.example/");
 const codeMode = await CodeMode.create(page);
 ```
 
-With a Chrome that is already running (started with `--remote-debugging-port=9222 --enable-features=WebMCP`):
+With a Chrome that is already running (started with `--remote-debugging-port=9222 --enable-features=WebMCP --user-data-dir=<a dedicated directory>`):
 
 ```ts
 const browser = await chromium.connectOverCDP("http://localhost:9222");
@@ -183,7 +183,7 @@ Any object with CDP's `send(method, params)` and `on(event, handler)` works too,
 
 ### With your own agent
 
-`TOOL_DEFINITIONS` holds the two MCP tools (`name`, `description`, `inputSchema`), so any tool-calling API can offer code mode without the MCP server in between. [`examples/codemode-agent`](../../examples/codemode-agent) wires them to the Anthropic SDK's tool runner in under 100 lines:
+`TOOL_DEFINITIONS` holds the two MCP tools (`name`, `description`, `inputSchema`), so any tool-calling API can offer code mode without the MCP server in between. [`examples/codemode-agent`](../../examples/codemode-agent) wires them to the Anthropic SDK's tool runner in one file:
 
 ```sh
 node examples/codemode-agent/agent.ts https://shop.example "Put two of the cheapest grinders in the cart"

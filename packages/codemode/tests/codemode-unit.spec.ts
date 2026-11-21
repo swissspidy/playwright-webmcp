@@ -159,14 +159,24 @@ test("sessionFor accepts CDP sessions and rejects anything else", async () => {
 
 test("a call approved after the script ended is never started", async () => {
   let approve!: (v: boolean) => void;
-  const { s, cm } = await setup({ timeoutMs: 100, onToolCall: () => new Promise<boolean>((resolve) => (approve = resolve)) });
+  let signal!: AbortSignal;
+  const { s, cm } = await setup({
+    timeoutMs: 100,
+    onToolCall: (request) => {
+      signal = request.signal;
+      return new Promise<boolean>((resolve) => (approve = resolve));
+    },
+  });
   s.addTools({ name: "buy" });
   const r = await cm.execute(`await tools.buy();`);
   expect(r.error).toMatchObject({ name: "TimeoutError" });
+  // The policy is told the script is gone, so a prompt it opened can be closed.
+  expect(signal.aborted).toBe(true);
   approve(true);
   await tick(20);
   expect(s.sent.some((m) => m.method === "WebMCP.invokeTool")).toBe(false);
-  expect(r.calls[0]).toMatchObject({ name: "buy", outcome: "canceled" });
+  // The result is a snapshot taken when the script ended: the call was still waiting for approval.
+  expect(r.calls[0]).toMatchObject({ name: "buy", outcome: "pending" });
 });
 
 test("a replacement registration found on retry is approved again", async () => {
@@ -207,4 +217,29 @@ test("an approved registration that is refused and then retried as-is is not ask
   s.commands["WebMCP.invokeTool"] = () => new Error("Tool not found");
   await cm.execute(`try { await tools.t(); } catch {}`);
   expect(asked).toBe(1);
+});
+
+test("a replacement registration without ids is approved again", async () => {
+  let asked = 0;
+  const { s, cm } = await setup({
+    onToolCall: () => {
+      asked++;
+      return true;
+    },
+  });
+  s.addTools({ name: "t" });
+  let first = true;
+  s.commands["WebMCP.invokeTool"] = () => {
+    if (first) {
+      first = false;
+      // Re-registered under the same name while the call was on its way; no ids to tell them apart.
+      s.addTools({ name: "t", annotations: { consequential: true } });
+      return new Error("Tool not found");
+    }
+    setTimeout(() => s.emit("WebMCP.toolResponded", { invocationId: "inv-2", status: "Completed", output: "ok" }), 0);
+    return { invocationId: "inv-2" };
+  };
+  const r = await cm.execute(`return await tools.t();`);
+  expect(r.result).toBe("ok");
+  expect(asked).toBe(2);
 });

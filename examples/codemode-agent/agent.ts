@@ -11,7 +11,7 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { betaTool } from "@anthropic-ai/sdk/helpers/beta/json-schema";
 import { CodeMode, formatResult, TOOL_DEFINITIONS } from "@swissspidy/webmcp-codemode";
-import { createInterface } from "node:readline/promises";
+import { createInterface, type Interface } from "node:readline";
 import { chromium } from "playwright";
 
 const [url, ...words] = process.argv.slice(2);
@@ -21,22 +21,49 @@ if (!url || !task) {
   process.exit(1);
 }
 
+// Reads approval answers from stdin; created on the first consequential call.
+let reader: Interface | undefined;
 const browser = await chromium.launch({ headless: !process.env.HEADED, args: ["--enable-features=WebMCP"] });
 try {
   const page = await browser.newPage();
   await page.goto(url);
   const origin = new URL(url).origin;
 
+  // Approval questions share stdin, so they are asked one at a time, each reading its own line: two
+  // consequential calls a script starts together need two answers. One reader serves the whole run, so
+  // lines typed (or piped) ahead are kept for the next question. A question whose script has ended is
+  // withdrawn; the line it was waiting for then answers the next question.
+  let lines: AsyncIterator<string> | undefined;
+  let pendingLine: Promise<IteratorResult<string>> | undefined;
+  let approvals: Promise<unknown> = Promise.resolve();
+  const ask = (question: string, signal: AbortSignal): Promise<boolean> => {
+    const answer = approvals.then(async () => {
+      if (signal.aborted) return false;
+      reader ??= createInterface({ input: process.stdin });
+      lines ??= reader[Symbol.asyncIterator]();
+      process.stderr.write(question);
+      pendingLine ??= lines.next();
+      const withdrawn = new Promise<"withdrawn">((resolve) => signal.addEventListener("abort", () => resolve("withdrawn"), { once: true }));
+      const line = await Promise.race([pendingLine, withdrawn]);
+      if (line === "withdrawn") {
+        process.stderr.write("(withdrawn: the script ended)\n");
+        return false;
+      }
+      pendingLine = undefined;
+      return !line.done && /^y/i.test(line.value.trim());
+    });
+    approvals = answer.catch(() => {});
+    return answer;
+  };
+
   const codeMode = await CodeMode.create(page, {
-    // Scripts may navigate, but only within the site they started on.
+    // browser.goto() may only open pages on the starting site. (Navigations a page tool triggers
+    // itself are not limited by this.)
     canNavigate: (target) => target.origin === origin,
     // Ask a person before tools the page marks as consequential (purchases, deletions, ...).
-    onToolCall: async ({ name, args, tool }) => {
+    onToolCall: async ({ name, args, tool, signal }) => {
       if (!tool.annotations?.consequential) return true;
-      const prompt = createInterface({ input: process.stdin, output: process.stderr });
-      const answer = await prompt.question(`Allow ${name}(${JSON.stringify(args)})? [y/N] `);
-      prompt.close();
-      return /^y/i.test(answer.trim()) || "the user declined this call";
+      return (await ask(`Allow ${name}(${JSON.stringify(args)})? [y/N] `, signal)) || "the user declined this call";
     },
   });
 
@@ -89,5 +116,9 @@ try {
     console.log(`\n${text}`);
   }
 } finally {
+  if (reader) {
+    reader.close();
+    process.stdin.destroy(); // otherwise an open stdin keeps the process alive
+  }
   await browser.close();
 }
