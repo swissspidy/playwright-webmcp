@@ -26,6 +26,13 @@ export interface CodeModeOptions extends SandboxLimits {
   /**
    * Approve or deny each tool call. Return true to allow, false or a string (the reason) to deny.
    * By default every call is allowed.
+   *
+   * The approval is for one registration (`request.tool`). With registration ids (Chrome 159+) the
+   * browser refuses a call to a registration that has been replaced, and the replacement is asked
+   * about again. Without them (Chrome 158 and earlier) calls are routed by name: a replacement seen
+   * before the call is sent is asked about again, but one registered in the moment between that
+   * check and the browser running the call runs under this approval. Treat approval as best-effort
+   * there.
    */
   onToolCall?: (request: ToolCallRequest) => boolean | string | Promise<boolean | string>;
   /**

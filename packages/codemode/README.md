@@ -169,17 +169,17 @@ Any object with CDP's `send(method, params)` and `on(event, handler)` works too,
 
 `CodeMode.create()` options:
 
-| Option             | Default | Meaning                                                                                                                                       |
-| ------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
-| `toolWaitMs`       | 5000    | How long a call waits for its tool to be registered.                                                                                          |
-| `toolTimeoutMs`    | 30000   | How long one tool call may run before it is canceled through the browser.                                                                     |
-| `timeoutMs`        | 60000   | Wall-clock budget per script, including time spent waiting on tools.                                                                          |
-| `cpuSliceMs`       | 5000    | Longest stretch of computation without awaiting.                                                                                              |
-| `memoryLimitBytes` | 64 MiB  | QuickJS heap limit.                                                                                                                           |
-| `maxCalls`         | 100     | Tool calls per script.                                                                                                                        |
-| `onToolCall`       | allow   | Return `true` to allow a call, or `false`/a reason string to deny it. Gets the tool's annotations.                                            |
-| `canNavigate`      | any web | Narrows the URLs `browser.goto()` may request (redirects and tool-triggered navigations are not checked). Only http(s) URLs are ever allowed. |
-| `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                                                                     |
+| Option             | Default | Meaning                                                                                                                                               |
+| ------------------ | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolWaitMs`       | 5000    | How long a call waits for its tool to be registered.                                                                                                  |
+| `toolTimeoutMs`    | 30000   | How long one tool call may run before it is canceled through the browser.                                                                             |
+| `timeoutMs`        | 60000   | Wall-clock budget per script, including time spent waiting on tools.                                                                                  |
+| `cpuSliceMs`       | 5000    | Longest stretch of computation without awaiting.                                                                                                      |
+| `memoryLimitBytes` | 64 MiB  | QuickJS heap limit.                                                                                                                                   |
+| `maxCalls`         | 100     | Tool calls per script.                                                                                                                                |
+| `onToolCall`       | allow   | Return `true` to allow a call, or `false`/a reason string to deny it. Gets the tool's annotations. Best-effort without registration ids (see Limits). |
+| `canNavigate`      | any web | Narrows the URLs `browser.goto()` may request (redirects and tool-triggered navigations are not checked). Only http(s) URLs are ever allowed.         |
+| `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                                                                             |
 
 ### With your own agent
 
@@ -234,6 +234,7 @@ From Chrome 159, the browser reports registration ids (`toolId`) and `outputSche
 
 ## Limits of the prototype
 
+- Approvals are exact only with registration ids (Chrome 159+). An approval covers one registration of a tool. With ids, the browser refuses a call to a registration that has been replaced, and the replacement goes through `onToolCall` again. Without ids (Chrome 158 and earlier), calls are routed by tool name: a replacement registered before the call is sent is approved again, but one registered in the few milliseconds before the browser runs the call runs under the earlier approval.
 - Chromium only, since it uses the CDP WebMCP domain. Cross-origin iframes in separate processes (OOPIFs) are not followed. Only the page the session belongs to is driven: no tabs or popups.
 - If a tool with the same name exists on both the old and the new page, a call made right after a navigation starts can still reach the old document. `toolId` narrows this but does not remove it.
 - Return types appear in the declarations only from Chrome 159, which reports `outputSchema`. Before that, they show `unknown`.
