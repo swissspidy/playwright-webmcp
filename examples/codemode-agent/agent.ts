@@ -29,34 +29,54 @@ try {
   await page.goto(url);
   const origin = new URL(url).origin;
 
-  // Approval questions share stdin, so they are asked one at a time, each reading its own line: two
-  // consequential calls a script starts together need two answers. One reader serves the whole run, so
-  // answers piped in ahead are kept in order. A question whose script has ended is withdrawn, and a line
-  // that arrives before a question is shown (a late answer to a withdrawn one) never approves it.
-  type Line = { result: IteratorResult<string>; at: number };
-  let lines: AsyncIterator<string> | undefined;
-  let pendingLine: Promise<Line> | undefined;
-  const readLine = () => lines!.next().then((result) => ({ result, at: Date.now() }));
+  // Approval questions share stdin, so they are asked one at a time, each taking its own line: two
+  // consequential calls a script starts together need two answers, and answers piped in ahead are used in
+  // order. Lines are stamped when they arrive. A question whose script has ended is withdrawn, and every
+  // line that arrives after that and before the next question is shown is discarded, so a late answer to
+  // the withdrawn question never approves another call.
+  type Line = { text: string; at: number };
+  const buffered: Line[] = [];
+  let waiting: ((line: Line | undefined) => void) | undefined;
+  let inputClosed = false;
+  let withdrawnAt: number | undefined;
+  const nextLine = (): Promise<Line | undefined> => {
+    if (buffered.length) return Promise.resolve(buffered.shift());
+    if (inputClosed) return Promise.resolve(undefined);
+    return new Promise((resolve) => (waiting = resolve));
+  };
   let approvals: Promise<unknown> = Promise.resolve();
   const ask = (question: string, signal: AbortSignal): Promise<boolean> => {
     const answer = approvals.then(async () => {
       if (signal.aborted) return false;
-      reader ??= createInterface({ input: process.stdin });
-      lines ??= reader[Symbol.asyncIterator]();
+      if (!reader) {
+        reader = createInterface({ input: process.stdin });
+        reader.on("line", (text) => {
+          const line = { text, at: Date.now() };
+          const take = waiting;
+          waiting = undefined;
+          if (take) take(line);
+          else buffered.push(line);
+        });
+        reader.on("close", () => {
+          inputClosed = true;
+          waiting?.(undefined);
+          waiting = undefined;
+        });
+      }
       process.stderr.write(question);
       const askedAt = Date.now();
       const withdrawn = new Promise<"withdrawn">((resolve) => signal.addEventListener("abort", () => resolve("withdrawn"), { once: true }));
       for (;;) {
-        pendingLine ??= readLine();
-        const line = await Promise.race([pendingLine, withdrawn]);
+        const line = await Promise.race([nextLine(), withdrawn]);
         if (line === "withdrawn") {
+          waiting = undefined; // the next line goes to the buffer, stamped, and is judged there
+          withdrawnAt = Date.now();
           process.stderr.write("(withdrawn: the script ended)\n");
           return false;
         }
-        pendingLine = undefined;
-        if (line.result.done) return false;
-        if (line.at < askedAt) continue; // typed before this question was shown
-        return /^y/i.test(line.result.value.trim());
+        if (!line) return false; // stdin ended
+        if (withdrawnAt !== undefined && line.at >= withdrawnAt && line.at < askedAt) continue; // late answer to a withdrawn question
+        return /^y/i.test(line.text.trim());
       }
     });
     approvals = answer.catch(() => {});
