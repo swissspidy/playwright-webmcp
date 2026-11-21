@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r --filter './packages/*' run build",
-    "typecheck": "pnpm -r --filter './packages/*' --filter codemode-agent run typecheck",
+    "typecheck": "pnpm -r --filter './packages/*' --filter codemode-agent --filter codemode-bench run typecheck",
     "test": "pnpm run build && pnpm run test:unit && pnpm run test:e2e",
     "test:unit": "pnpm --filter @swissspidy/webmcp-lint test && pnpm --filter @swissspidy/eslint-plugin-webmcp test",
     "test:e2e": "pnpm --filter @swissspidy/playwright-webmcp test && pnpm --filter @swissspidy/webmcp-audit test && pnpm --filter @swissspidy/webmcp-codemode test && pnpm --filter react-shop test",
