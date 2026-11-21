@@ -5,7 +5,7 @@
  */
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
-import { formatResult, type CodeMode } from "./codemode.js";
+import { formatResult, RESULT_LIMIT, type CodeMode } from "./codemode.js";
 import { toolDefinitions as definitionsOf } from "./declarations.js";
 
 const SERVER_INFO = { name: "webmcp-codemode", version: "0.0.0" };
@@ -30,7 +30,8 @@ export const TOOL_DEFINITIONS = [
       "Run JavaScript in a sandbox that can call the current page's WebMCP tools. Use it to chain several tool calls in one step instead of calling tools one at a time.",
       "Write an async function body (use await, return the value you want back) or `async () => { ... }`.",
       "Available globals: `tools.<name>(args)` calls a page tool, `browser.goto/back/reload/url/tools/waitForTool/sleep`, `console.log`. There is no DOM, network or file access.",
-      "Tool calls survive navigation: after a tool or browser.goto() loads another page, calling a tool that page registers waits for it to appear.",
+      "Tool calls survive navigation: after a tool or browser.goto() loads another page, calling a tool that page registers waits for it to appear. So keep going in the same script: call the next page's tools directly, without browser.tools(), waitForTool or sleep first. If you do not know their names yet, a call to an unregistered tool throws ToolUnavailableError, whose message lists the tools that are there.",
+      `Do the work in the script: filter, aggregate and compute there, and return only what you need. Results longer than ${RESULT_LIMIT.toLocaleString("en-US")} characters are cut off, so do not return raw tool output to read it yourself.`,
       "The response lists every tool call, console output, and, when the page's tools changed, the updated `tools` declaration.",
     ].join("\n"),
     inputSchema: {

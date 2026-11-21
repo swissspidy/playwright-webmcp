@@ -101,6 +101,8 @@ test("webmcp_execute's description holds the page's API; clients hear when it ch
   expect(execute.description).toContain("The current page's API");
   expect(execute.description).toContain("add(args: {");
   expect(execute.description).toContain("declare const browser");
+  expect(execute.description).toContain("Results longer than 20,000 characters are cut off");
+  expect(execute.description).toContain("ToolUnavailableError");
   s.addTools({ name: "subtract" });
   await expect.poll(() => replies.filter((m) => m.method === "notifications/tools/list_changed").length).toBe(1);
   // Only once until the client lists the tools again.

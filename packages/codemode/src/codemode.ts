@@ -387,6 +387,9 @@ function names(tools: ToolInfo[]): string[] {
   return [...new Set(tools.map((t) => t.name))];
 }
 
+/** formatResult cuts a script's result off after this many characters. */
+export const RESULT_LIMIT = 20_000;
+
 /** A compact, model-facing rendering of an execution result. */
 export function formatResult(r: ExecuteResult, options: { declarations?: string } = {}): string {
   const out: string[] = [];
@@ -413,7 +416,7 @@ export function formatResult(r: ExecuteResult, options: { declarations?: string 
 
 function stringify(v: unknown): string {
   if (v === undefined || v === null) return "null";
-  return truncate(typeof v === "string" ? v : JSON.stringify(v, null, 2), 20_000);
+  return truncate(typeof v === "string" ? v : JSON.stringify(v, null, 2), RESULT_LIMIT);
 }
 
 function truncate(s: string, n: number): string {

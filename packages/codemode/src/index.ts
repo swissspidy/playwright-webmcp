@@ -1,4 +1,4 @@
-export { CodeMode, formatResult, unwrapResult } from "./codemode.js";
+export { CodeMode, formatResult, RESULT_LIMIT, unwrapResult } from "./codemode.js";
 export type { CallRecord, CodeModeOptions, ExecuteResult, ToolCallRequest } from "./codemode.js";
 export { declarations, schemaToTs } from "./declarations.js";
 export { ToolRegistry, ToolTimeoutError, WebMcpUnsupportedError } from "./registry.js";
