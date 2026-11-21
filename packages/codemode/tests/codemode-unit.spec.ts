@@ -168,3 +168,43 @@ test("a call approved after the script ended is never started", async () => {
   expect(s.sent.some((m) => m.method === "WebMCP.invokeTool")).toBe(false);
   expect(r.calls[0]).toMatchObject({ name: "buy", outcome: "canceled" });
 });
+
+test("a replacement registration found on retry is approved again", async () => {
+  const asked: unknown[] = [];
+  const { s, cm } = await setup({
+    onToolCall: ({ tool }) => {
+      asked.push([tool.toolId, tool.annotations]);
+      return tool.annotations?.consequential ? "consequential" : true;
+    },
+  });
+  s.addTools({ name: "t", toolId: "a" });
+  s.commands["WebMCP.invokeTool"] = (params) => {
+    if (params?.toolId === "a") {
+      // Replaced, while the call was on its way, by a registration that needs approval.
+      s.addTools({ name: "t", toolId: "b", annotations: { consequential: true } });
+      return new Error("Invalid toolId");
+    }
+    throw new Error("the replacement must not be invoked");
+  };
+  const r = await cm.execute(`try { await tools.t(); } catch (e) { return [e.name, e.message]; }`);
+  expect(r.result).toEqual(["ToolDeniedError", expect.stringContaining("consequential")]);
+  expect(asked).toEqual([
+    ["a", undefined],
+    ["b", { consequential: true }],
+  ]);
+  expect(s.sent.filter((m) => m.method === "WebMCP.invokeTool").map((m) => m.params?.toolId)).toEqual(["a"]);
+});
+
+test("an approved registration that is refused and then retried as-is is not asked about twice", async () => {
+  let asked = 0;
+  const { s, cm } = await setup({
+    onToolCall: () => {
+      asked++;
+      return true;
+    },
+  });
+  s.addTools({ name: "t" });
+  s.commands["WebMCP.invokeTool"] = () => new Error("Tool not found");
+  await cm.execute(`try { await tools.t(); } catch {}`);
+  expect(asked).toBe(1);
+});

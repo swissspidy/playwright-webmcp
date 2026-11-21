@@ -253,6 +253,9 @@ export class CodeMode {
       finish({ outcome: "error", error: "Tool arguments must be an object" });
       throw hostError("TypeError", `tools.${name}() takes one object argument`);
     }
+    // The registration the policy approved. A retry can land on a replacement registration with other
+    // annotations or in another document, so a different registration is approved again.
+    let approved: ToolInfo | undefined;
     for (let attempt = 0; ; attempt++) {
       const tool = await registry.waitForTool(name, this.toolWaitMs, signal);
       if (!tool) {
@@ -264,13 +267,14 @@ export class CodeMode {
           { tool: name, url: registry.url(), available },
         );
       }
-      if (attempt === 0 && this.options.onToolCall) {
+      if (this.options.onToolCall && !sameRegistration(approved, tool)) {
         const verdict = await this.options.onToolCall({ name, args, tool, url: registry.url() });
         if (verdict !== true) {
           const reason = typeof verdict === "string" ? verdict : "denied by policy";
           finish({ outcome: "denied", error: reason });
           throw hostError("ToolDeniedError", `Call to "${name}" was denied: ${reason}`, { tool: name });
         }
+        approved = tool;
       }
       // The script may have ended (timeout, error) while the policy or a retry was pending; an
       // invocation started now would change the page behind the caller's back.
@@ -310,6 +314,13 @@ export class CodeMode {
       }
     }
   }
+}
+
+function sameRegistration(a: ToolInfo | undefined, b: ToolInfo): boolean {
+  if (!a) return false;
+  if (a === b) return true;
+  // Without registration ids, the same frame and name is the best identity available.
+  return a.frameId === b.frameId && a.name === b.name && (a.toolId ?? "") === (b.toolId ?? "");
 }
 
 function parseLog(line: string): LogEntry {
