@@ -11,7 +11,11 @@ const SERVER_INFO = { name: "webmcp-codemode", version: "0.0.0" };
 // 2025-03-26 is left out: it requires JSON-RPC batch support, which this server does not have.
 const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2024-11-05"];
 
-const TOOLS = [
+/**
+ * The two tools, as MCP tool definitions (`name`, `description`, `inputSchema`, `annotations`).
+ * Reuse them to offer code mode through another tool-calling API.
+ */
+export const TOOL_DEFINITIONS = [
   {
     name: "webmcp_api",
     description:
@@ -35,7 +39,7 @@ const TOOLS = [
       additionalProperties: false,
     },
   },
-];
+] as const;
 
 export interface McpServerOptions {
   input?: Readable;
@@ -66,7 +70,7 @@ export function createMcpServer(codeMode: CodeMode, options: McpServerOptions = 
       case "ping":
         return {};
       case "tools/list":
-        return { tools: TOOLS };
+        return { tools: TOOL_DEFINITIONS };
       case "tools/call": {
         const name = msg.params?.name;
         const args = msg.params?.arguments ?? {};

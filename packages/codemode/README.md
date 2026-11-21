@@ -37,20 +37,137 @@ This launches Chromium with `--enable-features=WebMCP` (it needs the `playwright
 
 Flags: `--headed`, `--executable-path`, `--allow-origin` (repeatable; limits `browser.goto()`), `--tool-wait <ms>`, `--timeout <ms>`.
 
+### Adding it to an MCP client
+
+Claude Code:
+
+```sh
+claude mcp add webmcp-codemode -- npx -y @swissspidy/webmcp-codemode --url https://shop.example --allow-origin https://shop.example
+```
+
+Clients configured with JSON (Claude Desktop, a project's `.mcp.json`, and most others):
+
+```json
+{
+  "mcpServers": {
+    "webmcp-codemode": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@swissspidy/webmcp-codemode",
+        "--url",
+        "https://shop.example",
+        "--allow-origin",
+        "https://shop.example"
+      ]
+    }
+  }
+}
+```
+
+To drive a Chrome you can watch and log in to, start it with `--remote-debugging-port=9222 --enable-features=WebMCP` and pass `--cdp http://localhost:9222` instead of `--url`.
+
+### What the model gets back
+
+A `webmcp_execute` call with this script, on a shop where `open_product` loads the product page and the product page registers its tools after hydrating:
+
+```js
+const [lamp] = await tools.search_products({ query: "lamp" });
+await tools.open_product({ id: lamp.id });
+const product = await tools.get_product();
+console.log("on", await browser.url());
+return product;
+```
+
+returns (the updated API is shortened here):
+
+```text
+Result:
+{
+  "id": 3,
+  "name": "Desk lamp",
+  "category": "office",
+  "price": 59
+}
+
+Console:
+on http://localhost:4175/product?id=3
+
+Tool calls (3):
+- search_products({"query":"lamp"}) → completed [2 ms]
+- open_product({"id":3}) → navigated [17 ms]
+- get_product({}) → completed [302 ms]
+
+Page navigated: http://localhost:4175/ → http://localhost:4175/product?id=3
+
+Tools changed: +get_product, +add_to_cart, +back_to_search, -cart_size, -fail, -go_to_cart, -open_product, -search_products
+
+Updated API:
+// Page: http://localhost:4175/product?id=3
+declare const tools: {
+  /**
+   * Details of the product on this page.
+   * (read-only)
+   */
+  get_product(args?: {}): Promise<unknown>;
+  /**
+   * Add the product on this page to the cart.
+   * (consequential: may need approval)
+   */
+  add_to_cart(args?: {
+    /**
+     * @default 1
+     * @minimum 1
+     */
+    quantity?: number;
+  }): Promise<unknown>;
+  …
+};
+```
+
 ## As a library
 
+With Playwright:
+
 ```ts
+import { chromium } from "playwright";
 import { CodeMode, formatResult } from "@swissspidy/webmcp-codemode";
 
-const cm = await CodeMode.create(page, {
-  // Playwright page, Puppeteer page, or a CDP session
+const browser = await chromium.launch({ args: ["--enable-features=WebMCP"] });
+const page = await browser.newPage();
+await page.goto("https://shop.example/");
+
+const codeMode = await CodeMode.create(page, {
   onToolCall: ({ tool }) => (tool.annotations?.consequential ? "needs approval" : true),
   canNavigate: (url) => url.origin === "https://shop.example",
 });
-cm.declarations(); // the API the model should see
-const result = await cm.execute(modelWrittenCode);
-formatResult(result, { declarations: cm.declarations() });
+const api = codeMode.declarations(); // what the model reads before it writes a script
+const result = await codeMode.execute(modelWrittenCode);
+const reply = formatResult(result, { declarations: codeMode.declarations() }); // what it reads after
 ```
+
+With Puppeteer, pass its page the same way:
+
+```ts
+import puppeteer from "puppeteer";
+
+const browser = await puppeteer.launch({ args: ["--enable-features=WebMCP"] });
+const page = await browser.newPage();
+await page.goto("https://shop.example/");
+const codeMode = await CodeMode.create(page);
+```
+
+With a Chrome that is already running (started with `--remote-debugging-port=9222 --enable-features=WebMCP`):
+
+```ts
+const browser = await chromium.connectOverCDP("http://localhost:9222");
+const page = browser.contexts()[0].pages()[0];
+const codeMode = await CodeMode.create(page);
+```
+
+Any object with CDP's `send(method, params)` and `on(event, handler)` works too, such as a Playwright or Puppeteer `CDPSession`.
+
+`CodeMode.create()` options:
 
 | Option             | Default | Meaning                                                                                            |
 | ------------------ | ------- | -------------------------------------------------------------------------------------------------- |
@@ -63,6 +180,20 @@ formatResult(result, { declarations: cm.declarations() });
 | `onToolCall`       | allow   | Return `true` to allow a call, or `false`/a reason string to deny it. Gets the tool's annotations. |
 | `canNavigate`      | any web | Narrows `browser.goto()`. Only http(s) URLs are ever allowed.                                      |
 | `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                          |
+
+### With your own agent
+
+`TOOL_DEFINITIONS` holds the two MCP tools (`name`, `description`, `inputSchema`), so any tool-calling API can offer code mode without the MCP server in between. [`examples/codemode-agent`](../../examples/codemode-agent) wires them to the Anthropic SDK's tool runner in under 100 lines:
+
+```sh
+node examples/codemode-agent/agent.ts https://shop.example "Put two of the cheapest grinders in the cart"
+```
+
+### Examples in this repository
+
+- [`examples/react-shop/tests/codemode.spec.js`](../../examples/react-shop/tests/codemode.spec.js): code mode against a React app built with `use-webmcp-tool`. One script searches and fills the cart, and an approval hook blocks the consequential `add_to_cart`.
+- [`examples/codemode-agent`](../../examples/codemode-agent): an agent that does a task on any WebMCP site, asking before consequential calls.
+- [`tests/codemode.spec.ts`](tests/codemode.spec.ts) and [`tests/site`](tests/site): a multi-page shop with tools that navigate, register late and re-register, and scripts that cross all of it.
 
 ## Inside the sandbox
 
