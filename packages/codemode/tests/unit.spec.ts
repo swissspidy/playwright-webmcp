@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { declarations, QuickJSExecutor, runInSandbox, schemaToTs, ToolRegistry, unwrapResult, wrapUserCode } from "../src/index.js";
+import { declarations, QuickJSExecutor, runInSandbox, schemaToTs, ToolRegistry, unwrapResult } from "../src/index.js";
+import { wrapUserCode } from "../src/sandbox.js";
 import { FakeSession } from "./fake-session.js";
 
 const tool = (name: string, frameId = "main", extra: object = {}) => ({ name, description: name, frameId, inputSchema: { type: "object" }, ...extra });
@@ -109,7 +110,7 @@ test.describe("sandbox", () => {
   };
 
   test("accepts a function body or an async arrow function", async () => {
-    expect(wrapUserCode("return 1")).toContain("return 1");
+    expect(wrapUserCode("return 1", () => true)).toContain("return 1");
     expect(await runInSandbox("return 1 + 1", noHost)).toMatchObject({ ok: true, value: 2 });
     expect(await runInSandbox("async () => 'arrow'", noHost)).toMatchObject({ ok: true, value: "arrow" });
     expect(await runInSandbox("async function main() { return 3 }", noHost)).toMatchObject({ ok: true, value: 3 });
@@ -157,6 +158,18 @@ test.describe("QuickJSExecutor (Cloudflare codemode executor contract)", () => {
     expect(await ex.execute("async () => { while (true) {} }", {})).toMatchObject({ error: expect.stringContaining("without yielding") });
     expect(await ex.execute("async () =>", {})).toMatchObject({ error: expect.any(String) });
     expect(await ex.execute("async () => 1", [{ name: "not valid", fns: {} }])).toMatchObject({ error: expect.stringContaining("not a valid identifier") });
+  });
+
+  test("wrapUserCode only calls code as a function when the check says it is one expression", () => {
+    const helper = "async function helper() { return 1; }\nreturn await helper();";
+    expect(wrapUserCode(helper, () => false)).toBe(`(async () => {\n${helper}\n})()`);
+    expect(wrapUserCode("async () => 1", () => true)).toBe("(async () => {\nreturn await (async () => 1)();\n})()");
+    // Code that does not even look like a function is never handed to the check.
+    expect(
+      wrapUserCode("return 1", () => {
+        throw new Error("not asked");
+      }),
+    ).toBe("(async () => {\nreturn 1\n})()");
   });
 
   test("a body that starts with an async helper is still a body", async () => {

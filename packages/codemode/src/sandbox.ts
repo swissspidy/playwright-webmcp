@@ -70,7 +70,7 @@ ${extra}
  * `isExpression` decides whether code that starts like a function is one whole expression (the
  * sandbox compiles it to find out); a body that merely starts with an async helper is not.
  */
-export function wrapUserCode(code: string, isExpression: (source: string) => boolean = () => true): string {
+export function wrapUserCode(code: string, isExpression: (source: string) => boolean): string {
   // Models often wrap code in a Markdown fence.
   const fenced = /^\s*```[\w-]*\n([\s\S]*?)\n```\s*$/.exec(code);
   if (fenced) code = fenced[1];
