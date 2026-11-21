@@ -1,0 +1,66 @@
+{
+  "name": "@swissspidy/webmcp-codemode",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Code mode for WebMCP: let a model write one script that calls a page's tools, in a QuickJS sandbox that survives navigations and tool re-registration. Drives Chromium through Playwright, Puppeteer or raw CDP.",
+  "keywords": [
+    "webmcp",
+    "mcp",
+    "code-mode",
+    "quickjs",
+    "playwright",
+    "puppeteer",
+    "agents"
+  ],
+  "license": "Apache-2.0",
+  "author": "Pascal Birchler",
+  "homepage": "https://github.com/swissspidy/playwright-webmcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/swissspidy/playwright-webmcp.git",
+    "directory": "packages/codemode"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "engines": {
+    "node": ">=24"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "webmcp-codemode": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "pnpm run build && playwright test"
+  },
+  "dependencies": {
+    "quickjs-emscripten": "^0.32.0"
+  },
+  "peerDependencies": {
+    "playwright": ">=1.49"
+  },
+  "peerDependenciesMeta": {
+    "playwright": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "@types/node": "^26.6.6",
+    "playwright": "1.64.1",
+    "puppeteer-core": "^25.18.1",
+    "typescript": "^7.0.2"
+  }
+}

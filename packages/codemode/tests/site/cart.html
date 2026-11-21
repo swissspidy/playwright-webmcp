@@ -1,0 +1,50 @@
+<!doctype html>
+<title>Cart</title>
+<h1>Cart</h1>
+<script type="module">
+  import { products, mc, json, cart, saveCart } from "./shop.js";
+  mc.registerTool({
+    name: "get_cart",
+    description: "Items in the cart with line totals and the order total.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true },
+    async execute() {
+      const lines = cart().map(({ id, quantity }) => {
+        const p = products.find((x) => x.id === id);
+        return { name: p.name, quantity, total: p.price * quantity };
+      });
+      return json({ lines, total: lines.reduce((s, l) => s + l.total, 0) });
+    },
+  });
+  mc.registerTool({
+    name: "clear_cart",
+    description: "Remove everything from the cart.",
+    inputSchema: { type: "object", properties: {} },
+    async execute() {
+      saveCart([]);
+      return "cleared";
+    },
+  });
+  // A tool that is re-registered with every change, as some frameworks do.
+  let n = 0;
+  let controller;
+  const register = () => {
+    controller?.abort();
+    controller = new AbortController();
+    const version = ++n;
+    mc.registerTool(
+      {
+        name: "cart_version",
+        description: "Which registration of this tool answered.",
+        inputSchema: { type: "object", properties: {} },
+        annotations: { readOnlyHint: true },
+        async execute() {
+          return version;
+        },
+      },
+      { signal: controller.signal },
+    );
+  };
+  register();
+  window.reRegister = register;
+</script>

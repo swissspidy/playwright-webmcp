@@ -6,6 +6,7 @@ A small Vite + React app that exposes WebMCP tools three ways, with the whole to
 - `src/App.jsx` registers them with [`useWebMCP`](https://www.npmjs.com/package/use-webmcp-tool) and renders `<form toolname="subscribe_newsletter">` as a declarative tool that answers agents through `SubmitEvent.respondWith`.
 - `eslint.config.js` runs `@swissspidy/eslint-plugin-webmcp` on all of it. The wrapper is declared once under `settings.webmcp.definitions`; `search_products` is registered from another file, so the plugin recognises it where it is written by its shape (`name`, `inputSchema`, `execute`), and it lints the JSX form with the declarative rules.
 - `tests/shop.spec.js` uses the `@swissspidy/playwright-webmcp` fixture against the built app: tool shapes, page-level lint, real calls, the MCP `content` result shape `use-webmcp-tool` produces, smoke runs and coverage.
+- `tests/codemode.spec.js` runs [`@swissspidy/webmcp-codemode`](../../packages/codemode) against the same app: one sandboxed script that searches and fills the cart, and an approval hook that blocks the consequential `add_to_cart`.
 
 ```sh
 pnpm install
