@@ -159,6 +159,12 @@ test.describe("QuickJSExecutor (Cloudflare codemode executor contract)", () => {
     expect(await ex.execute("async () => 1", [{ name: "not valid", fns: {} }])).toMatchObject({ error: expect.stringContaining("not a valid identifier") });
   });
 
+  test("a body that starts with an async helper is still a body", async () => {
+    const r = await new QuickJSExecutor().execute("async function helper() { return 1; }\nreturn await helper();", {});
+    expect(r).toMatchObject({ result: 1 });
+    expect(await new QuickJSExecutor().execute("async () => 1; return 2;", {})).toMatchObject({ result: 2 });
+  });
+
   test("strips a Markdown code fence", async () => {
     expect(await new QuickJSExecutor().execute("```js\nreturn 5;\n```", {})).toMatchObject({ result: 5 });
   });

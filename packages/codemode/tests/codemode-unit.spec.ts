@@ -156,3 +156,15 @@ test("sessionFor accepts CDP sessions and rejects anything else", async () => {
   expect(await sessionFor(s)).toBe(s);
   await expect(sessionFor({} as never)).rejects.toThrow("Expected a Playwright page");
 });
+
+test("a call approved after the script ended is never started", async () => {
+  let approve!: (v: boolean) => void;
+  const { s, cm } = await setup({ timeoutMs: 100, onToolCall: () => new Promise<boolean>((resolve) => (approve = resolve)) });
+  s.addTools({ name: "buy" });
+  const r = await cm.execute(`await tools.buy();`);
+  expect(r.error).toMatchObject({ name: "TimeoutError" });
+  approve(true);
+  await tick(20);
+  expect(s.sent.some((m) => m.method === "WebMCP.invokeTool")).toBe(false);
+  expect(r.calls[0]).toMatchObject({ name: "buy", outcome: "canceled" });
+});

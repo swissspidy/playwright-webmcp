@@ -125,6 +125,13 @@ export class ToolRegistry {
     s.on("WebMCP.toolResponded", (p) => this.onResponded(p));
     s.on("Page.frameNavigated", (p) => this.onFrameNavigated(p.frame));
     s.on("Page.frameDetached", (p) => this.dropFrame(p.frameId));
+    // History API and fragment navigations: same document, same tools, new URL.
+    s.on("Page.navigatedWithinDocument", (p) => {
+      const frame = this.frames.get(p.frameId);
+      if (!frame) return;
+      frame.url = p.url;
+      this.changed();
+    });
     // A frame that is loading is about to replace its tools; settle() waits for it.
     s.on("Page.frameStartedLoading", (p) => {
       this.loading.add(p.frameId);
@@ -212,14 +219,31 @@ export class ToolRegistry {
   async invoke(tool: ToolInfo, input: Record<string, unknown>, timeoutMs: number): Promise<InvokeOutcome> {
     const frame = this.frames.get(tool.frameId);
     const generation = frame?.generation ?? 0;
+    // One deadline covers both the command and the response.
+    const deadline = Date.now() + timeoutMs;
+    const timeoutError = () => new ToolTimeoutError(`Tool "${tool.name}" did not respond within ${timeoutMs} ms`);
     let invocationId: string;
+    let sendTimer: ReturnType<typeof setTimeout> | undefined;
     try {
       // Prefer the registration id: it fails cleanly if the tool was re-registered in the meantime,
       // instead of reaching a different registration that happens to share the name.
       const target = tool.toolId ? { toolId: tool.toolId } : { toolName: tool.name };
-      ({ invocationId } = await this.session.send("WebMCP.invokeTool", { frameId: tool.frameId, ...target, input }));
+      const sent: Promise<{ invocationId: string }> = this.session.send("WebMCP.invokeTool", { frameId: tool.frameId, ...target, input });
+      const reply = await Promise.race([sent, new Promise<"timeout">((resolve) => (sendTimer = setTimeout(() => resolve("timeout"), timeoutMs)))]);
+      if (reply === "timeout") {
+        // The command may still go through; cancel the invocation once its id is known.
+        sent.then(
+          ({ invocationId: late }) => void this.session.send("WebMCP.cancelInvocation", { invocationId: late }).catch(() => {}),
+          () => {},
+        );
+        throw timeoutError();
+      }
+      invocationId = reply.invocationId;
     } catch (err) {
+      if (err instanceof ToolTimeoutError) throw err;
       return { status: "error", error: String((err as Error)?.message ?? err), stale: true };
+    } finally {
+      clearTimeout(sendTimer);
     }
     const early = this.early.get(invocationId);
     if (early) {
@@ -228,16 +252,20 @@ export class ToolRegistry {
     }
     const result = new Promise<InvokeOutcome>((resolve) => {
       this.pending.set(invocationId, { frameId: tool.frameId, generation, resolve });
-      // The frame may have navigated between the command and now.
-      if ((this.frames.get(tool.frameId)?.generation ?? 0) !== generation) this.startGrace(invocationId);
+      // The frame may have navigated or gone away between the command and now.
+      const now = this.frames.get(tool.frameId);
+      if (!now || now.generation !== generation) this.startGrace(invocationId);
     });
     let timer: ReturnType<typeof setTimeout> | undefined;
     const timeout = new Promise<never>((_, reject) => {
-      timer = setTimeout(() => {
-        this.forget(invocationId);
-        void this.session.send("WebMCP.cancelInvocation", { invocationId }).catch(() => {});
-        reject(new ToolTimeoutError(`Tool "${tool.name}" did not respond within ${timeoutMs} ms`));
-      }, timeoutMs);
+      timer = setTimeout(
+        () => {
+          this.forget(invocationId);
+          void this.session.send("WebMCP.cancelInvocation", { invocationId }).catch(() => {});
+          reject(timeoutError());
+        },
+        Math.max(0, deadline - Date.now()),
+      );
     });
     try {
       return await Promise.race([result, timeout]);
@@ -248,8 +276,7 @@ export class ToolRegistry {
 
   /** Navigate the main frame and wait for the load event and the tool list to settle. */
   async navigate(url: string, timeoutMs = 30_000): Promise<void> {
-    const loaded = this.waitForLoad(timeoutMs);
-    const res = await this.session.send("Page.navigate", { url });
+    const { loaded, res } = await this.withLoadWait(timeoutMs, () => this.session.send("Page.navigate", { url }));
     if (res?.errorText) {
       loaded.cancel();
       throw new Error(`Navigation to ${url} failed: ${res.errorText}`);
@@ -265,18 +292,29 @@ export class ToolRegistry {
     const { currentIndex, entries } = await this.session.send("Page.getNavigationHistory");
     const entry = entries?.[currentIndex - 1];
     if (!entry) return false;
-    const loaded = this.waitForLoad(timeoutMs);
-    await this.session.send("Page.navigateToHistoryEntry", { entryId: entry.id });
+    const { loaded } = await this.withLoadWait(timeoutMs, () => this.session.send("Page.navigateToHistoryEntry", { entryId: entry.id }));
     await loaded.promise.catch(() => {});
     await this.settle();
     return true;
   }
 
   async reload(timeoutMs = 30_000): Promise<void> {
-    const loaded = this.waitForLoad(timeoutMs);
-    await this.session.send("Page.reload");
+    const { loaded } = await this.withLoadWait(timeoutMs, () => this.session.send("Page.reload"));
     await loaded.promise;
     await this.settle();
+  }
+
+  /** Start waiting for the load event, then send the command; stop waiting if the command fails. */
+  private async withLoadWait<T>(timeoutMs: number, command: () => Promise<T>) {
+    const loaded = this.waitForLoad(timeoutMs);
+    // Observed right away, so a load timeout nobody awaits (the command failed) is no unhandled rejection.
+    loaded.promise.catch(() => {});
+    try {
+      return { loaded, res: await command() };
+    } catch (err) {
+      loaded.cancel();
+      throw err;
+    }
   }
 
   private waitForLoad(timeoutMs: number): { promise: Promise<void>; cancel: () => void } {

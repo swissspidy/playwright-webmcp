@@ -84,7 +84,10 @@ import { QuickJSExecutor } from "@swissspidy/webmcp-codemode";
 
 const executor = new QuickJSExecutor({ timeoutMs: 10_000, memoryLimitBytes: 32 * 1024 * 1024 });
 await executor.execute("async () => codemode.add({ a: 2, b: 40 })", {
-  add: async ({ a, b }) => a + b,
+  add: async (args) => {
+    const { a, b } = args as { a: number; b: number };
+    return a + b;
+  },
 });
 // → { result: 42, logs: [] }
 ```

@@ -7,6 +7,8 @@ export default defineConfig({
   webServer: {
     command: "node tests/site/server.mjs",
     port: 4175,
+    // The server reads PORT; pin it so an inherited PORT cannot move it off the port we wait on.
+    env: { PORT: "4175" },
     reuseExistingServer: true,
   },
   use: {

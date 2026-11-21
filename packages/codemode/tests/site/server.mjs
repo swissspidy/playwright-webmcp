@@ -7,8 +7,15 @@ const root = fileURLToPath(new URL(".", import.meta.url));
 const port = Number(process.env.PORT ?? 4175);
 
 createServer(async (req, res) => {
-  const url = new URL(req.url ?? "/", "http://localhost");
-  let path = normalize(decodeURIComponent(url.pathname));
+  let path;
+  try {
+    path = normalize(decodeURIComponent(new URL(req.url ?? "/", "http://localhost").pathname));
+  } catch {
+    // A malformed escape such as "/%" must not take the server down.
+    res.writeHead(400);
+    res.end("bad request");
+    return;
+  }
   if (path.endsWith("/")) path += "index.html";
   if (!path.endsWith(".html") && !path.endsWith(".js")) path += ".html";
   try {

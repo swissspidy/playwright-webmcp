@@ -69,3 +69,23 @@ test("protocol errors", async () => {
   input.end();
   await done;
 });
+
+test("rejects invalid envelopes and batches without stopping", async () => {
+  const { rpc, input, done, waiting } = await serve();
+  for (const line of ["null", "42", '[{"jsonrpc":"2.0","id":2,"method":"ping"}]', '{"jsonrpc":"2.0","id":"x"}']) {
+    const reply = new Promise<any>((resolve) => waiting.set(line.includes('"x"') ? "x" : null, resolve));
+    input.write(line + "\n");
+    expect((await reply).error).toEqual({ code: -32600, message: "Invalid Request" });
+  }
+  expect((await rpc("ping")).result).toEqual({});
+  input.end();
+  await done;
+});
+
+test("does not negotiate the batch-only protocol version 2025-03-26", async () => {
+  const { rpc, input, done } = await serve();
+  expect((await rpc("initialize", { protocolVersion: "2025-03-26" })).result.protocolVersion).toBe("2025-11-25");
+  expect((await rpc("initialize", { protocolVersion: "2024-11-05" })).result.protocolVersion).toBe("2024-11-05");
+  input.end();
+  await done;
+});

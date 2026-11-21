@@ -72,3 +72,8 @@ test("serves code mode over MCP stdio", async ({ baseURL }) => {
     await new Promise((resolve) => child.once("exit", resolve));
   }
 });
+
+test("the fixture server answers malformed paths with 400 and keeps serving", async ({ baseURL }) => {
+  expect((await fetch(`${baseURL}/%`)).status).toBe(400);
+  expect((await fetch(`${baseURL}/cart`)).status).toBe(200);
+});

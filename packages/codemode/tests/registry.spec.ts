@@ -141,3 +141,61 @@ test("waitForTool stops when its signal aborts, and onChange can unsubscribe", a
   s.addTools({ name: "b" });
   expect(changes).toBe(1);
 });
+
+test.describe("review fixes", () => {
+  test("same-document navigations update the URL and keep the tools", async () => {
+    const { s, r } = await setup();
+    s.addTools({ name: "t" });
+    s.emit("Page.navigatedWithinDocument", { frameId: "main", url: "http://shop/checkout/" });
+    s.emit("Page.navigatedWithinDocument", { frameId: "gone", url: "http://elsewhere/" });
+    expect(r.url()).toBe("http://shop/checkout/");
+    expect(r.get("t")).toBeDefined();
+  });
+
+  test("the deadline also covers a command reply that stalls; the late invocation is canceled", async () => {
+    const { s, r } = await setup();
+    s.addTools({ name: "t" });
+    let reply!: (v: unknown) => void;
+    s.commands["WebMCP.invokeTool"] = () => new Promise((resolve) => (reply = resolve));
+    const started = Date.now();
+    await expect(r.invoke(r.get("t")!, {}, 50)).rejects.toBeInstanceOf(ToolTimeoutError);
+    expect(Date.now() - started).toBeLessThan(1000);
+    reply({ invocationId: "late-1" });
+    await tick(10);
+    expect(s.sent.at(-1)).toEqual({ method: "WebMCP.cancelInvocation", params: { invocationId: "late-1" } });
+  });
+
+  test("a frame that detaches before the command reply resolves the call as navigated", async () => {
+    const { s, r } = await setup({ navigationGraceMs: 20 });
+    s.addTools({ name: "ad", frameId: "child" });
+    s.commands["WebMCP.invokeTool"] = () => {
+      s.emit("Page.frameDetached", { frameId: "child" });
+      return { invocationId: "inv-ad" };
+    };
+    expect(await r.invoke(r.get("ad")!, {}, 5000)).toEqual({ status: "navigated", url: "" });
+  });
+
+  test("a failed navigation command leaves no load wait behind", async () => {
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on("unhandledRejection", onUnhandled);
+    try {
+      const { s, r } = await setup();
+      for (const method of ["Page.navigate", "Page.reload", "Page.navigateToHistoryEntry"]) s.commands[method] = () => new Error(`${method} failed`);
+      s.history = {
+        currentIndex: 1,
+        entries: [
+          { id: 1, url: "http://shop/" },
+          { id: 2, url: "http://shop/b" },
+        ],
+      };
+      await expect(r.navigate("http://shop/x", 20)).rejects.toThrow("Page.navigate failed");
+      await expect(r.reload(20)).rejects.toThrow("Page.reload failed");
+      await expect(r.back(20)).rejects.toThrow("Page.navigateToHistoryEntry failed");
+      await tick(60);
+      expect(unhandled).toEqual([]);
+    } finally {
+      process.off("unhandledRejection", onUnhandled);
+    }
+  });
+});

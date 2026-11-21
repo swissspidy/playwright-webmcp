@@ -65,14 +65,18 @@ ${extra}
 `;
 }
 
-/** Wrap user code: either an async function expression, or a function body that may `return`. */
-export function wrapUserCode(code: string): string {
+/**
+ * Wrap user code: either an async function expression, or a function body that may `return`.
+ * `isExpression` decides whether code that starts like a function is one whole expression (the
+ * sandbox compiles it to find out); a body that merely starts with an async helper is not.
+ */
+export function wrapUserCode(code: string, isExpression: (source: string) => boolean = () => true): string {
   // Models often wrap code in a Markdown fence.
   const fenced = /^\s*```[\w-]*\n([\s\S]*?)\n```\s*$/.exec(code);
   if (fenced) code = fenced[1];
   const trimmed = code.trim().replace(/;+\s*$/, "");
-  const isFunction = /^async\s*(\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/.test(trimmed) || /^async\s+function\b/.test(trimmed);
-  const body = isFunction ? `return await (${trimmed})();` : code;
+  const looksLikeFunction = /^async\s*(\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/.test(trimmed) || /^async\s+function\b/.test(trimmed);
+  const body = looksLikeFunction && isExpression(trimmed) ? `return await (${trimmed})();` : code;
   return `(async () => {\n${body}\n})()`;
 }
 
@@ -173,12 +177,21 @@ export async function runInSandbox(code: string, host: HostHandler, extraPrelude
     }
     pre.value.dispose();
 
+    const compilesAsExpression = (source: string) => {
+      const compiled = ctx.evalCode(`(${source});`, "check.js", { compileOnly: true });
+      if (compiled.error) {
+        compiled.error.dispose();
+        return false;
+      }
+      compiled.value.dispose();
+      return true;
+    };
     const program = `
 (() => {
   const done = __done; delete globalThis.__done;
   const safe = (v) => { try { return JSON.stringify({ ok: true, value: v === undefined ? null : v }); }
     catch (e) { return JSON.stringify({ ok: false, error: { name: "TypeError", message: "Script result is not JSON-serializable: " + e.message } }); } };
-  ${wrapUserCode(code)}.then(
+  ${wrapUserCode(code, compilesAsExpression)}.then(
     (v) => done(safe(v)),
     (e) => done(JSON.stringify({ ok: false, error: { name: (e && e.name) || "Error", message: String(e && e.message !== undefined ? e.message : e), stack: e && e.stack } })),
   );

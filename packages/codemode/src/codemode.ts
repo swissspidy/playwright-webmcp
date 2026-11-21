@@ -272,6 +272,12 @@ export class CodeMode {
           throw hostError("ToolDeniedError", `Call to "${name}" was denied: ${reason}`, { tool: name });
         }
       }
+      // The script may have ended (timeout, error) while the policy or a retry was pending; an
+      // invocation started now would change the page behind the caller's back.
+      if (signal.aborted) {
+        finish({ outcome: "canceled", error: "the script ended before the call started" });
+        throw hostError("ToolCanceledError", `Call to "${name}" was not started: the script ended`, { tool: name });
+      }
       const outcome: InvokeOutcome = await registry.invoke(tool, args, this.options.toolTimeoutMs ?? 30_000).catch((err) => ({
         status: "error" as const,
         error: String(err?.message ?? err),

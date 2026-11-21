@@ -8,7 +8,8 @@ import type { Readable, Writable } from "node:stream";
 import { formatResult, type CodeMode } from "./codemode.js";
 
 const SERVER_INFO = { name: "webmcp-codemode", version: "0.0.0" };
-const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
+// 2025-03-26 is left out: it requires JSON-RPC batch support, which this server does not have.
+const PROTOCOL_VERSIONS = ["2025-11-25", "2025-06-18", "2024-11-05"];
 
 const TOOLS = [
   {
@@ -95,6 +96,11 @@ export function createMcpServer(codeMode: CodeMode, options: McpServerOptions = 
       msg = JSON.parse(line);
     } catch {
       send({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "Parse error" } });
+      return;
+    }
+    if (!msg || typeof msg !== "object" || Array.isArray(msg) || typeof msg.method !== "string") {
+      const id = msg && typeof msg === "object" && !Array.isArray(msg) && (typeof msg.id === "string" || typeof msg.id === "number") ? msg.id : null;
+      send({ jsonrpc: "2.0", id, error: { code: -32600, message: "Invalid Request" } });
       return;
     }
     // Notifications (no id) need no answer.
