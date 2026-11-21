@@ -35,7 +35,7 @@ This launches Chromium with `--enable-features=WebMCP` (it needs the `playwright
 | `webmcp_api`     | TypeScript declarations for the current page's tools, plus the `browser` helpers.                                                                                                                            |
 | `webmcp_execute` | Runs a script. Returns the script's result, console output, every tool call with its outcome and duration, and any navigation and tool-list change. When the tools changed, it also returns the updated API. |
 
-Flags: `--headed`, `--executable-path`, `--allow-origin` (repeatable; limits `browser.goto()`), `--tool-wait <ms>`, `--timeout <ms>`.
+Flags: `--headed`, `--executable-path`, `--allow-origin` (repeatable; limits the URLs `browser.goto()` may request), `--tool-wait <ms>`, `--timeout <ms>`.
 
 ### Adding it to an MCP client
 
@@ -169,17 +169,17 @@ Any object with CDP's `send(method, params)` and `on(event, handler)` works too,
 
 `CodeMode.create()` options:
 
-| Option             | Default | Meaning                                                                                            |
-| ------------------ | ------- | -------------------------------------------------------------------------------------------------- |
-| `toolWaitMs`       | 5000    | How long a call waits for its tool to be registered.                                               |
-| `toolTimeoutMs`    | 30000   | How long one tool call may run before it is canceled through the browser.                          |
-| `timeoutMs`        | 60000   | Wall-clock budget per script, including time spent waiting on tools.                               |
-| `cpuSliceMs`       | 5000    | Longest stretch of computation without awaiting.                                                   |
-| `memoryLimitBytes` | 64 MiB  | QuickJS heap limit.                                                                                |
-| `maxCalls`         | 100     | Tool calls per script.                                                                             |
-| `onToolCall`       | allow   | Return `true` to allow a call, or `false`/a reason string to deny it. Gets the tool's annotations. |
-| `canNavigate`      | any web | Narrows `browser.goto()`. Only http(s) URLs are ever allowed.                                      |
-| `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                          |
+| Option             | Default | Meaning                                                                                                                                       |
+| ------------------ | ------- | --------------------------------------------------------------------------------------------------------------------------------------------- |
+| `toolWaitMs`       | 5000    | How long a call waits for its tool to be registered.                                                                                          |
+| `toolTimeoutMs`    | 30000   | How long one tool call may run before it is canceled through the browser.                                                                     |
+| `timeoutMs`        | 60000   | Wall-clock budget per script, including time spent waiting on tools.                                                                          |
+| `cpuSliceMs`       | 5000    | Longest stretch of computation without awaiting.                                                                                              |
+| `memoryLimitBytes` | 64 MiB  | QuickJS heap limit.                                                                                                                           |
+| `maxCalls`         | 100     | Tool calls per script.                                                                                                                        |
+| `onToolCall`       | allow   | Return `true` to allow a call, or `false`/a reason string to deny it. Gets the tool's annotations.                                            |
+| `canNavigate`      | any web | Narrows the URLs `browser.goto()` may request (redirects and tool-triggered navigations are not checked). Only http(s) URLs are ever allowed. |
+| `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                                                                     |
 
 ### With your own agent
 

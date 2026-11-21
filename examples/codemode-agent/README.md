@@ -5,7 +5,7 @@ An agent that does a task on a web page through the page's WebMCP tools, in code
 `agent.ts` is the whole agent, in one file:
 
 - It launches Chromium with WebMCP enabled through Playwright and opens the page.
-- It creates a `CodeMode` for the page. `browser.goto()` may only open pages on the starting site; navigations that a page tool triggers itself are not limited by this. Before each consequential call it asks for approval on stdin, one question at a time, and withdraws a question when its script ends.
+- It creates a `CodeMode` for the page. `browser.goto()` may only be asked for URLs on the starting site. The check applies to the requested URL, so a redirect can still land elsewhere, and navigations that a page tool triggers itself are not limited by it. Before each consequential call it asks for approval on stdin, one question at a time, and withdraws a question when its script ends.
 - It wires the package's `TOOL_DEFINITIONS` to the Anthropic SDK's tool runner (`client.beta.messages.toolRunner`) with Claude Opus 5.5. If the model declines a request, server-side fallbacks retry it on another model.
 
 ## Run it

@@ -64,8 +64,8 @@ try {
   };
 
   const codeMode = await CodeMode.create(page, {
-    // browser.goto() may only open pages on the starting site. (Navigations a page tool triggers
-    // itself are not limited by this.)
+    // browser.goto() may only be asked for URLs on the starting site. This checks the requested URL:
+    // a redirect can still land elsewhere, and navigations a page tool triggers itself are not limited.
     canNavigate: (target) => target.origin === origin,
     // Ask a person before tools the page marks as consequential (purchases, deletions, ...).
     onToolCall: async ({ name, args, tool, signal }) => {

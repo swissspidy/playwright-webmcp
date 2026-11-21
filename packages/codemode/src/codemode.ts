@@ -28,7 +28,10 @@ export interface CodeModeOptions extends SandboxLimits {
    * By default every call is allowed.
    */
   onToolCall?: (request: ToolCallRequest) => boolean | string | Promise<boolean | string>;
-  /** Approve `browser.goto()` targets. Only http(s) URLs are ever allowed; this narrows that further. */
+  /**
+   * Approve the URL a `browser.goto()` call requests. Only http(s) URLs are ever allowed; this narrows
+   * that further. Where a redirect lands, and navigations that page tools trigger, are not checked.
+   */
   canNavigate?: (url: URL) => boolean;
   /** Unwrap `{ content: [{ type: "text", text }] }` results and parse JSON text. Default true. */
   unwrapResults?: boolean;
@@ -288,6 +291,16 @@ export class CodeMode {
       if (signal.aborted) {
         finish({ outcome: "canceled", error: "the script ended before the call started" });
         throw hostError("ToolCanceledError", `Call to "${name}" was not started: the script ended`, { tool: name });
+      }
+      // The tool may have been re-registered while the policy was deciding. Without registration ids
+      // the browser routes the call by name, so it would reach the replacement under this approval;
+      // start over with the current registration instead, which is approved on its own.
+      if (registry.get(name) !== tool) {
+        if (attempt >= 5) {
+          finish({ outcome: "error", error: "kept being re-registered" });
+          throw hostError("ToolError", `Tool "${name}" kept being re-registered; the call was not started`, { tool: name });
+        }
+        continue;
       }
       const outcome: InvokeOutcome = await registry.invoke(tool, args, this.options.toolTimeoutMs ?? 30_000).catch((err) => ({
         status: "error" as const,

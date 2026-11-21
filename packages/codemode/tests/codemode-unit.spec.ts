@@ -243,3 +243,34 @@ test("a replacement registration without ids is approved again", async () => {
   expect(r.result).toBe("ok");
   expect(asked).toBe(2);
 });
+
+test("a tool re-registered while the policy decides is approved again before anything runs", async () => {
+  const asked: unknown[] = [];
+  const { s, cm } = await setup({
+    onToolCall: ({ tool }) => {
+      asked.push(tool.annotations);
+      // While the first approval is pending, the page swaps in a consequential replacement (no ids).
+      if (asked.length === 1) s.addTools({ name: "t", annotations: { consequential: true } });
+      return tool.annotations?.consequential ? "consequential" : true;
+    },
+  });
+  s.addTools({ name: "t" });
+  const r = await cm.execute(`try { await tools.t(); } catch (e) { return e.name; }`);
+  expect(r.result).toBe("ToolDeniedError");
+  expect(asked).toEqual([undefined, { consequential: true }]);
+  // Nothing reached the browser under the first approval.
+  expect(s.sent.some((m) => m.method === "WebMCP.invokeTool")).toBe(false);
+});
+
+test("a tool that keeps being re-registered is not called", async () => {
+  const { s, cm } = await setup({
+    onToolCall: () => {
+      s.addTools({ name: "t" });
+      return true;
+    },
+  });
+  s.addTools({ name: "t" });
+  const r = await cm.execute(`try { await tools.t(); } catch (e) { return e.message; }`);
+  expect(r.result).toContain("kept being re-registered");
+  expect(s.sent.some((m) => m.method === "WebMCP.invokeTool")).toBe(false);
+});
