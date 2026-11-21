@@ -69,8 +69,8 @@ const quantities = async (page: Page) => {
   return byId;
 };
 
-/** Whether the text states this exact amount: "$258" and "258.00" count, "258.99" and "1258" do not. */
-const states = (text: string, amount: number) => (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).some((n) => Number(n.replaceAll(",", "")) === amount);
+/** Whether the text states this exact amount: "$258" and "258.00" count, "258.99", "1258" and "-258" do not. */
+const states = (text: string, amount: number) => (text.match(/-?\d[\d,]*(?:\.\d+)?/g) ?? []).some((n) => Number(n.replaceAll(",", "")) === amount);
 
 const TASKS: Task[] = [
   {
@@ -357,8 +357,13 @@ async function main() {
   const meta = { model: MODEL, effort: EFFORT, runs, date: new Date().toISOString().slice(0, 10) };
   await mkdir(values.out!, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-  await writeFile(`${values.out}/${stamp}.json`, JSON.stringify({ meta, results }, null, 2));
-  const markdown = report(results, meta);
+  // Formatted with the repository's Prettier, so committed results pass `pnpm run format:check`.
+  const format = await import("prettier").then(
+    (prettier) => (source: string, parser: string) => prettier.format(source, { parser }),
+    () => async (source: string) => source,
+  );
+  await writeFile(`${values.out}/${stamp}.json`, await format(JSON.stringify({ meta, results }, null, 2), "json"));
+  const markdown = await format(report(results, meta), "markdown");
   await writeFile(`${values.out}/${stamp}.md`, markdown);
   console.log(markdown);
 }
