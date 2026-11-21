@@ -63,9 +63,14 @@ const quantities = async (page: Page) => {
   // The cart lives in localStorage on the shop's origin; read it from whatever page of the shop is open.
   if (!page.url().startsWith(ORIGIN)) await page.goto(`${ORIGIN}/cart`);
   const byId = new Map<number, number>();
-  for (const { id, quantity } of await cartOf(page)) byId.set(id, (byId.get(id) ?? 0) + quantity);
+  // The shop stores quantities as given, so a model that passes "2" (a string, against the integer schema)
+  // still has two in its cart: count numerically.
+  for (const { id, quantity } of await cartOf(page)) byId.set(id, (byId.get(id) ?? 0) + Number(quantity));
   return byId;
 };
+
+/** Whether the text states this exact amount: "$258" and "258.00" count, "258.99" and "1258" do not. */
+const states = (text: string, amount: number) => (text.match(/\d[\d,]*(?:\.\d+)?/g) ?? []).some((n) => Number(n.replaceAll(",", "")) === amount);
 
 const TASKS: Task[] = [
   {
@@ -73,7 +78,7 @@ const TASKS: Task[] = [
     description: "Single page, read-only: one search, then arithmetic over the results.",
     start: "/",
     prompt: "What is the total price of all kitchen products in this shop? Reply with just the number.",
-    check: async (text) => /\b517\b/.test(text),
+    check: async (text) => states(text, 517),
   },
   {
     id: "purchase",
@@ -82,7 +87,7 @@ const TASKS: Task[] = [
     prompt: "Add two burr grinders to the cart, then tell me the cart total.",
     check: async (text, page) => {
       const q = await quantities(page);
-      return q.size === 1 && q.get(2) === 2 && /\b258\b/.test(text);
+      return q.size === 1 && q.get(2) === 2 && states(text, 258);
     },
   },
   {
@@ -200,6 +205,8 @@ interface RunResult {
   stop: string;
   finalText: string;
   error?: string;
+  /** The whole conversation, to see how each arm went about the task. */
+  transcript?: Anthropic.MessageParam[];
 }
 
 async function runOnce(browser: import("playwright").Browser, task: Task, arm: Arm, run: number): Promise<RunResult> {
@@ -257,6 +264,7 @@ async function runOnce(browser: import("playwright").Browser, task: Task, arm: A
       }
       messages.push({ role: "user", content: results });
     }
+    result.transcript = messages;
     result.success = result.stop === "end_turn" && (await task.check(result.finalText, page));
   } catch (err) {
     result.error = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
