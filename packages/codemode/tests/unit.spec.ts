@@ -1,24 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { QuickJSExecutor, runInSandbox, schemaToTs, ToolRegistry, unwrapResult, wrapUserCode, type CdpLikeSession } from "../src/index.js";
-
-class FakeSession implements CdpLikeSession {
-  handlers = new Map<string, Array<(p: any) => void>>();
-  sent: Array<{ method: string; params?: Record<string, unknown> }> = [];
-  next = 1;
-  async send(method: string, params?: Record<string, unknown>) {
-    this.sent.push({ method, params });
-    if (method === "Page.getFrameTree")
-      return { frameTree: { frame: { id: "main", url: "http://shop/" }, childFrames: [{ frame: { id: "child", url: "http://shop/ad" } }] } };
-    if (method === "WebMCP.invokeTool") return { invocationId: `inv-${this.next++}` };
-    return {};
-  }
-  on(event: string, handler: (p: any) => void) {
-    this.handlers.set(event, [...(this.handlers.get(event) ?? []), handler]);
-  }
-  emit(event: string, params: any) {
-    for (const h of this.handlers.get(event) ?? []) h(params);
-  }
-}
+import { declarations, QuickJSExecutor, runInSandbox, schemaToTs, ToolRegistry, unwrapResult, wrapUserCode } from "../src/index.js";
+import { FakeSession } from "./fake-session.js";
 
 const tool = (name: string, frameId = "main", extra: object = {}) => ({ name, description: name, frameId, inputSchema: { type: "object" }, ...extra });
 
@@ -85,7 +67,7 @@ test.describe("registry", () => {
     const s = new FakeSession();
     const original = s.send.bind(s);
     s.send = async (method, params) => {
-      const res = await original(method, params);
+      const res = (await original(method, params)) as { invocationId: string };
       if (method === "WebMCP.invokeTool") s.emit("WebMCP.toolResponded", { invocationId: res.invocationId, status: "Completed", output: "early" });
       return res;
     };
@@ -179,5 +161,100 @@ test.describe("QuickJSExecutor (Cloudflare codemode executor contract)", () => {
 
   test("strips a Markdown code fence", async () => {
     expect(await new QuickJSExecutor().execute("```js\nreturn 5;\n```", {})).toMatchObject({ result: 5 });
+  });
+});
+
+test.describe("declarations, more shapes", () => {
+  test("schemaToTs: const, allOf, booleans, unknown types and docs", () => {
+    expect(schemaToTs({ const: "x" })).toBe('"x"');
+    expect(schemaToTs({ allOf: [{ type: "object", properties: { a: { type: "boolean" } } }, { type: "object" }] })).toBe(
+      "{\n  a?: boolean;\n} & Record<string, unknown>",
+    );
+    expect(schemaToTs({ type: "null" })).toBe("null");
+    expect(schemaToTs({ type: "date" })).toBe("unknown");
+    expect(schemaToTs(undefined)).toBe("unknown");
+    expect(schemaToTs({})).toBe("unknown");
+    expect(schemaToTs({ type: "object", properties: {}, additionalProperties: false })).toBe("{}");
+    expect(schemaToTs({ type: "object", properties: { n: { type: "integer", description: "Count", default: 1, minimum: 0, format: "int32" } } })).toBe(
+      "{\n  /**\n   * Count\n   * @default 1\n   * @minimum 0\n   * @format int32\n   */\n  n?: number;\n}",
+    );
+    expect(schemaToTs({ type: "object", properties: { a: { type: "string" } }, additionalProperties: { type: "number" } })).toBe(
+      "{\n  a?: string;\n  [key: string]: number;\n}",
+    );
+  });
+
+  test("declarations(): hints, odd names, duplicates and missing schemas", () => {
+    const text = declarations(
+      [
+        { name: "pay-now", description: "Pay.", frameId: "f", annotations: { consequential: true, untrustedContent: true } },
+        { name: "pay-now", description: "Duplicate in another frame.", frameId: "g" },
+        { name: "quiet", description: "", frameId: "f", outputSchema: { type: "boolean" } },
+      ],
+      { url: "http://x/", toolWaitMs: 100 },
+    );
+    expect(text).toContain('"pay-now"(args?: {}): Promise<unknown>;');
+    expect(text).toContain("(consequential: may need approval)");
+    expect(text).toContain("(returns untrusted content)");
+    expect(text).not.toContain("Duplicate in another frame.");
+    expect(text).toContain("  quiet(args?: {}): Promise<boolean>;");
+    expect(declarations([], { url: "", toolWaitMs: 1 })).toContain("declare const tools: {\n  /** Tools the next page");
+  });
+});
+
+test.describe("sandbox, more limits", () => {
+  const noHost = async () => null;
+
+  test("caps console output", async () => {
+    const r = await runInSandbox(`console.log("x".repeat(5000)); for (let i = 0; i < 600; i++) console.log(i);`, noHost);
+    expect(r.logs[0].text).toMatch(/^x{4000}… \(1000 more characters\)$/);
+    expect(r.logs).toHaveLength(501);
+    expect(r.logs.at(-1)).toEqual({ level: "warn", text: "[further console output dropped]" });
+  });
+
+  test("console formats errors and values", async () => {
+    const r = await runInSandbox(`const c = {}; c.c = c; console.info(new TypeError("t"), undefined, c); console.debug(1);`, noHost);
+    expect(r.logs).toEqual([
+      { level: "info", text: "TypeError: t undefined [object Object]" },
+      { level: "debug", text: "1" },
+    ]);
+  });
+
+  test("host errors keep their name and properties; non-Error throws become messages", async () => {
+    const host = async (op: string) => {
+      if (op === "a") throw Object.assign(new RangeError("too big"), { limit: 3 });
+      throw "plain";
+    };
+    const r = await runInSandbox(
+      `const out = [];
+       try { await __rpc("a"); } catch (e) { out.push([e.name, e.message, e.limit]); }
+       try { await __rpc("b"); } catch (e) { out.push([e.name, e.message]); }
+       return out;`,
+      host,
+    );
+    expect(r).toMatchObject({
+      ok: true,
+      value: [
+        ["RangeError", "too big", 3],
+        ["Error", "plain"],
+      ],
+    });
+  });
+
+  test("a host result that cannot be serialized becomes an error in the script", async () => {
+    const r = await runInSandbox(`try { await __rpc("x"); } catch (e) { return e.message; }`, async () => 10n as unknown);
+    expect(r).toMatchObject({ ok: true, value: expect.stringContaining("could not be serialized") });
+  });
+
+  test("a broken provider prelude is reported", async () => {
+    const r = await new QuickJSExecutor().execute("async () => 1", [{ name: "p", fns: {}, prelude: "this is not js" }]);
+    expect(r.error).toContain("Sandbox prelude failed");
+  });
+
+  test("wall-clock deadline interrupts computation too", async () => {
+    const r = await runInSandbox(`await __rpc("wait"); for (;;) {}`, () => new Promise((resolve) => setTimeout(resolve, 50)), "", {
+      timeoutMs: 100,
+      cpuSliceMs: 10_000,
+    });
+    expect(r).toMatchObject({ ok: false, error: { name: "TimeoutError", message: "Script did not finish within 100 ms" } });
   });
 });
