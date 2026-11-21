@@ -31,10 +31,12 @@ try {
 
   // Approval questions share stdin, so they are asked one at a time, each reading its own line: two
   // consequential calls a script starts together need two answers. One reader serves the whole run, so
-  // lines typed (or piped) ahead are kept for the next question. A question whose script has ended is
-  // withdrawn; the line it was waiting for then answers the next question.
+  // answers piped in ahead are kept in order. A question whose script has ended is withdrawn, and a line
+  // that arrives before a question is shown (a late answer to a withdrawn one) never approves it.
+  type Line = { result: IteratorResult<string>; at: number };
   let lines: AsyncIterator<string> | undefined;
-  let pendingLine: Promise<IteratorResult<string>> | undefined;
+  let pendingLine: Promise<Line> | undefined;
+  const readLine = () => lines!.next().then((result) => ({ result, at: Date.now() }));
   let approvals: Promise<unknown> = Promise.resolve();
   const ask = (question: string, signal: AbortSignal): Promise<boolean> => {
     const answer = approvals.then(async () => {
@@ -42,15 +44,20 @@ try {
       reader ??= createInterface({ input: process.stdin });
       lines ??= reader[Symbol.asyncIterator]();
       process.stderr.write(question);
-      pendingLine ??= lines.next();
+      const askedAt = Date.now();
       const withdrawn = new Promise<"withdrawn">((resolve) => signal.addEventListener("abort", () => resolve("withdrawn"), { once: true }));
-      const line = await Promise.race([pendingLine, withdrawn]);
-      if (line === "withdrawn") {
-        process.stderr.write("(withdrawn: the script ended)\n");
-        return false;
+      for (;;) {
+        pendingLine ??= readLine();
+        const line = await Promise.race([pendingLine, withdrawn]);
+        if (line === "withdrawn") {
+          process.stderr.write("(withdrawn: the script ended)\n");
+          return false;
+        }
+        pendingLine = undefined;
+        if (line.result.done) return false;
+        if (line.at < askedAt) continue; // typed before this question was shown
+        return /^y/i.test(line.result.value.trim());
       }
-      pendingLine = undefined;
-      return !line.done && /^y/i.test(line.value.trim());
     });
     approvals = answer.catch(() => {});
     return answer;
