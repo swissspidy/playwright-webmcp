@@ -41,3 +41,7 @@ Options: `--runs`, `--tasks`, `--arms`, `--model`, `--effort`, `--max-turns` (de
 **It costs money.** A full run is 27 model loops of a few turns each. Expect a few dollars at Claude Opus 5.5 list prices. Start with `--runs 1`.
 
 CI only typechecks this script; it never runs it.
+
+## Results
+
+- [2026-11-21, 3 runs per task and arm, harness at 3e8a10e](results/2026-11-21T19-55-40-463Z.md)
