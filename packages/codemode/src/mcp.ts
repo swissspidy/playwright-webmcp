@@ -6,6 +6,7 @@
 import { createInterface } from "node:readline";
 import type { Readable, Writable } from "node:stream";
 import { formatResult, type CodeMode } from "./codemode.js";
+import { toolDefinitions as definitionsOf } from "./declarations.js";
 
 const SERVER_INFO = { name: "webmcp-codemode", version: "0.0.0" };
 // 2025-03-26 is left out: it requires JSON-RPC batch support, which this server does not have.
@@ -67,9 +68,9 @@ export function createMcpServer(codeMode: CodeMode, options: McpServerOptions = 
   const send = (msg: unknown) => output.write(JSON.stringify(msg) + "\n");
   const rl = createInterface({ input, crlfDelay: Infinity });
   const inflight = new Set<Promise<unknown>>();
-  // The tool names the client last listed. The description of webmcp_execute embeds the page's API,
-  // so when the tools change the client is told to list them again.
-  const toolNames = () => [...new Set(codeMode.registry.list().map((t) => t.name))].sort().join(",");
+  // The API the client last listed. The description of webmcp_execute embeds it, so when a tool is
+  // added, removed or redefined the client is told to list the tools again.
+  const toolNames = () => JSON.stringify([...definitionsOf(codeMode.registry.list())].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)));
   let listed: string | undefined;
   const offChange = codeMode.registry.onChange(() => {
     if (listed !== undefined && listed !== toolNames()) {

@@ -1,4 +1,4 @@
-import { declarations } from "./declarations.js";
+import { declarations, toolDefinitions } from "./declarations.js";
 import { ToolRegistry, type CdpLikeSession, type InvokeOutcome, type ToolInfo } from "./registry.js";
 import { QuickJSExecutor, type Executor, type ResolvedProvider, type ToolFn } from "./executor.js";
 import type { LogEntry, SandboxError, SandboxLimits, SandboxResult } from "./sandbox.js";
@@ -79,7 +79,8 @@ export interface ExecuteResult {
   logs: LogEntry[];
   calls: CallRecord[];
   url: { before: string; after: string };
-  tools: { before: string[]; after: string[]; added: string[]; removed: string[] };
+  /** `changed`: tools on both lists whose description, schemas or annotations differ. */
+  tools: { before: string[]; after: string[]; added: string[]; removed: string[]; changed: string[] };
   durationMs: number;
 }
 
@@ -161,6 +162,7 @@ export class CodeMode {
     await registry.settle();
     const urlBefore = registry.url();
     const toolsBefore = names(registry.list());
+    const defsBefore = toolDefinitions(registry.list());
     const calls: CallRecord[] = [];
     const controller = new AbortController();
     const maxCalls = this.options.maxCalls ?? 100;
@@ -235,6 +237,7 @@ export class CodeMode {
     if (grace > 0) await new Promise((resolve) => setTimeout(resolve, grace));
     await registry.settle();
     const toolsAfter = names(registry.list());
+    const defsAfter = toolDefinitions(registry.list());
     return {
       ok: sandbox.ok,
       ...(sandbox.ok ? { result: sandbox.value } : { error: sandbox.error }),
@@ -246,6 +249,7 @@ export class CodeMode {
         after: toolsAfter,
         added: toolsAfter.filter((n) => !toolsBefore.includes(n)),
         removed: toolsBefore.filter((n) => !toolsAfter.includes(n)),
+        changed: toolsAfter.filter((n) => defsBefore.has(n) && defsBefore.get(n) !== defsAfter.get(n)),
       },
       durationMs: Date.now() - started,
     };
@@ -399,8 +403,8 @@ export function formatResult(r: ExecuteResult, options: { declarations?: string 
   }
   if (r.url.before !== r.url.after) out.push(`Page navigated: ${r.url.before} → ${r.url.after}`);
   else out.push(`Page: ${r.url.after}`);
-  if (r.tools.added.length || r.tools.removed.length) {
-    const diff = [...r.tools.added.map((n) => `+${n}`), ...r.tools.removed.map((n) => `-${n}`)].join(", ");
+  if (r.tools.added.length || r.tools.removed.length || r.tools.changed.length) {
+    const diff = [...r.tools.added.map((n) => `+${n}`), ...r.tools.removed.map((n) => `-${n}`), ...r.tools.changed.map((n) => `~${n}`)].join(", ");
     out.push(`Tools changed: ${diff}`);
     if (options.declarations) out.push(`Updated API:\n${options.declarations}`);
   }

@@ -235,6 +235,8 @@ async function runOnce(browser: import("playwright").Browser, task: Task, arm: A
     await page.goto(`${ORIGIN}${task.start}`);
     const codeMode = await CodeMode.create(page, { toolWaitMs: 3000 });
     const messages: Anthropic.MessageParam[] = [{ role: "user", content: task.prompt }];
+    // Kept by reference, so a run that fails part-way still has its transcript.
+    result.transcript = messages;
     for (;;) {
       if (result.turns >= MAX_TURNS) {
         result.stop = "max_turns";
@@ -268,7 +270,6 @@ async function runOnce(browser: import("playwright").Browser, task: Task, arm: A
       }
       messages.push({ role: "user", content: results });
     }
-    result.transcript = messages;
     result.success = result.stop === "end_turn" && (await task.check(result.finalText, page));
   } catch (err) {
     result.error = err instanceof Error ? `${err.name}: ${err.message}` : String(err);

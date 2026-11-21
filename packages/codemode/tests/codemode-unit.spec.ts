@@ -299,3 +299,25 @@ test("an approval hook that throws fails the call with its error", async () => {
   expect(r.calls[0]).toMatchObject({ name: "buy", outcome: "error", error: "approval failed: approval service down" });
   expect(s.sent.some((m) => m.method === "WebMCP.invokeTool")).toBe(false);
 });
+
+test("a tool redefined under the same name across a navigation counts as changed, with the new API", async () => {
+  const { s, cm } = await setup();
+  s.addTools({ name: "search", inputSchema: { type: "object", properties: { query: { type: "string" } } } });
+  s.answer(() => {
+    setTimeout(() => {
+      s.emit("Page.frameNavigated", { frame: { id: "main", url: "http://shop/other" } });
+      s.addTools({ name: "search", inputSchema: { type: "object", properties: { category: { type: "string" } } } });
+    }, 0);
+    return { status: "Completed", output: [] };
+  });
+  const r = await cm.execute(`return await tools.search({ query: "x" });`);
+  expect(r.tools).toMatchObject({ added: [], removed: [], changed: ["search"] });
+  const text = formatResult(r, { declarations: cm.declarations({ compact: true }) });
+  expect(text).toContain("Tools changed: ~search");
+  expect(text).toContain("category?: string;");
+  // Without a change, no API is attached.
+  s.answer(() => ({ status: "Completed", output: [] }));
+  const again = await cm.execute(`return await tools.search({ category: "x" });`);
+  expect(again.tools.changed).toEqual([]);
+  expect(formatResult(again, { declarations: cm.declarations({ compact: true }) })).not.toContain("Updated API");
+});

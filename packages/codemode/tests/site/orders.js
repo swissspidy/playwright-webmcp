@@ -21,7 +21,7 @@ export function orderHistory() {
     }
     const total = items.reduce((sum, item) => sum + item.quantity * item.unitPrice, 0);
     orders.push({
-      id: `ORD-${10000 + i}`,
+      id: "",
       date,
       status: statuses[rand(statuses.length)],
       shipping: { method: rand(2) ? "standard" : "express", address: "1 Example Street, Springfield" },
@@ -29,5 +29,8 @@ export function orderHistory() {
       total,
     });
   }
+  // Oldest first, numbered in that order.
+  orders.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  orders.forEach((order, i) => (order.id = `ORD-${10000 + i}`));
   return orders;
 }

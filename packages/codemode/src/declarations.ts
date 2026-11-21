@@ -88,6 +88,19 @@ function toolHints(tool: ToolInfo): string[] {
   return hints;
 }
 
+/**
+ * Each tool's declaration-relevant fields by name (the first registration of a name wins, as in the
+ * declarations), as comparable strings. Two tool lists with the same map produce the same API.
+ */
+export function toolDefinitions(tools: ToolInfo[]): Map<string, string> {
+  const defs = new Map<string, string>();
+  for (const t of tools) {
+    if (defs.has(t.name)) continue;
+    defs.set(t.name, JSON.stringify([t.description, t.inputSchema ?? null, t.outputSchema ?? null, t.annotations ?? null]));
+  }
+  return defs;
+}
+
 export interface DeclarationOptions {
   url: string;
   toolWaitMs: number;

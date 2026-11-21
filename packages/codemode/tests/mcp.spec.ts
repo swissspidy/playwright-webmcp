@@ -131,3 +131,12 @@ test("after the tools change, webmcp_execute returns only the tools declaration"
   input.end();
   await done;
 });
+
+test("a tool redefined under the same name also tells the client to list the tools again", async () => {
+  const { rpc, input, done, replies, s } = await serve();
+  await rpc("tools/list");
+  s.addTools({ name: "add", description: "Adds two numbers, now with a description", inputSchema: { type: "object", properties: { a: { type: "number" } } } });
+  await expect.poll(() => replies.filter((m) => m.method === "notifications/tools/list_changed").length).toBe(1);
+  input.end();
+  await done;
+});
