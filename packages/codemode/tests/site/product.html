@@ -1,0 +1,44 @@
+<!doctype html>
+<title>Product</title>
+<h1>Product</h1>
+<script type="module">
+  import { products, mc, json, cart, saveCart } from "./shop.js";
+  const id = Number(new URLSearchParams(location.search).get("id"));
+  const product = products.find((p) => p.id === id);
+  // Registered late, the way a hydrating single-page app would.
+  setTimeout(() => {
+    mc.registerTool({
+      name: "get_product",
+      description: "Details of the product on this page.",
+      inputSchema: { type: "object", properties: {} },
+      annotations: { readOnlyHint: true },
+      async execute() {
+        return json(product ?? null);
+      },
+    });
+    mc.registerTool({
+      name: "add_to_cart",
+      description: "Add the product on this page to the cart.",
+      inputSchema: {
+        type: "object",
+        properties: { quantity: { type: "integer", minimum: 1, default: 1 } },
+      },
+      annotations: { consequentialHint: true },
+      async execute({ quantity = 1 }) {
+        const items = cart();
+        items.push({ id, quantity });
+        saveCart(items);
+        return json({ added: product.name, cartItems: items.length });
+      },
+    });
+    mc.registerTool({
+      name: "back_to_search",
+      description: "Return to the catalog.",
+      inputSchema: { type: "object", properties: {} },
+      execute() {
+        location.href = "/";
+        return new Promise(() => {});
+      },
+    });
+  }, 300);
+</script>

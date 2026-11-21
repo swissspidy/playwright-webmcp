@@ -1,0 +1,66 @@
+<!doctype html>
+<title>Shop</title>
+<h1>Shop</h1>
+<script type="module">
+  import { products, mc, json, cart } from "./shop.js";
+  mc.registerTool({
+    name: "search_products",
+    description: "Search the catalog by keyword and optional category. Returns matching products with id, name and price.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Keyword, matched against product names" },
+        category: { type: "string", enum: ["kitchen", "office"] },
+      },
+      required: ["query"],
+    },
+    outputSchema: {
+      type: "array",
+      items: { type: "object", properties: { id: { type: "number" }, name: { type: "string" }, price: { type: "number" } } },
+    },
+    annotations: { readOnlyHint: true },
+    async execute({ query, category }) {
+      const q = String(query).toLowerCase();
+      return products
+        .filter((p) => p.name.toLowerCase().includes(q) || q === "*")
+        .filter((p) => !category || p.category === category)
+        .map(({ id, name, price }) => ({ id, name, price }));
+    },
+  });
+  mc.registerTool({
+    name: "open_product",
+    description: "Open the product page for a product id. The product page has tools to read details and add to cart.",
+    inputSchema: { type: "object", properties: { id: { type: "number" } }, required: ["id"] },
+    execute({ id }) {
+      // Navigates without answering: the call is cut short when this document unloads.
+      location.href = `/product?id=${id}`;
+      return new Promise(() => {});
+    },
+  });
+  mc.registerTool({
+    name: "go_to_cart",
+    description: "Open the cart page.",
+    inputSchema: { type: "object", properties: {} },
+    async execute() {
+      setTimeout(() => (location.href = "/cart"), 0);
+      return "Opening the cart";
+    },
+  });
+  mc.registerTool({
+    name: "fail",
+    description: "Always throws, for tests.",
+    inputSchema: { type: "object", properties: {} },
+    async execute() {
+      throw new Error("out of stock");
+    },
+  });
+  mc.registerTool({
+    name: "cart_size",
+    description: "Number of items in the cart.",
+    inputSchema: { type: "object", properties: {} },
+    annotations: { readOnlyHint: true },
+    async execute() {
+      return cart().reduce((n, i) => n + i.quantity, 0);
+    },
+  });
+</script>
