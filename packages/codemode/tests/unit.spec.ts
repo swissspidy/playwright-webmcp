@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { runInSandbox, schemaToTs, ToolRegistry, unwrapResult, wrapUserCode, type CdpLikeSession } from "../src/index.js";
+import { QuickJSExecutor, runInSandbox, schemaToTs, ToolRegistry, unwrapResult, wrapUserCode, type CdpLikeSession } from "../src/index.js";
 
 class FakeSession implements CdpLikeSession {
   handlers = new Map<string, Array<(p: any) => void>>();
@@ -149,5 +149,35 @@ test.describe("sandbox", () => {
     expect(unwrapResult({ structuredContent: { b: 2 }, content: [] })).toEqual({ b: 2 });
     expect(unwrapResult('{"c":3}')).toEqual({ c: 3 });
     expect(unwrapResult([1, 2])).toEqual([1, 2]);
+  });
+});
+
+test.describe("QuickJSExecutor (Cloudflare codemode executor contract)", () => {
+  test("exposes a function record as codemode.*", async () => {
+    const ex = new QuickJSExecutor();
+    const r = await ex.execute("async () => { console.warn('w'); return await codemode.add({ a: 2, b: 40 }); }", {
+      add: async (args: any) => args.a + args.b,
+    });
+    expect(r).toEqual({ result: 42, logs: ["[warn] w"] });
+  });
+
+  test("exposes providers as namespaces, with multiple arguments and preludes", async () => {
+    const ex = new QuickJSExecutor();
+    const r = await ex.execute("async () => [await math.mul(6, 7), await math.square(3)]", [
+      { name: "math", fns: { mul: async (a, b) => (a as number) * (b as number) }, prelude: "math.square = async (x) => math.mul(x, x);" },
+    ]);
+    expect(r).toEqual({ result: [42, 9], logs: [] });
+  });
+
+  test("returns errors as messages and never throws", async () => {
+    const ex = new QuickJSExecutor({ cpuSliceMs: 100 });
+    expect(await ex.execute("async () => codemode.nope()", {})).toMatchObject({ result: undefined, error: 'Tool "nope" not found' });
+    expect(await ex.execute("async () => { while (true) {} }", {})).toMatchObject({ error: expect.stringContaining("without yielding") });
+    expect(await ex.execute("async () =>", {})).toMatchObject({ error: expect.any(String) });
+    expect(await ex.execute("async () => 1", [{ name: "not valid", fns: {} }])).toMatchObject({ error: expect.stringContaining("not a valid identifier") });
+  });
+
+  test("strips a Markdown code fence", async () => {
+    expect(await new QuickJSExecutor().execute("```js\nreturn 5;\n```", {})).toMatchObject({ result: 5 });
   });
 });

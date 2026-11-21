@@ -66,24 +66,43 @@ formatResult(result, { declarations: cm.declarations() });
 
 ## Inside the sandbox
 
-- `tools.<name>(args)` calls a tool by name, resolved when it is called. It throws `ToolUnavailableError` (with `.available`), `ToolError`, `ToolDeniedError` or `ToolCanceledError`. A call that is cut short because its page navigated away resolves to `{ navigated: true, url }`.
+- `tools.<name>(args)` calls a tool by name, resolved when it is called. `codemode.<name>(args)` is an alias, so scripts written for Cloudflare's codemode work unchanged. It throws `ToolUnavailableError` (with `.available`), `ToolError`, `ToolDeniedError` or `ToolCanceledError`. A call that is cut short because its page navigated away resolves to `{ navigated: true, url }`.
 - `browser.goto(url)`, `back()`, `reload()`, `url()`, `tools()`, `waitForTool(name)` and `sleep(ms)` are the browser helpers.
 - `console.log` and the other console methods are captured. `return` hands a value back. The code is either an async function body or an `async () => {}` expression.
 
+## Executors
+
+Scripts run on executors with the same contract as [`@cloudflare/codemode`](https://www.npmjs.com/package/@cloudflare/codemode): `execute(code, providers)` returns `{ result, error?, logs? }`.
+
+- **`QuickJSExecutor` is the default.** It also works anywhere a Cloudflare codemode executor is expected, including in Node, where Cloudflare has no executor. Unlike their browser iframe executor, its timeout also stops `while (true) {}`, and it has a memory limit.
+- **`CodeMode` accepts other executors** through the `executor` option, for example Cloudflare's `DynamicWorkerExecutor`. In that case:
+  - Errors cross as plain messages, so names such as `ToolUnavailableError` don't reach the script.
+  - The sandbox limits are up to that executor.
+
+```ts
+import { QuickJSExecutor } from "@swissspidy/webmcp-codemode";
+
+const executor = new QuickJSExecutor({ timeoutMs: 10_000, memoryLimitBytes: 32 * 1024 * 1024 });
+await executor.execute("async () => codemode.add({ a: 2, b: 40 })", {
+  add: async ({ a, b }) => a + b,
+});
+// → { result: 42, logs: [] }
+```
+
 ## How navigation is handled
 
-`ToolRegistry` keeps the live tool list from the CDP `WebMCP` domain. Two behaviours of the domain, as observed in Chromium 156, shape it:
+`ToolRegistry` keeps the live tool list from the CDP `WebMCP` domain. Two behaviours of the domain, as observed in Chrome 156 to 159, shape it:
 
 - On a cross-document navigation the frame id stays the same and the browser sends **no** `toolsRemoved` for the old document's tools. The registry drops a frame's tools (and its child frames) itself on `Page.frameNavigated`.
 - A call that is still pending when its document unloads is answered `Completed` with `output: []`. The registry reports it as `navigated` instead, and falls back to a grace timer if no answer comes at all.
 
-When the browser reports registration ids (`toolId`), calls target the exact registration. If the tool was re-registered in the meantime, the browser refuses the call before running it, and the call is retried against the current registration. `settle()` waits for loading frames and a quiet tool list before reporting the "after" state. A short grace period also catches tools that navigate just after they answer.
+From Chrome 159, the browser reports registration ids (`toolId`) and `outputSchema`. Both landed in Chromium between revisions 1732152 and 1733639, after the M158 branch point. Calls then target the exact registration. If the tool was re-registered in the meantime, the browser refuses the call before running it, and the call is retried against the current registration. `settle()` waits for loading frames and a quiet tool list before reporting the "after" state. A short grace period also catches tools that navigate just after they answer.
 
 ## Limits of the prototype
 
 - Chromium only, since it uses the CDP WebMCP domain. Cross-origin iframes in separate processes (OOPIFs) are not followed. Only the page the session belongs to is driven: no tabs or popups.
 - If a tool with the same name exists on both the old and the new page, a call made right after a navigation starts can still reach the old document. `toolId` narrows this but does not remove it.
-- The WebMCP spec has `outputSchema`, but Chromium 156's CDP domain does not report it yet. The declarations show return types once it does, and `unknown` until then.
+- Return types appear in the declarations only from Chrome 159, which reports `outputSchema`. Before that, they show `unknown`.
 - Each script runs in a fresh context: variables do not carry over between `execute` calls.
 
 ## Related work

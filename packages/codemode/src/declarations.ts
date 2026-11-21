@@ -117,6 +117,9 @@ ${members.join("\n")}${members.length ? "\n" : ""}  /** Tools the next page regi
   [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;
 };
 
+/** Alias of \`tools\`, for scripts written for Cloudflare's codemode. */
+declare const codemode: typeof tools;
+
 declare const browser: {
   /** Current page URL. */
   url(): Promise<string>;

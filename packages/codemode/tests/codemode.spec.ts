@@ -1,5 +1,5 @@
 import { test as base, expect } from "@playwright/test";
-import { CodeMode, formatResult, type CodeModeOptions } from "../src/index.js";
+import { CodeMode, formatResult, QuickJSExecutor, type CodeModeOptions, type Executor, type ResolvedProvider } from "../src/index.js";
 
 const test = base.extend<{ codeMode: (options?: CodeModeOptions) => Promise<CodeMode> }>({
   codeMode: async ({ page }, use) => {
@@ -97,8 +97,9 @@ test("a re-registered tool is called through its current registration", async ({
   await page.goto("/cart");
   const first = await cm.execute(`return await tools.cart_version();`);
   expect(first.result).toBe(1);
+  const before = cm.registry.get("cart_version");
   await page.evaluate(() => (window as any).reRegister());
-  await cm.registry.settle();
+  await expect.poll(() => cm.registry.get("cart_version")).not.toBe(before);
   const second = await cm.execute(`return await tools.cart_version();`);
   expect(second.result).toBe(2);
 });
@@ -110,8 +111,8 @@ test("a stale registration is retried against the current one", async ({ codeMod
   const stale = cm.registry.get("cart_version")!;
   test.skip(!stale.toolId, "This browser's WebMCP domain does not report tool ids yet");
   await page.evaluate(() => (window as any).reRegister());
-  await cm.registry.settle();
-  expect(cm.registry.get("cart_version")!.toolId).not.toBe(stale.toolId);
+  // CDP events arrive on our own session, unordered with respect to Playwright's evaluate().
+  await expect.poll(() => cm.registry.get("cart_version")?.toolId).not.toBe(stale.toolId);
   // Calling the old registration directly fails in the browser, without running anything.
   const outcome = await cm.registry.invoke(stale, {}, 5000);
   expect(outcome).toMatchObject({ status: "error", stale: true });
@@ -165,6 +166,8 @@ test("declarations describe the current page and follow navigation", async ({ co
   expect(home).toContain("search_products(args: {");
   expect(home).toContain('category?: "kitchen" | "office";');
   expect(home).toContain("(read-only)");
+  // Browsers that report outputSchema (Chrome 159+) get typed results.
+  if (cm.registry.get("search_products")?.outputSchema) expect(home).toContain("}): Promise<{\n");
   const r = await cm.execute(`await tools.go_to_cart();`);
   expect(r.tools.added).toEqual(expect.arrayContaining(["get_cart", "clear_cart"]));
   const cart = cm.declarations();
@@ -181,4 +184,36 @@ test("console output is captured", async ({ codeMode }) => {
     { level: "log", text: 'hi {\n  "a": 1\n}' },
     { level: "warn", text: "careful" },
   ]);
+});
+
+test("codemode is an alias of tools", async ({ codeMode }) => {
+  const cm = await codeMode();
+  const r = await cm.execute(`async () => (await codemode.search_products({ query: "lamp" }))[0].name`);
+  expect(r.result).toBe("Desk lamp");
+  expect(cm.declarations()).toContain("declare const codemode: typeof tools;");
+});
+
+test("runs on another codemode-compatible executor", async ({ codeMode }) => {
+  // Any object with Cloudflare's execute(code, providers) contract; here the QuickJS one behind a wrapper,
+  // so CodeMode takes the generic path.
+  const inner = new QuickJSExecutor();
+  const seen: string[][] = [];
+  const executor: Executor = {
+    execute: (code, providers) => {
+      seen.push((providers as ResolvedProvider[]).map((p) => p.name));
+      return inner.execute(code, providers);
+    },
+  };
+  const cm = await codeMode({ executor });
+  const r = await cm.execute(`
+    console.warn("via executor");
+    await tools.open_product({ id: 1 });
+    return (await codemode.get_product()).name;
+  `);
+  expect(seen).toEqual([["tools", "codemode", "browser"]]);
+  expect(r).toMatchObject({ ok: true, result: "Espresso machine", logs: [{ level: "warn", text: "via executor" }] });
+  expect(r.calls.map((c) => c.outcome)).toEqual(["navigated", "completed"]);
+  // Errors cross such executors as plain messages: the name ToolUnavailableError is lost.
+  const failed = await cm.execute(`await tools.fail();`);
+  expect(failed.error).toEqual({ name: "Error", message: expect.stringContaining('Tool "fail" is not registered') });
 });

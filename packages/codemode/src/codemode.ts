@@ -1,6 +1,7 @@
 import { declarations } from "./declarations.js";
 import { ToolRegistry, type CdpLikeSession, type InvokeOutcome, type ToolInfo } from "./registry.js";
-import { runInSandbox, type LogEntry, type SandboxError, type SandboxLimits } from "./sandbox.js";
+import { QuickJSExecutor, type Executor, type ResolvedProvider, type ToolFn } from "./executor.js";
+import type { LogEntry, SandboxError, SandboxLimits, SandboxResult } from "./sandbox.js";
 import { sessionFor, type PageLike } from "./session.js";
 
 export interface ToolCallRequest {
@@ -28,6 +29,13 @@ export interface CodeModeOptions extends SandboxLimits {
   unwrapResults?: boolean;
   /** Passed to the registry: how long to wait for a response once a tool's document navigated away. */
   navigationGraceMs?: number;
+  /**
+   * Run scripts with another `@cloudflare/codemode`-compatible executor instead of the built-in
+   * QuickJS one. Such executors report errors as plain messages, so error names (for example
+   * ToolUnavailableError) and extra properties do not reach the script, and the sandbox limits
+   * above are up to that executor.
+   */
+  executor?: Executor;
 }
 
 export interface CallRecord {
@@ -52,30 +60,6 @@ export interface ExecuteResult {
   tools: { before: string[]; after: string[]; added: string[]; removed: string[] };
   durationMs: number;
 }
-
-const BROWSER_PRELUDE = `
-(() => {
-  const rpc = globalThis.__rpc;
-  delete globalThis.__rpc;
-  const reserved = new Set(["then", "toJSON", "constructor", "valueOf", "toString"]);
-  globalThis.tools = new Proxy(Object.create(null), {
-    get(_, name) {
-      if (typeof name !== "string" || reserved.has(name)) return undefined;
-      return (args) => rpc("call", { name, args: args === undefined ? {} : args });
-    },
-    has: () => true,
-  });
-  globalThis.browser = Object.freeze({
-    url: () => rpc("url"),
-    tools: () => rpc("tools"),
-    goto: (url) => rpc("goto", { url: String(url) }),
-    back: () => rpc("back"),
-    reload: () => rpc("reload"),
-    waitForTool: (name, options) => rpc("waitForTool", { name: String(name), timeoutMs: options && options.timeoutMs }),
-    sleep: (ms) => rpc("sleep", { ms: Number(ms) }),
-  });
-})();
-`;
 
 function hostError(name: string, message: string, data?: Record<string, unknown>): Error {
   const e = new Error(message);
@@ -198,9 +182,16 @@ export class CodeMode {
       }
     };
 
-    let sandbox;
+    let sandbox: SandboxResult;
     try {
-      sandbox = await runInSandbox(code, host, BROWSER_PRELUDE, this.options);
+      const providers = this.providers(host);
+      const executor = this.options.executor ?? new QuickJSExecutor(this.options);
+      if (executor instanceof QuickJSExecutor) sandbox = await executor.run(code, providers);
+      else {
+        const r = await executor.execute(code, providers);
+        const logs = (r.logs ?? []).map(parseLog);
+        sandbox = r.error === undefined ? { ok: true, value: r.result ?? null, logs } : { ok: false, error: { name: "Error", message: r.error }, logs };
+      }
     } finally {
       // Stop waits the script started but no longer needs.
       controller.abort();
@@ -225,6 +216,31 @@ export class CodeMode {
       },
       durationMs: Date.now() - started,
     };
+  }
+
+  /**
+   * The sandbox namespaces: `tools` (and its alias `codemode`, the name Cloudflare's codemode
+   * uses) dispatches any name to the page, so tools registered later are callable too;
+   * `browser` holds the navigation helpers.
+   */
+  private providers(host: (op: string, payload?: unknown) => Promise<unknown>): ResolvedProvider[] {
+    const tools = new Proxy({} as Record<string, ToolFn>, {
+      get: (_, name) => (typeof name === "string" ? (args?: unknown) => host("call", { name, args: args === undefined ? {} : args }) : undefined),
+    });
+    const browser: Record<string, ToolFn> = {
+      url: () => host("url"),
+      tools: () => host("tools"),
+      goto: (url) => host("goto", { url: String(url) }),
+      back: () => host("back"),
+      reload: () => host("reload"),
+      waitForTool: (name, options) => host("waitForTool", { name: String(name), timeoutMs: (options as { timeoutMs?: number } | undefined)?.timeoutMs }),
+      sleep: (ms) => host("sleep", { ms: Number(ms) }),
+    };
+    return [
+      { name: "tools", fns: tools },
+      { name: "codemode", fns: tools },
+      { name: "browser", fns: browser },
+    ];
   }
 
   private async call(name: string, args: Record<string, unknown>, calls: CallRecord[], signal: AbortSignal): Promise<unknown> {
@@ -288,6 +304,11 @@ export class CodeMode {
       }
     }
   }
+}
+
+function parseLog(line: string): LogEntry {
+  const m = /^\[(warn|error|info|debug)\] ([\s\S]*)$/.exec(line);
+  return m ? { level: m[1] as LogEntry["level"], text: m[2] } : { level: "log", text: line };
 }
 
 function names(tools: ToolInfo[]): string[] {

@@ -67,6 +67,9 @@ ${extra}
 
 /** Wrap user code: either an async function expression, or a function body that may `return`. */
 export function wrapUserCode(code: string): string {
+  // Models often wrap code in a Markdown fence.
+  const fenced = /^\s*```[\w-]*\n([\s\S]*?)\n```\s*$/.exec(code);
+  if (fenced) code = fenced[1];
   const trimmed = code.trim().replace(/;+\s*$/, "");
   const isFunction = /^async\s*(\([^)]*\)|[A-Za-z_$][\w$]*)\s*=>/.test(trimmed) || /^async\s+function\b/.test(trimmed);
   const body = isFunction ? `return await (${trimmed})();` : code;

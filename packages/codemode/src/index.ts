@@ -3,6 +3,8 @@ export type { CallRecord, CodeModeOptions, ExecuteResult, ToolCallRequest } from
 export { declarations, schemaToTs } from "./declarations.js";
 export { ToolRegistry, ToolTimeoutError, WebMcpUnsupportedError } from "./registry.js";
 export type { CdpLikeSession, InvokeOutcome, ToolAnnotations, ToolInfo } from "./registry.js";
+export { QuickJSExecutor, normalizeProviders } from "./executor.js";
+export type { Executor, ExecuteResult as ExecutorResult, QuickJSExecutorOptions, ResolvedProvider, ToolFn } from "./executor.js";
 export { runInSandbox, wrapUserCode } from "./sandbox.js";
 export type { LogEntry, SandboxError, SandboxLimits, SandboxResult } from "./sandbox.js";
 export { sessionFor } from "./session.js";

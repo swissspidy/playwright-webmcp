@@ -29,7 +29,8 @@ test("works with a Puppeteer page", async ({ baseURL }) => {
 test("serves code mode over MCP stdio", async ({ baseURL }) => {
   // The built CLI, as npx would run it; `pnpm test` builds first.
   const cli = fileURLToPath(new URL("../dist/cli.js", import.meta.url));
-  const child = spawn(process.execPath, [cli, "--url", `${baseURL}/`, "--allow-origin", baseURL!], {
+  const browser = process.env.PW_CHROMIUM ? ["--executable-path", process.env.PW_CHROMIUM] : [];
+  const child = spawn(process.execPath, [cli, "--url", `${baseURL}/`, "--allow-origin", baseURL!, ...browser], {
     stdio: ["pipe", "pipe", "inherit"],
   });
   const lines = createInterface({ input: child.stdout! });
