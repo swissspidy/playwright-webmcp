@@ -18,12 +18,15 @@ import { CodeMode, formatResult, TOOL_DEFINITIONS, toolDefinitions, type CallRec
 import { reconcileCalls, type ActualCall, type ExpectedCallNode } from "@swissspidy/webmcp-lint";
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { orderHistory } from "../../packages/codemode/tests/site/orders.js";
 import { parseArgs } from "node:util";
 import { chromium, type Page } from "playwright";
 
 const { values } = parseArgs({
+  // pnpm 12 passes the `--` of `pnpm --filter codemode-bench bench -- --runs 1` through to the script.
+  args: process.argv.slice(2).filter((arg, i) => !(i === 0 && arg === "--")),
   options: {
     runs: { type: "string", default: "3" },
     tasks: { type: "string" },
@@ -39,6 +42,11 @@ const { values } = parseArgs({
     "demos-url": { type: "string", default: "https://googlechromelabs.github.io/webmcp-tools/demos" },
   },
 });
+
+// `pnpm --filter codemode-bench bench` runs this from its own directory; resolve paths given on the
+// command line against the directory pnpm was started from, which pnpm passes as INIT_CWD.
+const fromInvocation = (path: string) => resolve(process.env.INIT_CWD ?? process.cwd(), path);
+const OUT = fromInvocation(values.out!);
 
 const apiKey = process.env.TEST_API_KEY ?? process.env.ANTHROPIC_API_KEY;
 if (!apiKey) {
@@ -416,7 +424,7 @@ function suiteReport(tasks: Task[], results: RunResult[], meta: Record<string, u
         .map((r) => `${mark(r)} (${r.turns}t)`)
         .join(", "),
     );
-    caseRows.push(`| ${task.id} | ${cells.join(" | ")} | ${task.prompt.replaceAll("|", "\\|").replace(/\s+/g, " ")} |`);
+    caseRows.push(`| ${task.id} | ${cells.join(" | ")} | ${task.prompt.replaceAll("|", "\\|").replaceAll("<", "&lt;").replace(/\s+/g, " ")} |`);
   }
   return [
     `# Code mode on the webmcp-tools eval suites`,
@@ -439,7 +447,11 @@ function suiteReport(tasks: Task[], results: RunResult[], meta: Record<string, u
 async function main() {
   const runs = Number(values.runs);
   const tasks = values["webmcp-tools"]
-    ? await evalTasks(values["webmcp-tools"], values.suites ? values.suites.split(",") : Object.keys(SUITES), values["demos-url"]!.replace(/\/$/, ""))
+    ? await evalTasks(
+        fromInvocation(values["webmcp-tools"]),
+        values.suites ? values.suites.split(",") : Object.keys(SUITES),
+        values["demos-url"]!.replace(/\/$/, ""),
+      )
     : values.tasks
       ? TASKS.filter((t) => values.tasks!.split(",").includes(t.id))
       : TASKS;
@@ -486,16 +498,16 @@ async function main() {
     date: new Date().toISOString().slice(0, 10),
     ...(values["webmcp-tools"] ? { demosUrl: values["demos-url"] } : {}),
   };
-  await mkdir(values.out!, { recursive: true });
+  await mkdir(OUT, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   // Formatted with the repository's Prettier, so committed results pass `pnpm run format:check`.
   const format = await import("prettier").then(
     (prettier) => (source: string, parser: string) => prettier.format(source, { parser }),
     () => async (source: string) => source,
   );
-  await writeFile(`${values.out}/${stamp}.json`, await format(JSON.stringify({ meta, results }, null, 2), "json"));
+  await writeFile(`${OUT}/${stamp}.json`, await format(JSON.stringify({ meta, results }, null, 2), "json"));
   const markdown = await format(report(tasks, results, meta), "markdown");
-  await writeFile(`${values.out}/${stamp}.md`, markdown);
+  await writeFile(`${OUT}/${stamp}.md`, markdown);
   console.log(markdown);
 }
 

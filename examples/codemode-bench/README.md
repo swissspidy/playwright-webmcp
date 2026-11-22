@@ -31,7 +31,7 @@ It needs an Anthropic API key in `TEST_API_KEY` (or `ANTHROPIC_API_KEY`), and No
 ```sh
 pnpm install
 pnpm --filter codemode-bench exec playwright install chromium
-pnpm --filter @swissspidy/webmcp-codemode build
+pnpm --filter @swissspidy/webmcp-codemode --filter @swissspidy/webmcp-lint build
 pnpm --filter codemode-bench bench                    # 3 runs of every task and arm
 pnpm --filter codemode-bench bench -- --runs 1 --tasks purchase --arms classic,codemode
 ```
@@ -65,6 +65,8 @@ git clone --depth 1 https://github.com/GoogleChromeLabs/webmcp-tools ../webmcp-t
 pnpm --filter codemode-bench bench -- --webmcp-tools ../webmcp-tools --runs 1
 pnpm --filter codemode-bench bench -- --webmcp-tools ../webmcp-tools --suites doors,hotel-chain
 ```
+
+Relative paths in `--webmcp-tools` and `--out` resolve against the directory you run `pnpm` from, so run these from the repository root.
 
 ## Results
 
