@@ -12,5 +12,5 @@
   "access": "public",
   "baseBranch": "main",
   "updateInternalDependencies": "patch",
-  "ignore": ["demo-site", "react-shop"]
+  "ignore": ["demo-site", "react-shop", "codemode-agent", "codemode-bench"]
 }

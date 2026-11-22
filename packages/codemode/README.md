@@ -1,6 +1,6 @@
 # @swissspidy/webmcp-codemode
 
-> Prototype. Not published yet.
+> Experimental. The API may change between 0.x releases.
 
 Code mode for [WebMCP](https://github.com/webmachinelearning/webmcp). Instead of calling a page's tools one at a time, the model writes one script that calls them, and the script runs in a QuickJS sandbox in Node. The sandbox drives Chromium through Playwright, Puppeteer or any CDP session.
 
