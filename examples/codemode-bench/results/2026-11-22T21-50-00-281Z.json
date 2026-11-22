@@ -3,7 +3,10 @@
     "model": "claude-opus-5-5",
     "effort": "medium",
     "runs": 3,
-    "date": "2026-11-22"
+    "date": "2026-11-22",
+    "corrections": [
+      "sheet-summarize classic run 3: success set to true. The original check read Summary!A1:B6 in one call, and read_range paged that answer, so the check saw 4 of 6 rows. The values that run wrote (South 33165, West 31839.25, East 31136, North 30934.25, Central 29241) match the expected totals and order. The check now follows next_range."
+    ]
   },
   "results": [
     {
@@ -7010,7 +7013,7 @@
       "task": "sheet-summarize",
       "arm": "classic",
       "run": 3,
-      "success": false,
+      "success": true,
       "turns": 14,
       "inputTokens": 164867,
       "outputTokens": 2574,

@@ -266,6 +266,22 @@ test.describe("known pages, review fixes", () => {
     expect(home.via).toEqual([{ tool: "back_to_search", from: product.page }]);
   });
 
+  test("browser.goto() remembers the page it leaves", async ({ codeMode }) => {
+    const cm = await codeMode();
+    await cm.execute(`await tools.open_product({ id: 1 }); await browser.goto("/cart");`);
+    const product = cm.knownPages().find((p) => p.page.endsWith("/product"));
+    expect(product?.tools.map((t) => t.name)).toEqual(expect.arrayContaining(["get_product", "add_to_cart"]));
+  });
+
+  test("calls are numbered in the order the page received them", async ({ codeMode }) => {
+    const cm = await codeMode();
+    // get_product is requested first but waits for the product page, which open_product opens.
+    const r = await cm.execute(`await Promise.all([tools.get_product(), tools.open_product({ id: 1 })]);`);
+    expect(r.calls.map((c) => c.name)).toEqual(["get_product", "open_product"]);
+    const byName = Object.fromEntries(r.calls.map((c) => [c.name, c]));
+    expect(byName.open_product.dispatch).toBeLessThan(byName.get_product.dispatch!);
+  });
+
   test("calls say whether they reached the page", async ({ codeMode }) => {
     const cm = await codeMode({ toolWaitMs: 2000 });
     const r = await cm.execute(`tools.get_product(); return await tools.cart_size();`);

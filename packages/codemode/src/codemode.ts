@@ -81,6 +81,11 @@ export interface CallRecord {
    * waiting for its tool (outcome `pending`) when the script ended.
    */
   invoked?: boolean;
+  /**
+   * The order in which calls were sent to the page, counted per CodeMode instance. Concurrent calls
+   * are recorded in the order the script made them, which can differ when one waits for its tool.
+   */
+  dispatch?: number;
   result?: unknown;
   error?: string;
 }
@@ -135,6 +140,7 @@ export function unwrapResult(output: unknown): unknown {
 
 export class CodeMode {
   private queue: Promise<unknown> = Promise.resolve();
+  private dispatched = 0;
   /** Pages seen, by key, least recently seen first. */
   private readonly pages = new Map<string, KnownPage>();
   /** The last tool call that navigated: the page it ran on and, when known, the page it went to. */
@@ -177,6 +183,12 @@ export class CodeMode {
   /** Every page seen so far (and those passed as `knownPages`), least recently seen first. */
   knownPages(): KnownPage[] {
     return structuredClone([...this.pages.values()]);
+  }
+
+  /** Records the current page (once it has settled) before browser.goto/back/reload leaves it. */
+  private async rememberBeforeLeaving(): Promise<void> {
+    await this.registry.settle();
+    this.remember();
   }
 
   /** Record the current page's tools, and the call that led here. */
@@ -259,12 +271,15 @@ export class CodeMode {
           const web = url.protocol === "http:" || url.protocol === "https:";
           if (!web || (this.options.canNavigate && !this.options.canNavigate(url)))
             throw hostError("NavigationDeniedError", `Navigation to ${url.href} is not allowed`);
+          await this.rememberBeforeLeaving();
           await registry.navigate(url.href);
           return null;
         }
         case "back":
+          await this.rememberBeforeLeaving();
           return registry.back();
         case "reload":
+          await this.rememberBeforeLeaving();
           await registry.reload();
           return null;
         case "waitForTool":
@@ -407,13 +422,19 @@ export class CodeMode {
       // The page the tool runs on, which a wait for the tool can have changed since the call started.
       const from = pageKey(registry.url());
       record.invoked = true;
+      record.dispatch = ++this.dispatched;
       const outcome: InvokeOutcome = await registry.invoke(tool, args, this.options.toolTimeoutMs ?? 30_000).catch((err) => ({
         status: "error" as const,
         error: String(err?.message ?? err),
       }));
       // The registration went away between lookup and invocation (re-registered, or the page moved
       // on). The browser refused before running anything, so trying the current registration is safe.
-      if (outcome.status === "error" && "stale" in outcome && outcome.stale && attempt < 2) continue;
+      if (outcome.status === "error" && "stale" in outcome && outcome.stale) {
+        // Refused before it ran: the page never received this call.
+        record.invoked = undefined;
+        record.dispatch = undefined;
+        if (attempt < 2) continue;
+      }
       switch (outcome.status) {
         case "completed": {
           const result = this.options.unwrapResults === false ? outcome.output : unwrapResult(outcome.output);

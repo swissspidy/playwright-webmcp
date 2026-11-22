@@ -309,8 +309,13 @@ function bigTasks(demosUrl: string): Task[] {
       prompt:
         "Sheet1 holds a year of sales, one row per month, region and product. Add a sheet named Summary with the headers Region and Revenue in row 1, then one row per region with its total revenue for the year (units times unit price), sorted from highest to lowest revenue.",
       check: async (_text, _page, _calls, cm) => {
-        const r = await harness(cm, `return await tools.read_range({ range: "Summary!A1:B6" });`);
-        const rows: unknown[][] = r.values ?? [];
+        // Long formulas make read_range page its answer; follow next_range like sheet-band does.
+        let rows: unknown[][] = [];
+        for (let range: string | undefined = "Summary!A1:B6"; range;) {
+          const r: { values?: unknown[][]; next_range?: string } = await harness(cm, `return await tools.read_range({ range: ${JSON.stringify(range)} });`);
+          rows = rows.concat(r.values ?? []);
+          range = r.next_range;
+        }
         return (
           rows.length === 6 &&
           String(rows[0][0]).trim() === "Region" &&
@@ -597,7 +602,11 @@ async function runOnce(
       result.stop = response.stop_reason ?? "";
       messages.push({ role: "assistant", content: response.content });
       // A long code execution can pause the turn; sending the conversation back resumes it.
-      if (response.stop_reason === "pause_turn") continue;
+      if (response.stop_reason === "pause_turn") {
+        // The resumed request must carry the same tools as the paused one.
+        pendingTools = tools;
+        continue;
+      }
       const calls = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
       const fromCode = calls.some((c) => c.caller && c.caller.type !== "direct");
       pendingTools = fromCode ? tools : undefined;
@@ -609,9 +618,11 @@ async function runOnce(
       for (const call of calls) {
         result.toolCalls++;
         const out = await arm.run(codeMode, page, call);
-        result.pageToolCalls += out.calls.length;
-        // Only calls that reached the page count (not denied, unavailable or never-started ones).
-        for (const c of out.calls) if (c.invoked) result.calls.push({ name: c.name, args: c.args, outcome: c.outcome });
+        // Only calls that reached the page count (not denied, unavailable or never-started ones), in the
+        // order the page received them.
+        const reached = out.calls.filter((c) => c.invoked).sort((a, b) => (a.dispatch ?? 0) - (b.dispatch ?? 0));
+        result.pageToolCalls += reached.length;
+        for (const c of reached) result.calls.push({ name: c.name, args: c.args, outcome: c.outcome });
         results.push({ type: "tool_result", tool_use_id: call.id, content: out.text, ...(out.isError ? { is_error: true } : {}) });
       }
       messages.push({ role: "user", content: results });
