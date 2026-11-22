@@ -16,7 +16,7 @@
     "use-webmcp-tool": "^0.3.0"
   },
   "devDependencies": {
-    "@playwright/test": "1.64.1",
+    "@playwright/test": "1.65.1",
     "@swissspidy/eslint-plugin-webmcp": "workspace:*",
     "@swissspidy/playwright-webmcp": "workspace:*",
     "@swissspidy/webmcp-codemode": "workspace:*",
