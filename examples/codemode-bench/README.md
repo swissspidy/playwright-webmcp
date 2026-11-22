@@ -44,6 +44,28 @@ CI only typechecks this script; it never runs it.
 
 Results from before the code mode fixes (3e8a10e and earlier) used three arms: `codemode` then meant the two tools without the API inlined, and a third arm, `codemode-inline`, inlined it.
 
+## The webmcp-tools eval suites
+
+`--webmcp-tools <checkout>` runs the eval suites from a checkout of [GoogleChromeLabs/webmcp-tools](https://github.com/GoogleChromeLabs/webmcp-tools) (`webmcp-evals/examples`) instead of the shop tasks. It runs them against the deployed demos, or another copy given with `--demos-url`.
+
+It uses the suites with several expected calls per case and a deployed demo:
+
+| Suite                | Demo                               |
+| -------------------- | ---------------------------------- |
+| `spreadsheet`        | 27 tools, one page                 |
+| `pixel-art-studio`   | 25 tools, one page                 |
+| `doors`              | Tools that appear after navigating |
+| `hotel-chain`        | Tools that appear after navigating |
+| `sport-shop-angular` | Tools that appear after navigating |
+
+Each case is one user request and the calls an agent should make for it. A run passes when the page tool calls it made match those calls. Matching uses `reconcileCalls` from `@swissspidy/webmcp-lint` in `evals` mode, the `webmcp-evals` CLI's own rules: calls must come in order, and any extra call fails the case. The report also gives a lenient score that allows extra calls, such as a read before a write.
+
+```sh
+git clone --depth 1 https://github.com/GoogleChromeLabs/webmcp-tools ../webmcp-tools
+pnpm --filter codemode-bench bench -- --webmcp-tools ../webmcp-tools --runs 1
+pnpm --filter codemode-bench bench -- --webmcp-tools ../webmcp-tools --suites doors,hotel-chain
+```
+
 ## Results
 
 - [2026-11-21, 3 runs per task and arm, harness at a247612 (description nudges)](results/2026-11-21T22-37-16-925Z.md)
