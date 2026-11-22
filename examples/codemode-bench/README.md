@@ -94,6 +94,7 @@ pnpm --filter codemode-bench bench -- --big --runs 3
 
 ## Results
 
+- [2026-11-22, bigger tasks (--big), classic and codemode arms, 3 runs per task and arm, harness at c01f090](results/2026-11-22T21-50-00-281Z.md)
 - [2026-11-22, webmcp-tools eval suites, 1 run per case and arm, harness at efa10ce](results/2026-11-22T15-34-58-330Z.md)
 - [2026-11-21, 3 runs per task and arm, harness at a247612 (description nudges)](results/2026-11-21T22-37-16-925Z.md)
 - [2026-11-21, 3 runs per task and arm, harness at 9e9a9d9 (after the code mode fixes)](results/2026-11-21T21-59-20-690Z.md)
