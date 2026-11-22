@@ -31,7 +31,7 @@ It needs an Anthropic API key in `TEST_API_KEY` (or `ANTHROPIC_API_KEY`), and No
 ```sh
 pnpm install
 pnpm --filter codemode-bench exec playwright install chromium
-pnpm --filter @swissspidy/webmcp-codemode build
+pnpm --filter @swissspidy/webmcp-codemode --filter @swissspidy/webmcp-lint build
 pnpm --filter codemode-bench bench                    # 3 runs of every task and arm
 pnpm --filter codemode-bench bench -- --runs 1 --tasks purchase --arms classic,codemode
 ```
@@ -66,10 +66,13 @@ pnpm --filter codemode-bench bench -- --webmcp-tools ../webmcp-tools --runs 1
 pnpm --filter codemode-bench bench -- --webmcp-tools ../webmcp-tools --suites doors,hotel-chain
 ```
 
+Relative paths in `--webmcp-tools` and `--out` resolve against the directory you run `pnpm` from, so run these from the repository root.
+
 `--remember-pages` starts each code mode case with the pages it saw in the earlier cases of the same suite (`knownPages`), as an agent that has used the site before would have them. The cases then depend on their order, so compare it with a run without the flag.
 
 ## Results
 
+- [2026-11-22, webmcp-tools eval suites, 1 run per case and arm, harness at efa10ce](results/2026-11-22T15-34-58-330Z.md)
 - [2026-11-21, 3 runs per task and arm, harness at a247612 (description nudges)](results/2026-11-21T22-37-16-925Z.md)
 - [2026-11-21, 3 runs per task and arm, harness at 9e9a9d9 (after the code mode fixes)](results/2026-11-21T21-59-20-690Z.md)
 - [2026-11-21, 3 runs per task and arm, harness at 3e8a10e](results/2026-11-21T19-55-40-463Z.md)
