@@ -47,13 +47,15 @@ jobs:
       - run: pnpm install --frozen-lockfile --ignore-scripts
       # Before changesets/action, which leaves the checkout on its version
       # branch with the pending changesets applied: the check has to read
-      # main's manifests, not the next versions.
+      # main's manifests, not the next versions. A package at 0.0.0 has not had
+      # its first "Version packages" PR yet, so it is not released (here or in
+      # the pack job below) until that PR gives it a real version.
       - name: Does npm lack any package's version?
         id: release
         run: |
           release=false
           for manifest in packages/*/package.json; do
-            spec="$(node -p 'const p = require("./" + process.argv[1]); p.private ? "" : `${p.name}@${p.version}`' "$manifest")"
+            spec="$(node -p 'const p = require("./" + process.argv[1]); p.private || p.version === "0.0.0" ? "" : `${p.name}@${p.version}`' "$manifest")"
             [ -z "$spec" ] && continue
             if ! npm view "$spec" version >/dev/null 2>&1; then
               echo "$spec is not on npm"
@@ -88,11 +90,12 @@ jobs:
       - run: pnpm run build
       - run: pnpm run lint:publish
       # pnpm pack rewrites workspace: ranges to the versions being released.
+      # Private packages and packages still at 0.0.0 (see the version job) are skipped.
       - name: Pack
         run: |
           mkdir release
           for manifest in packages/*/package.json; do
-            if [ "$(node -p 'require("./" + process.argv[1]).private === true' "$manifest")" = true ]; then continue; fi
+            if [ "$(node -p 'const p = require("./" + process.argv[1]); p.private === true || p.version === "0.0.0"' "$manifest")" = true ]; then continue; fi
             (cd "$(dirname "$manifest")" && pnpm pack --pack-destination "$GITHUB_WORKSPACE/release")
           done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
