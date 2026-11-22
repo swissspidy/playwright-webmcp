@@ -40,6 +40,10 @@ const { values } = parseArgs({
     "webmcp-tools": { type: "string" },
     suites: { type: "string" },
     "demos-url": { type: "string", default: "https://googlechromelabs.github.io/webmcp-tools/demos" },
+    // Bigger tasks on the same demos: many dependent calls or large tool results.
+    big: { type: "boolean", default: false },
+    // No model: seeds each task, checks that it fails, runs its reference solution, checks that it passes.
+    "dry-run": { type: "boolean", default: false },
     // Code mode only: carry the pages it has seen (CodeMode's knownPages) from one case to the next
     // within a task group, as an agent that has used the site before would have them.
     "remember-pages": { type: "boolean", default: false },
@@ -52,7 +56,7 @@ const fromInvocation = (path: string) => resolve(process.env.INIT_CWD ?? process
 const OUT = fromInvocation(values.out!);
 
 const apiKey = process.env.TEST_API_KEY ?? process.env.ANTHROPIC_API_KEY;
-if (!apiKey) {
+if (!apiKey && !values["dry-run"]) {
   console.error("Set TEST_API_KEY (or ANTHROPIC_API_KEY) to an Anthropic API key.");
   process.exit(1);
 }
@@ -77,7 +81,11 @@ interface Task {
   prompt: string;
   /** Replaces the shop preamble of the system prompt. */
   preamble?: string;
-  check: (finalText: string, page: Page, calls: ActualCall[]) => Promise<boolean>;
+  check: (finalText: string, page: Page, calls: ActualCall[], codeMode: CodeMode) => Promise<boolean>;
+  /** Puts the page into the task's starting state through its own tools, before the model sees it. */
+  setup?: (codeMode: CodeMode) => Promise<void>;
+  /** A script that solves the task through the page's tools and returns the answer, for --dry-run. */
+  reference?: string;
   /** A second, more forgiving check, reported next to the first. */
   lenientCheck?: (calls: ActualCall[]) => boolean;
 }
@@ -189,6 +197,228 @@ async function evalTasks(dir: string, names: string[], demosUrl: string): Promis
     });
   }
   return tasks;
+}
+
+// ---------------------------------------------------------------------------------------------
+// Bigger tasks on the deployed webmcp-tools demos: many dependent calls, or tool results too large to
+// be worth reading in full. Each seeds its starting state through the page's own tools (the same for
+// both arms) and is checked against the page's end state or an answer computed from the live demo.
+
+/** Runs a harness script on the page (not part of the run's calls) and returns its result. */
+async function harness(codeMode: CodeMode, code: string): Promise<any> {
+  const r = await codeMode.execute(code);
+  if (!r.ok) throw new Error(`harness script failed: ${r.error?.name}: ${r.error?.message}`);
+  return r.result;
+}
+
+const REGIONS = ["North", "South", "East", "West", "Central"];
+const PRODUCTS: Array<[string, number]> = [
+  ["Widget", 12.5],
+  ["Gadget", 24],
+  ["Gizmo", 7.25],
+  ["Doohickey", 41],
+];
+
+/** A year of sales, 240 rows: month × region × product, with deterministic units. */
+const SALES = (() => {
+  let seed = 7;
+  const rand = (n: number) => {
+    seed = (seed * 1103515245 + 12345) % 2147483648;
+    return Math.floor(seed / 65536) % n;
+  };
+  const rows: Array<{ region: string; month: string; product: string; units: number; price: number }> = [];
+  for (let m = 1; m <= 12; m++)
+    for (const region of REGIONS)
+      for (const [product, price] of PRODUCTS) rows.push({ region, month: `2026-${String(m).padStart(2, "0")}`, product, units: 1 + rand(60), price });
+  return rows;
+})();
+const revenue = (r: (typeof SALES)[number]) => Math.round(r.units * r.price * 100) / 100;
+const round2 = (n: number) => Math.round(n * 100) / 100;
+
+const seedSales = (codeMode: CodeMode) =>
+  harness(
+    codeMode,
+    `await tools.set_values({ range: "A1", values: ${JSON.stringify([
+      ["Region", "Month", "Product", "Units", "Unit price"],
+      ...SALES.map((r) => [r.region, `'${r.month}`, r.product, String(r.units), String(r.price)]),
+    ])} }); return true;`,
+  );
+
+const q2Best = (() => {
+  const byRegion = new Map<string, number>();
+  for (const r of SALES) if (r.month >= "2026-04" && r.month <= "2026-06") byRegion.set(r.region, (byRegion.get(r.region) ?? 0) + revenue(r));
+  const [region, total] = [...byRegion].sort((a, b) => b[1] - a[1])[0];
+  return { region, total: round2(total) };
+})();
+
+const yearByRegion = REGIONS.map((region) => ({ region, total: round2(SALES.filter((r) => r.region === region).reduce((n, r) => n + revenue(r), 0)) })).sort(
+  (a, b) => b.total - a.total,
+);
+
+const PINK = "#bf2a7a";
+/** Overlapping filled rectangles, so a colour's pixel count cannot be read off the shapes. */
+const PIXEL_SHAPES: Array<[number, number, number, number, string]> = [
+  [0, 0, 64, 64, "#1b0f3b"],
+  [3, 4, 20, 14, PINK],
+  [10, 10, 18, 22, "#6e1f7f"],
+  [30, 2, 25, 9, PINK],
+  [40, 6, 6, 30, "#2d1457"],
+  [5, 34, 40, 6, PINK],
+  [22, 28, 9, 30, "#961f80"],
+  [48, 40, 14, 18, PINK],
+  [51, 44, 6, 6, "#0b0723"],
+  [14, 50, 12, 10, PINK],
+];
+const drawShapes = (shapes: typeof PIXEL_SHAPES) =>
+  shapes.map(([x, y, width, height, color]) => `await tools.draw_rect(${JSON.stringify({ x, y, width, height, color, filled: true })});`).join("\n");
+const readCanvas = (codeMode: CodeMode) =>
+  harness(codeMode, `return await tools.get_region_pixels({ x: 0, y: 0, width: 64, height: 64 });`) as Promise<{
+    rows: string[];
+    legend: Record<string, string>;
+  }>;
+
+let pinkPixels = -1;
+let mirrorLeft: string[] = [];
+
+const shopProducts = (codeMode: CodeMode) =>
+  harness(codeMode, `return (await tools.search_product({ query: "", category: "ALL" })).products;`) as Promise<
+    Array<{ id: string; price: number; size: string; tags: string[]; availability: number }>
+  >;
+
+function bigTasks(demosUrl: string): Task[] {
+  const sheet = `${demosUrl}/spreadsheet/`;
+  return [
+    {
+      id: "sheet-analyze",
+      reference: `let rows = []; for (let range = "Sheet1!A2:E241"; range; ) { const r = await tools.read_range({ range }); rows = rows.concat(r.values); range = r.next_range; } const by = {}; for (const [region, month, , units, price] of rows) if (month >= "2026-04" && month <= "2026-06") by[region] = (by[region] ?? 0) + units * price; const [best, total] = Object.entries(by).sort((a, b) => b[1] - a[1])[0]; return best + " " + total.toFixed(2);`,
+      description: "Spreadsheet seeded with 240 rows of sales (read in pages). Answer needs every Q2 row.",
+      start: sheet,
+      preamble: EVAL_PREAMBLE,
+      setup: async (cm) => void (await seedSales(cm)),
+      prompt:
+        "Sheet1 holds a year of sales, one row per month, region and product. Which region had the highest revenue (units times unit price) from April to June 2026, and how much was it? Reply with the region and the amount.",
+      check: async (text) => text.includes(q2Best.region) && states(text, q2Best.total),
+    },
+    {
+      id: "sheet-summarize",
+      reference: `let rows = []; for (let range = "Sheet1!A2:E241"; range; ) { const r = await tools.read_range({ range }); rows = rows.concat(r.values); range = r.next_range; } const by = {}; for (const [region, , , units, price] of rows) by[region] = (by[region] ?? 0) + units * price; const sorted = Object.entries(by).sort((a, b) => b[1] - a[1]); await tools.add_sheet({ name: "Summary" }); await tools.set_values({ range: "Summary!A1", values: [["Region", "Revenue"], ...sorted.map(([r, t]) => [r, t.toFixed(2)])] }); return "done";`,
+      description: "Same seed. Write a sorted per-region summary to a new sheet.",
+      start: sheet,
+      preamble: EVAL_PREAMBLE,
+      setup: async (cm) => void (await seedSales(cm)),
+      prompt:
+        "Sheet1 holds a year of sales, one row per month, region and product. Add a sheet named Summary with the headers Region and Revenue in row 1, then one row per region with its total revenue for the year (units times unit price), sorted from highest to lowest revenue.",
+      check: async (_text, _page, _calls, cm) => {
+        const r = await harness(cm, `return await tools.read_range({ range: "Summary!A1:B6" });`);
+        const rows: unknown[][] = r.values ?? [];
+        return (
+          rows.length === 6 &&
+          String(rows[0][0]).trim() === "Region" &&
+          String(rows[0][1]).trim() === "Revenue" &&
+          yearByRegion.every((e, i) => rows[i + 1][0] === e.region && Math.abs(Number(rows[i + 1][1]) - e.total) < 0.01)
+        );
+      },
+    },
+    {
+      id: "sheet-band",
+      reference: `let rows = []; for (let range = "Sheet1!A2:E241"; range; ) { const r = await tools.read_range({ range }); rows = rows.concat(r.values); range = r.next_range; } await tools.set_values({ range: "F1", values: [["Band"], ...rows.map(([, , , units, price]) => [units * price > 1000 ? "High" : "Normal"])] }); return "done";`,
+      description: "Same seed. Label all 240 rows by revenue in a new column.",
+      start: sheet,
+      preamble: EVAL_PREAMBLE,
+      setup: async (cm) => void (await seedSales(cm)),
+      prompt:
+        "Sheet1 holds a year of sales, one row per month, region and product. In column F, put the header Band in F1, then for every data row write High if its revenue (units times unit price) is above 1000, and Normal otherwise.",
+      check: async (_text, _page, _calls, cm) => {
+        let values: unknown[][] = [];
+        for (let range: string | undefined = "F1:F241"; range;) {
+          const r: { values?: unknown[][]; next_range?: string } = await harness(cm, `return await tools.read_range({ range: ${JSON.stringify(range)} });`);
+          values = values.concat(r.values ?? []);
+          range = r.next_range;
+        }
+        return (
+          values.length === 241 &&
+          String(values[0][0]).trim() === "Band" &&
+          SALES.every((row, i) => values[i + 1]?.[0] === (revenue(row) > 1000 ? "High" : "Normal"))
+        );
+      },
+    },
+    {
+      id: "pixel-count",
+      reference: `const { rows, legend } = await tools.get_region_pixels({ x: 0, y: 0, width: 64, height: 64 }); const pink = Object.keys(legend).filter((c) => legend[c].toLowerCase() === "#bf2a7a"); return String(rows.join("").split("").filter((c) => pink.includes(c)).length);`,
+      description: "Canvas seeded with overlapping shapes. Count one colour over 64×64 pixels.",
+      start: `${demosUrl}/pixel-art-studio/`,
+      preamble: EVAL_PREAMBLE,
+      setup: async (cm) => {
+        await harness(cm, `${drawShapes(PIXEL_SHAPES)}\nreturn true;`);
+        const { rows, legend } = await readCanvas(cm);
+        const pink = Object.keys(legend).filter((c) => legend[c].toLowerCase() === PINK);
+        pinkPixels = rows
+          .join("")
+          .split("")
+          .filter((c) => pink.includes(c)).length;
+      },
+      prompt: `How many pixels on the canvas are the colour ${PINK}? Reply with just the number.`,
+      check: async (text) => pinkPixels > 0 && states(text, pinkPixels),
+    },
+    {
+      id: "pixel-mirror",
+      reference: `const { rows, legend } = await tools.get_region_pixels({ x: 0, y: 0, width: 64, height: 64 }); const right = rows.map((r) => [...r.slice(0, 32)].reverse().join("").replaceAll(".", "~")); await tools.paint_rows({ x: 32, y: 0, rows: right, legend }); return "done";`,
+      description: "Left half seeded. Mirror it onto the right half: read, transform, write.",
+      start: `${demosUrl}/pixel-art-studio/`,
+      preamble: EVAL_PREAMBLE,
+      setup: async (cm) => {
+        const left = PIXEL_SHAPES.filter(([x, , w]) => x < 32).map(([x, y, w, h, c]): [number, number, number, number, string] => [
+          x,
+          y,
+          Math.min(w, 32 - x),
+          h,
+          c,
+        ]);
+        await harness(cm, `${drawShapes(left)}\nreturn true;`);
+        mirrorLeft = (await readCanvas(cm)).rows.map((r) => r.slice(0, 32));
+      },
+      prompt:
+        "Make the picture mirror-symmetric: copy the left half of the canvas (columns 0 to 31) mirrored onto the right half (columns 32 to 63), so that column 63 matches column 0, column 62 matches column 1, and so on. Keep the left half as it is.",
+      check: async (_text, _page, _calls, cm) => {
+        const { rows } = await readCanvas(cm);
+        return (
+          rows.length === 64 &&
+          rows.every((r, y) => r.length === 64 && r.slice(0, 32) === mirrorLeft[y] && r.slice(32) === [...mirrorLeft[y]].reverse().join(""))
+        );
+      },
+    },
+    {
+      id: "shop-gifts",
+      reference: `const { products } = await tools.search_product({ query: "", category: "ALL" }); return products.filter((p) => p.size === "child" && p.tags.includes("gift") && p.availability >= 5).reduce((n, p) => n + p.price, 0).toFixed(2);`,
+      description: "Sport shop: about 8 KB of search results to filter and sum.",
+      start: `${demosUrl}/sport-shop-angular/`,
+      preamble: EVAL_PREAMBLE,
+      prompt: "What would it cost to buy one of every child-size product tagged gift that has at least 5 in stock? Reply with the total.",
+      check: async (text, _page, _calls, cm) => {
+        const total = round2(
+          (await shopProducts(cm)).filter((p) => p.size === "child" && p.tags.includes("gift") && p.availability >= 5).reduce((n, p) => n + p.price, 0),
+        );
+        return states(text, total);
+      },
+    },
+    {
+      id: "shop-cart",
+      reference: `const { products } = await tools.search_product({ query: "", category: "ALL" }); for (const p of products.filter((p) => p.price < 60 && p.availability >= 10)) await tools.add_search_result_to_cart({ productId: p.id }); return "done";`,
+      description: "Sport shop: add every product that matches price and stock to the cart.",
+      start: `${demosUrl}/sport-shop-angular/`,
+      preamble: EVAL_PREAMBLE,
+      prompt: "Add one of every product that costs less than $60 and has at least 10 in stock to the cart.",
+      check: async (_text, _page, _calls, cm) => {
+        const want = (await shopProducts(cm))
+          .filter((p) => p.price < 60 && p.availability >= 10)
+          .map((p) => p.id)
+          .sort();
+        const cart = await harness(cm, `await tools.open_cart({}); return await tools.get_cart({});`);
+        const have = (cart.items ?? []).map((i: { productId: string }) => i.productId).sort();
+        return JSON.stringify(have) === JSON.stringify(want);
+      },
+    },
+  ];
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -318,6 +548,7 @@ async function runOnce(
   try {
     await page.goto(new URL(task.start, ORIGIN).href);
     const codeMode = await CodeMode.create(page, { toolWaitMs: 3000, knownPages });
+    await task.setup?.(codeMode);
     // Read at the end, also when the run fails part-way.
     knownPagesOf = () => codeMode.knownPages();
     const messages: Anthropic.MessageParam[] = [{ role: "user", content: task.prompt }];
@@ -358,7 +589,7 @@ async function runOnce(
       messages.push({ role: "user", content: results });
     }
     const actual: ActualCall[] = result.calls.map((c) => ({ name: c.name, args: c.args }));
-    result.success = result.stop === "end_turn" && (await task.check(result.finalText, page, actual));
+    result.success = result.stop === "end_turn" && (await task.check(result.finalText, page, actual, codeMode));
     if (task.lenientCheck) result.lenient = result.stop === "end_turn" && task.lenientCheck(actual);
   } catch (err) {
     result.error = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
@@ -471,9 +702,10 @@ async function main() {
         values.suites ? values.suites.split(",") : Object.keys(SUITES),
         values["demos-url"]!.replace(/\/$/, ""),
       )
-    : values.tasks
-      ? TASKS.filter((t) => values.tasks!.split(",").includes(t.id))
-      : TASKS;
+    : (() => {
+        const all = values.big ? bigTasks(values["demos-url"]!.replace(/\/$/, "")) : TASKS;
+        return values.tasks ? all.filter((t) => values.tasks!.split(",").includes(t.id)) : all;
+      })();
   const arms = values.arms ? ARMS.filter((a) => values.arms!.split(",").includes(a.id)) : ARMS;
 
   const site = fileURLToPath(new URL("../../packages/codemode/tests/site/server.mjs", import.meta.url));
@@ -494,6 +726,33 @@ async function main() {
       i++
     )
       await new Promise((r) => setTimeout(r, 100));
+    if (values["dry-run"]) {
+      let failed = 0;
+      for (const task of tasks) {
+        const context = await browser.newContext();
+        const page = await context.newPage();
+        let verdict: string;
+        try {
+          await page.goto(new URL(task.start, ORIGIN).href);
+          const codeMode = await CodeMode.create(page, { toolWaitMs: 3000 });
+          await task.setup?.(codeMode);
+          const before = await task.check("", page, [], codeMode);
+          if (!task.reference) verdict = "no reference";
+          else {
+            const r = await codeMode.execute(task.reference);
+            const after = r.ok && (await task.check(String(r.result ?? ""), page, [], codeMode));
+            verdict = before ? "FAIL: passes before any work" : after ? "ok" : `FAIL: reference does not pass${r.ok ? "" : ` (${r.error?.message})`}`;
+          }
+        } catch (err) {
+          verdict = `FAIL: ${err instanceof Error ? err.message : String(err)}`;
+        }
+        if (verdict !== "ok") failed++;
+        console.log(`${task.id.padEnd(16)} ${verdict}`);
+        await context.close();
+      }
+      process.exitCode = failed ? 1 : 0;
+      return;
+    }
     // Interleave arms within each run, so drift over time affects all arms alike.
     for (let run = 1; run <= runs; run++) {
       // --remember-pages: code mode's known pages per task group, carried from case to case in this run.

@@ -70,6 +70,27 @@ Relative paths in `--webmcp-tools` and `--out` resolve against the directory you
 
 `--remember-pages` starts each code mode case with the pages it saw in the earlier cases of the same suite (`knownPages`), as an agent that has used the site before would have them. The cases then depend on their order, so compare it with a run without the flag.
 
+## Bigger tasks on the demos
+
+The eval suites' cases are small: 1 to 3 calls with small results. `--big` runs bigger tasks on the same deployed demos instead: many dependent calls, or tool results too large to be worth reading in full. Each task seeds its starting state through the page's own tools, the same for both arms. The check reads the page's end state, or computes the answer from the live demo.
+
+| Task              | What it takes                                                                                                       |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `sheet-analyze`   | Spreadsheet seeded with 240 rows of sales: the best region in Q2 and its revenue. Reads come back a page at a time. |
+| `sheet-summarize` | Same seed: a new Summary sheet with each region's revenue for the year, sorted.                                     |
+| `sheet-band`      | Same seed: label all 240 rows High or Normal by revenue.                                                            |
+| `pixel-count`     | Canvas seeded with overlapping shapes: count one colour's pixels over 64×64.                                        |
+| `pixel-mirror`    | Left half seeded: mirror it onto the right half.                                                                    |
+| `shop-gifts`      | Sport shop: a total over about 8 KB of search results, filtered.                                                    |
+| `shop-cart`       | Sport shop: add every product that matches a price and a stock level to the cart.                                   |
+
+`--dry-run` needs no API key. For every task it seeds the page, checks that the check fails, runs the task's reference solution through code mode, and checks that the check then passes.
+
+```sh
+pnpm --filter codemode-bench bench -- --big --dry-run
+pnpm --filter codemode-bench bench -- --big --runs 3
+```
+
 ## Results
 
 - [2026-11-22, webmcp-tools eval suites, 1 run per case and arm, harness at efa10ce](results/2026-11-22T15-34-58-330Z.md)

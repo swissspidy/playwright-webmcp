@@ -1,0 +1,11 @@
+import { chromium } from "playwright";
+import { CodeMode } from "@swissspidy/webmcp-codemode";
+const [demo, code] = process.argv.slice(2);
+const browser = await chromium.launch({ executablePath: "/opt/pw-browsers/chromium-1248/chrome-linux64/chrome", args: ["--enable-features=WebMCP"] });
+const page = await browser.newPage();
+await page.goto(`https://googlechromelabs.github.io/webmcp-tools/demos/${demo}/`);
+const cm = await CodeMode.create(page);
+const r = await cm.execute(code);
+console.log(JSON.stringify(r.ok ? r.result : r.error, null, 1).slice(0, 6000));
+console.log("calls:", r.calls.map((c) => `${c.name}:${c.outcome}`).join(", "), "| url", r.url.after, "| tools", r.tools.after.join(","));
+await browser.close();
