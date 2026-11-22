@@ -14,7 +14,7 @@
  * Reads the API key from TEST_API_KEY or ANTHROPIC_API_KEY. Runs cost money: see README.md.
  */
 import Anthropic from "@anthropic-ai/sdk";
-import { CodeMode, formatResult, TOOL_DEFINITIONS, toolDefinitions, type CallRecord, type ToolInfo } from "@swissspidy/webmcp-codemode";
+import { CodeMode, formatResult, TOOL_DEFINITIONS, toolDefinitions, type CallRecord, type KnownPage, type ToolInfo } from "@swissspidy/webmcp-codemode";
 import { reconcileCalls, type ActualCall, type ExpectedCallNode } from "@swissspidy/webmcp-lint";
 import { spawn } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
@@ -37,6 +37,9 @@ const { values } = parseArgs({
     "webmcp-tools": { type: "string" },
     suites: { type: "string" },
     "demos-url": { type: "string", default: "https://googlechromelabs.github.io/webmcp-tools/demos" },
+    // Code mode only: carry the pages it has seen (CodeMode's knownPages) from one case to the next
+    // within a task group, as an agent that has used the site before would have them.
+    "remember-pages": { type: "boolean", default: false },
   },
 });
 
@@ -278,11 +281,18 @@ interface RunResult {
   transcript?: Anthropic.MessageParam[];
 }
 
-async function runOnce(browser: import("playwright").Browser, task: Task, arm: Arm, run: number): Promise<RunResult> {
+async function runOnce(
+  browser: import("playwright").Browser,
+  task: Task,
+  arm: Arm,
+  run: number,
+  knownPages?: KnownPage[],
+): Promise<RunResult & { knownPages?: KnownPage[] }> {
   const context = await browser.newContext();
   const page = await context.newPage();
   const started = Date.now();
-  const result: RunResult = {
+  let knownPagesOf: (() => KnownPage[]) | undefined;
+  const result: RunResult & { knownPages?: KnownPage[] } = {
     task: task.id,
     arm: arm.id,
     run,
@@ -299,7 +309,9 @@ async function runOnce(browser: import("playwright").Browser, task: Task, arm: A
   };
   try {
     await page.goto(new URL(task.start, ORIGIN).href);
-    const codeMode = await CodeMode.create(page, { toolWaitMs: 3000 });
+    const codeMode = await CodeMode.create(page, { toolWaitMs: 3000, knownPages });
+    // Read at the end, also when the run fails part-way.
+    knownPagesOf = () => codeMode.knownPages();
     const messages: Anthropic.MessageParam[] = [{ role: "user", content: task.prompt }];
     // Kept by reference, so a run that fails part-way still has its transcript.
     result.transcript = messages;
@@ -344,6 +356,7 @@ async function runOnce(browser: import("playwright").Browser, task: Task, arm: A
     result.error = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   } finally {
     result.seconds = Math.round((Date.now() - started) / 100) / 10;
+    if (knownPages) result.knownPages = knownPagesOf?.() ?? knownPages;
     await context.close();
   }
   return result;
@@ -423,6 +436,12 @@ function suiteReport(tasks: Task[], results: RunResult[], meta: Record<string, u
     ``,
     `Model \`${meta.model}\`, effort \`${meta.effort}\`, ${meta.runs} run(s) per case and arm, ${meta.date}, against ${meta.demosUrl}. Totals per suite; cost at list prices without prompt caching.`,
     ``,
+    ...(meta.rememberPages
+      ? [
+          `Run with \`--remember-pages\`: in each suite, code mode starts every case with the pages it saw in the cases before (\`knownPages\`), so a script can call a page's tools right after navigating there. The classic arm is unchanged.`,
+          ``,
+        ]
+      : []),
     `"Evals rules" is the webmcp-evals CLI's trajectory matching: the page tool calls must match the expected calls in order, and any extra call fails the case. "Lenient" allows extra calls (for example a read before a write) as long as the expected calls happen in order.`,
     ``,
     ...rows,
@@ -465,9 +484,14 @@ async function main() {
       await new Promise((r) => setTimeout(r, 100));
     // Interleave arms within each run, so drift over time affects all arms alike.
     for (let run = 1; run <= runs; run++) {
+      // --remember-pages: code mode's known pages per task group, carried from case to case in this run.
+      const known = new Map<string, KnownPage[]>();
       for (const task of tasks) {
         for (const arm of arms) {
-          const r = await runOnce(browser, task, arm, run);
+          const remember = values["remember-pages"] && arm.id === "codemode";
+          const group = task.group ?? task.id;
+          const { knownPages, ...r } = await runOnce(browser, task, arm, run, remember ? (known.get(group) ?? []) : undefined);
+          if (remember && knownPages) known.set(group, knownPages);
           results.push(r);
           console.error(
             `${task.id.padEnd(9)} ${arm.id.padEnd(9)} run ${run}: ${r.success ? "ok  " : "FAIL"} ${r.turns} turns, ${r.inputTokens} in, ${r.outputTokens} out, ${r.seconds}s${r.error ? `, ${r.error}` : ""}`,
@@ -485,16 +509,17 @@ async function main() {
     runs,
     date: new Date().toISOString().slice(0, 10),
     ...(values["webmcp-tools"] ? { demosUrl: values["demos-url"] } : {}),
+    ...(values["remember-pages"] ? { rememberPages: true } : {}),
   };
   await mkdir(values.out!, { recursive: true });
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   // Formatted with the repository's Prettier, so committed results pass `pnpm run format:check`.
   const format = await import("prettier").then(
-    (prettier) => (source: string, parser: string) => prettier.format(source, { parser }),
+    (prettier) => async (source: string, file: string) => prettier.format(source, { ...(await prettier.resolveConfig(file)), filepath: file }),
     () => async (source: string) => source,
   );
-  await writeFile(`${values.out}/${stamp}.json`, await format(JSON.stringify({ meta, results }, null, 2), "json"));
-  const markdown = await format(report(tasks, results, meta), "markdown");
+  await writeFile(`${values.out}/${stamp}.json`, await format(JSON.stringify({ meta, results }, null, 2), `${values.out}/${stamp}.json`));
+  const markdown = await format(report(tasks, results, meta), `${values.out}/${stamp}.md`);
   await writeFile(`${values.out}/${stamp}.md`, markdown);
   console.log(markdown);
 }

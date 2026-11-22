@@ -1,6 +1,7 @@
 export { CodeMode, formatResult, RESULT_LIMIT, unwrapResult } from "./codemode.js";
 export type { CallRecord, CodeModeOptions, ExecuteResult, ToolCallRequest } from "./codemode.js";
-export { declarations, schemaToTs } from "./declarations.js";
+export { declarations, pageKey, schemaToTs } from "./declarations.js";
+export type { KnownPage, PageTool } from "./declarations.js";
 export { ToolRegistry, ToolTimeoutError, WebMcpUnsupportedError } from "./registry.js";
 export type { CdpLikeSession, InvokeOutcome, ToolAnnotations, ToolInfo } from "./registry.js";
 export { QuickJSExecutor, normalizeProviders } from "./executor.js";

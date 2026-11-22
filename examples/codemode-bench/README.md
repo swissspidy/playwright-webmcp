@@ -66,6 +66,8 @@ pnpm --filter codemode-bench bench -- --webmcp-tools ../webmcp-tools --runs 1
 pnpm --filter codemode-bench bench -- --webmcp-tools ../webmcp-tools --suites doors,hotel-chain
 ```
 
+`--remember-pages` starts each code mode case with the pages it saw in the earlier cases of the same suite (`knownPages`), as an agent that has used the site before would have them. The cases then depend on their order, so compare it with a run without the flag.
+
 ## Results
 
 - [2026-11-21, 3 runs per task and arm, harness at a247612 (description nudges)](results/2026-11-21T22-37-16-925Z.md)

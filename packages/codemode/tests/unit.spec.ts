@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { declarations, QuickJSExecutor, runInSandbox, schemaToTs, ToolRegistry, unwrapResult } from "../src/index.js";
+import { declarations, pageKey, QuickJSExecutor, runInSandbox, schemaToTs, ToolRegistry, unwrapResult } from "../src/index.js";
 import { wrapUserCode } from "../src/sandbox.js";
 import { FakeSession } from "./fake-session.js";
 
@@ -287,4 +287,30 @@ test("compact declarations hold only the page URL and the tools", () => {
   );
   expect(full).toContain("declare const browser");
   expect(compact.length).toBeLessThan(full.length / 3);
+});
+
+test("pageKey keeps origin, path and hash route, not the query", () => {
+  expect(pageKey("https://shop.test/product?id=2")).toBe("https://shop.test/product");
+  expect(pageKey("https://shop.test/app/#/search?q=Tokyo")).toBe("https://shop.test/app/#/search");
+  expect(pageKey("https://shop.test/doc#section")).toBe("https://shop.test/doc");
+  expect(pageKey("not a url")).toBe("not a url");
+});
+
+test("declarations list known pages after the API", () => {
+  const text = declarations([], {
+    url: "http://shop/",
+    toolWaitMs: 1,
+    knownPages: [
+      {
+        page: "http://shop/product",
+        url: "http://shop/product?id=2",
+        tools: [{ name: "add_to_cart", description: "Add it.", annotations: { consequential: true } }],
+        via: [{ tool: "open_product", from: "http://shop/" }],
+      },
+    ],
+  });
+  expect(text).toContain(
+    '  /**\n   * Seen at http://shop/product?id=2\n   * Reached by tools.open_product() on http://shop/\n   */\n  "http://shop/product": {\n    /**\n     * Add it.\n     * (consequential: may need approval)\n     */\n    add_to_cart(args?: {}): Promise<unknown>;\n  };',
+  );
+  expect(declarations([], { url: "http://shop/", toolWaitMs: 1, knownPages: [] })).not.toContain("KnownPages");
 });

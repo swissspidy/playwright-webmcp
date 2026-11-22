@@ -1,4 +1,4 @@
-import { declarations, toolDefinitions } from "./declarations.js";
+import { declarations, pageKey, toolDefinitions, type KnownPage } from "./declarations.js";
 import { ToolRegistry, type CdpLikeSession, type InvokeOutcome, type ToolInfo } from "./registry.js";
 import { QuickJSExecutor, type Executor, type ResolvedProvider, type ToolFn } from "./executor.js";
 import type { LogEntry, SandboxError, SandboxLimits, SandboxResult } from "./sandbox.js";
@@ -57,6 +57,15 @@ export interface CodeModeOptions extends SandboxLimits {
    * above are up to that executor.
    */
   executor?: Executor;
+  /**
+   * Pages seen in an earlier session, as `knownPages()` returned them. Code mode remembers every page
+   * it sees and lists the others in `declarations()`, so a script can call a page's tools right after
+   * navigating there instead of ending to look at them first. Persist `knownPages()` to carry that
+   * across sessions.
+   */
+  knownPages?: KnownPage[];
+  /** How many other pages `declarations()` lists, most recently seen first. Default 20; 0 lists none. */
+  maxKnownPages?: number;
 }
 
 export interface CallRecord {
@@ -121,11 +130,18 @@ export function unwrapResult(output: unknown): unknown {
 
 export class CodeMode {
   private queue: Promise<unknown> = Promise.resolve();
+  /** Pages seen, by key, least recently seen first. */
+  private readonly pages = new Map<string, KnownPage>();
+  /** The last tool call that navigated, until the next page is seen. */
+  private lastNavigation?: { tool: string; from: string };
 
   private constructor(
     readonly registry: ToolRegistry,
     private readonly options: CodeModeOptions,
-  ) {}
+  ) {
+    for (const p of options.knownPages ?? []) this.pages.set(p.page, structuredClone(p));
+    this.remember();
+  }
 
   /** Attach to a Playwright page, a Puppeteer page, or any CDP session with `send` and `on`. */
   static async create(target: PageLike | CdpLikeSession, options: CodeModeOptions = {}): Promise<CodeMode> {
@@ -146,7 +162,47 @@ export class CodeMode {
    * updates to an API the model has already seen.
    */
   declarations(options: { compact?: boolean } = {}): string {
-    return declarations(this.registry.list(), { url: this.registry.url(), toolWaitMs: this.toolWaitMs, compact: options.compact });
+    const current = pageKey(this.registry.url());
+    const max = this.options.maxKnownPages ?? 20;
+    const others = [...this.pages.values()].filter((p) => p.page !== current);
+    const knownPages = max > 0 ? others.slice(-max).reverse() : [];
+    return declarations(this.registry.list(), { url: this.registry.url(), toolWaitMs: this.toolWaitMs, compact: options.compact, knownPages });
+  }
+
+  /** Every page seen so far (and those passed as `knownPages`), least recently seen first. */
+  knownPages(): KnownPage[] {
+    return structuredClone([...this.pages.values()]);
+  }
+
+  /** Record the current page's tools, and the call that led here. */
+  private remember(): void {
+    const url = this.registry.url();
+    const tools = this.registry.list();
+    if (!url || !tools.length) return;
+    const key = pageKey(url);
+    const known = this.pages.get(key);
+    const via = known?.via ?? [];
+    const nav = this.lastNavigation;
+    if (nav && nav.from !== key) {
+      if (!via.some((v) => v.tool === nav.tool && v.from === nav.from)) via.push(nav);
+      this.lastNavigation = undefined;
+    }
+    const seen = new Set<string>();
+    const pageTools = tools
+      .filter((t) => !seen.has(t.name) && !!seen.add(t.name))
+      .map(({ name, description, inputSchema, outputSchema, annotations }) => ({
+        name,
+        description,
+        ...(inputSchema ? { inputSchema } : {}),
+        ...(outputSchema ? { outputSchema } : {}),
+        ...(annotations ? { annotations } : {}),
+      }));
+    // Merged with the tools seen there before: a page's tools can depend on its state (one appears
+    // once another has been used), and the next visit may need any of them. Newer definitions win.
+    const merged = [...(known?.tools ?? []).map((t) => pageTools.find((n) => n.name === t.name) ?? t)];
+    for (const t of pageTools) if (!merged.some((m) => m.name === t.name)) merged.push(t);
+    this.pages.delete(key);
+    this.pages.set(key, { page: key, url, tools: merged, via });
   }
 
   /** Run a script. Scripts run one at a time per page. */
@@ -160,6 +216,7 @@ export class CodeMode {
     const started = Date.now();
     const registry = this.registry;
     await registry.settle();
+    this.remember();
     const urlBefore = registry.url();
     const toolsBefore = names(registry.list());
     const defsBefore = toolDefinitions(registry.list());
@@ -236,6 +293,7 @@ export class CodeMode {
     const grace = lastCallEnd + 250 - Date.now();
     if (grace > 0) await new Promise((resolve) => setTimeout(resolve, grace));
     await registry.settle();
+    this.remember();
     const toolsAfter = names(registry.list());
     const defsAfter = toolDefinitions(registry.list());
     return {
@@ -304,6 +362,8 @@ export class CodeMode {
           { tool: name, url: registry.url(), available },
         );
       }
+      // The page this tool is on, possibly reached by an earlier call in this script.
+      this.remember();
       if (this.options.onToolCall && !sameRegistration(approved, tool)) {
         let verdict: boolean | string;
         try {
@@ -350,6 +410,7 @@ export class CodeMode {
           return result;
         }
         case "navigated": {
+          this.lastNavigation = { tool: name, from: pageKey(record.url) };
           const result =
             outcome.output === undefined
               ? { navigated: true, url: outcome.url }

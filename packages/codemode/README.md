@@ -183,6 +183,10 @@ Any object with CDP's `send(method, params)` and `on(event, handler)` works too,
 | `canNavigate`      | any web | Narrows the URLs `browser.goto()` may request (redirects and tool-triggered navigations are not checked). Only http(s) URLs are ever allowed.                                          |
 | `firstToolWaitMs`  | 2000    | After a navigation, how long to wait for a page without tools to register its first one before reporting its tools, so pages that hydrate show up in `browser.tools()` and in results. |
 | `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                                                                                                              |
+| `knownPages`       | none    | Pages seen in an earlier session, as `codeMode.knownPages()` returned them.                                                                                                            |
+| `maxKnownPages`    | 20      | How many other known pages `declarations()` lists, most recently seen first.                                                                                                           |
+
+Code mode remembers every page it sees: its tools, including ones that appear only after another has been used, and the calls that led there. `declarations()` lists the other pages under `KnownPages`, so a script can navigate and call the next page's tools in one go instead of ending to look at them first. Persist `codeMode.knownPages()` and pass it back as `knownPages` to carry that into later sessions.
 
 ### With your own agent
 

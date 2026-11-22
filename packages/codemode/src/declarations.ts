@@ -79,7 +79,7 @@ function propName(name: string): string {
   return IDENT.test(name) ? name : JSON.stringify(name);
 }
 
-function toolHints(tool: ToolInfo): string[] {
+function toolHints(tool: PageTool): string[] {
   const a = tool.annotations ?? {};
   const hints: string[] = [];
   if (a.readOnly) hints.push("read-only");
@@ -101,27 +101,85 @@ export function toolDefinitions(tools: ToolInfo[]): Map<string, string> {
   return defs;
 }
 
+/** A tool as a page registered it, without the browser's ids. */
+export type PageTool = Pick<ToolInfo, "name" | "description" | "inputSchema" | "outputSchema" | "annotations">;
+
+/** A page code mode has seen, and the tools it registered then. */
+export interface KnownPage {
+  /** The page's key: origin, path and hash route, without the query string (see `pageKey`). */
+  page: string;
+  /** The URL it was last seen at. */
+  url: string;
+  /** Every tool seen on the page, with its latest definition: a page's tools can depend on its state. */
+  tools: PageTool[];
+  /** Tool calls that navigated here, and the page they were made on. */
+  via: Array<{ tool: string; from: string }>;
+}
+
+/**
+ * The key pages are remembered under: origin, path and hash route (`#/search`), without the query
+ * string, so `product?id=2` and `product?id=3` count as one page.
+ */
+export function pageKey(url: string): string {
+  try {
+    const u = new URL(url);
+    const route = u.hash.split("?")[0];
+    return u.origin + u.pathname + (route.startsWith("#/") ? route : "");
+  } catch {
+    return url;
+  }
+}
+
 export interface DeclarationOptions {
   url: string;
   toolWaitMs: number;
   /** Only the page URL and the `tools` declaration. */
   compact?: boolean;
+  /** Other pages seen before, listed after the API (not in compact declarations). */
+  knownPages?: KnownPage[];
 }
 
-export function declarations(tools: ToolInfo[], { url, toolWaitMs, compact }: DeclarationOptions): string {
+function toolMembers(tools: PageTool[], indent: string): string[] {
   const seen = new Set<string>();
   const members: string[] = [];
   for (const tool of tools) {
     if (seen.has(tool.name)) continue;
     seen.add(tool.name);
     const doc = [tool.description.trim(), ...toolHints(tool).map((h) => `(${h})`)].filter(Boolean).join("\n");
-    if (doc) members.push(docComment({ description: doc }, "  "));
+    if (doc) members.push(docComment({ description: doc }, indent));
     const schema = tool.inputSchema ?? { type: "object", properties: {} };
-    const args = schemaToTs(schema, "  ");
+    const args = schemaToTs(schema, indent);
     const optional = !(Array.isArray(schema.required) && schema.required.length);
-    const output = tool.outputSchema ? schemaToTs(tool.outputSchema, "  ") : "unknown";
-    members.push(`  ${propName(tool.name)}(args${optional ? "?" : ""}: ${args}): Promise<${output}>;`);
+    const output = tool.outputSchema ? schemaToTs(tool.outputSchema, indent) : "unknown";
+    members.push(`${indent}${propName(tool.name)}(args${optional ? "?" : ""}: ${args}): Promise<${output}>;`);
   }
+  return members;
+}
+
+function knownPagesDeclaration(pages: KnownPage[]): string {
+  if (!pages.length) return "";
+  const entries = pages.map((p) => {
+    const via = p.via.map((v) => `tools.${v.tool}() on ${v.from}`).join(", ");
+    return [
+      docComment({ description: `Seen at ${p.url}${via ? `\nReached by ${via}` : ""}` }, "  "),
+      `  ${JSON.stringify(p.page)}: {`,
+      ...toolMembers(p.tools, "    "),
+      "  };",
+    ].join("\n");
+  });
+  return `
+// Other pages seen before, with every tool they registered while seen (some may appear only once another
+// has been used). Their tools are not on \`tools\` yet, but
+// once a call navigates to one of these pages, keep going in the same script and call that page's tools
+// as tools.<name>(). Pages can change: a tool that is gone throws ToolUnavailableError.
+type KnownPages = {
+${entries.join("\n")}
+};
+`;
+}
+
+export function declarations(tools: ToolInfo[], { url, toolWaitMs, compact, knownPages }: DeclarationOptions): string {
+  const members = toolMembers(tools, "  ");
   if (compact)
     return `// Page: ${url}\ndeclare const tools: {\n${members.join("\n")}${members.length ? "\n" : ""}  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n`;
   return `// Page: ${url}
@@ -152,5 +210,5 @@ declare const browser: {
 };
 
 // console.log/info/warn/error output is returned alongside the result. Return a value to hand it back.
-`;
+${knownPagesDeclaration(knownPages ?? [])}`;
 }
