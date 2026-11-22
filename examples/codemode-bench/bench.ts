@@ -528,7 +528,7 @@ interface RunResult {
   seconds: number;
   stop: string;
   finalText: string;
-  /** Page tool calls in order, as the page saw them (calls to unregistered tools are left out). */
+  /** Page tool calls in order, as the page saw them (calls that never reached the page are left out). */
   calls: Array<{ name: string; args: Record<string, unknown>; outcome: string }>;
   error?: string;
   /** The whole conversation, to see how each arm went about the task. */
@@ -610,7 +610,8 @@ async function runOnce(
         result.toolCalls++;
         const out = await arm.run(codeMode, page, call);
         result.pageToolCalls += out.calls.length;
-        for (const c of out.calls) if (c.outcome !== "unavailable") result.calls.push({ name: c.name, args: c.args, outcome: c.outcome });
+        // Only calls that reached the page count (not denied, unavailable or never-started ones).
+        for (const c of out.calls) if (c.invoked) result.calls.push({ name: c.name, args: c.args, outcome: c.outcome });
         results.push({ type: "tool_result", tool_use_id: call.id, content: out.text, ...(out.isError ? { is_error: true } : {}) });
       }
       messages.push({ role: "user", content: results });

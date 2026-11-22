@@ -76,6 +76,11 @@ export interface CallRecord {
   durationMs: number;
   /** `pending`: the script ended (finished, failed or timed out) before the call settled. */
   outcome: "pending" | "completed" | "navigated" | "error" | "canceled" | "denied" | "unavailable";
+  /**
+   * Whether the call was sent to the page. A call can end without that: denied, unavailable, or still
+   * waiting for its tool (outcome `pending`) when the script ended.
+   */
+  invoked?: boolean;
   result?: unknown;
   error?: string;
 }
@@ -132,8 +137,8 @@ export class CodeMode {
   private queue: Promise<unknown> = Promise.resolve();
   /** Pages seen, by key, least recently seen first. */
   private readonly pages = new Map<string, KnownPage>();
-  /** The last tool call that navigated, until the next page is seen. */
-  private lastNavigation?: { tool: string; from: string };
+  /** The last tool call that navigated: the page it ran on and, when known, the page it went to. */
+  private lastNavigation?: { tool: string; from: string; to?: string };
 
   private constructor(
     readonly registry: ToolRegistry,
@@ -183,8 +188,10 @@ export class CodeMode {
     const known = this.pages.get(key);
     const via = known?.via ?? [];
     const nav = this.lastNavigation;
-    if (nav && nav.from !== key) {
-      if (!via.some((v) => v.tool === nav.tool && v.from === nav.from)) via.push(nav);
+    // Consumed by the page it led to (or, if that is not known, by the next other page), so that a
+    // later, unrelated page does not inherit it. A navigation within one page key adds no route.
+    if (nav && (nav.to ? nav.to === key : nav.from !== key)) {
+      if (nav.from !== key && !via.some((v) => v.tool === nav.tool && v.from === nav.from)) via.push({ tool: nav.tool, from: nav.from });
       this.lastNavigation = undefined;
     }
     const seen = new Set<string>();
@@ -235,6 +242,7 @@ export class CodeMode {
         case "tools":
           // Right after a navigation the next page may not have registered its tools yet.
           await registry.settle();
+          this.remember();
           return registry.list().map((t) => ({
             name: t.name,
             description: t.description,
@@ -396,6 +404,9 @@ export class CodeMode {
         }
         continue;
       }
+      // The page the tool runs on, which a wait for the tool can have changed since the call started.
+      const from = pageKey(registry.url());
+      record.invoked = true;
       const outcome: InvokeOutcome = await registry.invoke(tool, args, this.options.toolTimeoutMs ?? 30_000).catch((err) => ({
         status: "error" as const,
         error: String(err?.message ?? err),
@@ -410,7 +421,7 @@ export class CodeMode {
           return result;
         }
         case "navigated": {
-          this.lastNavigation = { tool: name, from: pageKey(record.url) };
+          this.lastNavigation = { tool: name, from, ...(outcome.url ? { to: pageKey(outcome.url) } : {}) };
           const result =
             outcome.output === undefined
               ? { navigated: true, url: outcome.url }
