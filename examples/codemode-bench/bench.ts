@@ -427,7 +427,7 @@ function bigTasks(demosUrl: string): Task[] {
 interface Arm {
   id: string;
   system: (preamble: string) => string;
-  tools: (codeMode: CodeMode) => Anthropic.Tool[];
+  tools: (codeMode: CodeMode) => Anthropic.ToolUnion[];
   run: (codeMode: CodeMode, page: Page, call: Anthropic.ToolUseBlock) => Promise<{ text: string; isError: boolean; calls: CallRecord[] }>;
 }
 
@@ -492,7 +492,23 @@ function dedupe(tools: ToolInfo[]): ToolInfo[] {
   return tools.filter((t) => !seen.has(t.name) && !!seen.add(t.name));
 }
 
-const ARMS: Arm[] = [classic, codemode];
+// Anthropic's programmatic tool calling: Claude writes Python in the API's code execution container,
+// and the page's tools (the same list as the classic arm, rebuilt per request) are callable only from
+// that code. Each call pauses the script and comes back to this loop as a tool_use with a `caller`,
+// so "turns" counts those round trips too. The container only knows the tools listed in the request,
+// so a script cannot call tools that a page it navigated to registers until the next request.
+const ptc: Arm = {
+  id: "ptc",
+  system: (preamble) =>
+    `${preamble}\nThe current page's WebMCP tools are callable only from code: write Python with the code execution tool and call them there (async functions that take one dict and return a JSON string). Chain calls in one script and filter or aggregate results there, returning only what you need. When the page changes, the next request lists the new page's tools.`,
+  tools: (codeMode) => [
+    { type: "code_execution_20260120", name: "code_execution" },
+    ...(classic.tools(codeMode) as Anthropic.Tool[]).map((t) => ({ ...t, allowed_callers: ["code_execution_20260120" as const] })),
+  ],
+  run: (codeMode, page, call) => classic.run(codeMode, page, call),
+};
+
+const ARMS: Arm[] = [classic, codemode, ptc];
 
 // ---------------------------------------------------------------------------------------------
 // One run: a fresh browser context (empty cart), the model loop, then the check.
@@ -554,26 +570,37 @@ async function runOnce(
     const messages: Anthropic.MessageParam[] = [{ role: "user", content: task.prompt }];
     // Kept by reference, so a run that fails part-way still has its transcript.
     result.transcript = messages;
+    // Programmatic tool calling: the container to continue, and the tools it was started with, which
+    // must stay the same while a call from its code is pending.
+    let container: string | undefined;
+    let pendingTools: Anthropic.ToolUnion[] | undefined;
     for (;;) {
       if (result.turns >= MAX_TURNS) {
         result.stop = "max_turns";
         break;
       }
       await codeMode.registry.settle();
+      const tools = pendingTools ?? arm.tools(codeMode);
       const response = await client.messages.create({
         model: MODEL,
         max_tokens: 16000,
         output_config: { effort: EFFORT },
         system: arm.system(task.preamble ?? PREAMBLE),
-        tools: arm.tools(codeMode),
+        tools,
         messages,
+        ...(container ? { container } : {}),
       });
+      container = response.container?.id ?? container;
       result.turns++;
       result.inputTokens += response.usage.input_tokens + (response.usage.cache_read_input_tokens ?? 0) + (response.usage.cache_creation_input_tokens ?? 0);
       result.outputTokens += response.usage.output_tokens;
       result.stop = response.stop_reason ?? "";
       messages.push({ role: "assistant", content: response.content });
+      // A long code execution can pause the turn; sending the conversation back resumes it.
+      if (response.stop_reason === "pause_turn") continue;
       const calls = response.content.filter((b): b is Anthropic.ToolUseBlock => b.type === "tool_use");
+      const fromCode = calls.some((c) => c.caller && c.caller.type !== "direct");
+      pendingTools = fromCode ? tools : undefined;
       if (response.stop_reason !== "tool_use" || !calls.length) {
         result.finalText = response.content.flatMap((b) => (b.type === "text" ? [b.text] : [])).join("\n");
         break;
