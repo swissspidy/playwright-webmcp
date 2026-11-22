@@ -1,0 +1,3542 @@
+{
+  "meta": {
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "runs": 1,
+    "date": "2026-11-22",
+    "demosUrl": "https://googlechromelabs.github.io/webmcp-tools/demos",
+    "rememberPages": true
+  },
+  "results": [
+    {
+      "task": "doors#1",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 1420,
+      "outputTokens": 137,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 5.4,
+      "stop": "end_turn",
+      "finalText": "I opened the first mystery door, and it leads to a forest. There's an animal here you can talk to. You can ask it what it is or ask it for a gift. You can also go back to the hallway.",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open the first mystery door."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01XHG8P4FjR89Kvf6CicihN9",
+              "name": "openDoor1",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01XHG8P4FjR89Kvf6CicihN9",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS/wUKEAgUGAI4AUIIdGhpbmtpbmcSDOEhq71d6sfDJx/PMxoMXAxK5+MTTOGncBYvIjDnYuQyrT0C8bDYylxNAHJvmVg++zcXbWFWCqPRfyAvlracBt84OTfN2K1C8jT7BHYqnAU35GlhN+vPjA1+T2xDs/gD2UY5G+QMpVYWLwBnWNaMBDDWSdWjpuJEiVkKz38WqaBUUQOev0BXU8w/0S0t/WyiRkajgg6T7Nvuy2TuDIfw2RU6WPH+SPmPkiZYzYuPF+9J93jS2W7MOjj8CZGI3HjUp6C7rM47iJ4fv5FNf8lK1wZ2LxDopube5vZH9MnQ7cAWYJZ2wp5I0/nVUEG6XeMFq8XzCWO87Wc8lY7WcAxXiEpkVvTfPmGdTn/9uhIpB98vEOynFuQsjTxwM1a6KNSVG9ZuJs05mk/m1uyDydaRzTHJO/wdYvb4/mzSz2h5uRH0IPq2yZUSjBpvV38x5mCQyK7BJvTqth5nM6ugwpVH/BD6kjdk7zJjfEnwUZddFm9Jd1SpeXRvI1L+4HP+cbdW0pG5YQ/Lx/PzCyI1CbbP/tXtXA6P5g8dzqZvfxoOLfXJtmKX/GSEIJGNm+ar1JGYh40ffZPBqTk0mU488DK2Onb3oNHNcqoGs2HrIkB/LEls+nsc2hxfVwjUd7tm2zWqA7sTN2UNg9CjFwwPx48Hl9GqGWRMBb0QKoxtfy6gA5d3+fAoNtq7vPNZ0RFNEmVODxnEY9vHg4CdlbyTSaCHfxKuzor4FKgIUPVZnrQIHZUUinE7vY57NAD7qzOT6fxZ/HRipEcQU077wYLs9K6PdLmKU141Hdz5mgd2pdHEYjBMXOO48U6DAU23+EXnEyB4zQbW/p0RlL4RPZs79RiyPnPGccYoVfU9X4vnYboBgBXVKAvsXTCXE/H7dpjZeXypEaqF5XKAGV5AIDxyz+a2sw/hRH//oHLgQyTz3Ov/6AIzLxxvKIRF8nOVyt7y6Sh5vsrkwB8/Q/usOVZmq2+7alZ6gpMFJ3Co6acm0BgB"
+            },
+            {
+              "type": "text",
+              "text": "I opened the first mystery door, and it leads to a forest. There's an animal here you can talk to. You can ask it what it is or ask it for a gift. You can also go back to the hallway."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#1",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 4252,
+      "outputTokens": 125,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 2.8,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, and it leads to a forest with an animal in it. From here you can talk to the animal, for example ask \"What are you?\" or say \"Give me a gift\", or go back to the hallway.",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open the first mystery door."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01FEM2LsuZYP6kKyDrKNcjrv",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "return await tools.openDoor1();"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01FEM2LsuZYP6kKyDrKNcjrv",
+              "content": "Result:\n{\n  \"navigated\": true,\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n}\n\nTool calls (1):\n- openDoor1({}) → navigated [39 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\n\nTools changed: +talk, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\ndeclare const tools: {\n  /** Talk with the animal. You can ask \"What are you?\" or say \"Give me a gift\" */\n  talk(args?: {\n    /** What the user has chosen to say to the animal. */\n    choice?: string;\n  }): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, and it leads to a forest with an animal in it. From here you can talk to the animal, for example ask \"What are you?\" or say \"Give me a gift\", or go back to the hallway."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#2",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 1405,
+      "outputTokens": 168,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 3.8,
+      "stop": "end_turn",
+      "finalText": "I opened door number 2, and it led to an ocean-themed room. From here I can dance with him, play hide and seek, or go back to the hallway.",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Number 2."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_018fZysfVghrKucvZHCECzmd",
+              "name": "openDoor2",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_018fZysfVghrKucvZHCECzmd",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS9wYKEAgUGAI4AUIIdGhpbmtpbmcSDMPC1spmP2Il+npMzxoMbjWrrPVgn+XpR+NoIjBMPRSLWiwVX1tZRAdB1mupI+L8z1RQkAQjITsNrIIiRABLJSTU3A6pGZCLSNkvOTUqlAYQFiDsKCmVtmWHnQqGSUxDMaQT9UjVKqFPdJmcLMABrJjMpWLoU8YadYK/fKlhhcr9klOm/47+3bcJRzNbe7iHkDuGSMK+IpUMaHf/mfiYoneo3iIRqiQe6DMO1VOvv5FhPUYHaDXb0CO5Dpdm2LG1rovcsCO2joSED0nx4Y/RfmUoDqInrXIWoYOImCidRglElidqLuglKN02dwS/x+ysW1dNLwSVUGMQvvRK2omCRHM69nzBkVlAvpkdR5Z5KYgcQW3cxM7cQU/ZbyN274WUpD2jOPhHZit/9a+3McvdtVbPGM5btr3/NAt6cqR/oV+f8pABlDAQQMCx1kNGSnX71848z9zzI07Vs6DZci8SBtEk0yiaKeoLztA4IgMle7Jzu+TbL4gi/1Wo8p+rQd/e/jwkKSUXrBF3WVXVVzmRYDOmnC/a6pWvfJ+r2KoxiveTK7eHkHRVd+KWzzHKyH0H1gTvW6sxQhves2xkZdhCm3ezD850FaR+BbWn5xzIrR76Add6ApIR0tkb0zZt6Z40Mol21+RmiFOQ37BptG+HDgOLiGPl9nF77YA2hWl6nRbqWZ+wqkyaEEyokmpgJnOaLf6oZ+Dolhrp45amGuylquYJWHhO6AXABbzG8hlrfCS0vZJWZ+ki7gCfrAr5TFgruZjbOZ4p9S85NHsjtxpOyjI+OpnGu8UwkZqMj19MDRPPTGT0gD2RjiW/h9Q7Q0WiqMU68DFMaVl2NdLu1sXhueMRUrM4BJKMTLIRlCNUeY71o/+11lzYR2ir3f3kz1Tav7puahY0EPSNGj/h0WLcvZptHUyk8h0Wb1OkEZp9Bt3vFlgiTYe9nUV9zCcqhglG+sOCKO/LBPADxClypwOXBBE+mcnBId6dujgaJyin2J7f9YcbEGN+vkeCWJXDIaQl2oWHfa9ACCLszUI01a+RHWIstS8j3IBTdMf6Ax2DRLEFDEnf/lR0c8yi93BLglv8luoc4vVDbTqls61Qb1YdUNO8KBo+6VmA7Ih6CiUmqSjssXn0wpO5y5nYCgUmnerzhBWWIxgB"
+            },
+            {
+              "type": "text",
+              "text": "I opened door number 2, and it led to an ocean-themed room. From here I can dance with him, play hide and seek, or go back to the hallway."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#2",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5105,
+      "outputTokens": 190,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 3.6,
+      "stop": "end_turn",
+      "finalText": "I opened door number 2, and it leads to the ocean. There's someone here you can dance with or play hide and seek with, or you can go back to the hallway. What would you like to do?",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Number 2."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_018HQ1cJyTjQJwtH1jrJ9ha2",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.openDoor2(); return {r, url: await browser.url(), tools: await browser.tools()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_018HQ1cJyTjQJwtH1jrJ9ha2",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\",\n  \"tools\": [\n    {\n      \"name\": \"dance\",\n      \"description\": \"Dance with him\"\n    },\n    {\n      \"name\": \"hide\",\n      \"description\": \"Play Hide & Seek\"\n    },\n    {\n      \"name\": \"returnToHallway\",\n      \"description\": \"Return to Hallway.\",\n      \"inputSchema\": {\n        \"type\": \"object\",\n        \"properties\": {},\n        \"required\": []\n      },\n      \"annotations\": {\n        \"autosubmit\": true\n      }\n    }\n  ]\n}\n\nTool calls (1):\n- openDoor2({}) → navigated [38 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\n\nTools changed: +dance, +hide, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\ndeclare const tools: {\n  /** Dance with him */\n  dance(args?: {}): Promise<unknown>;\n  /** Play Hide & Seek */\n  hide(args?: {}): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS/AUKEAgUGAI4AUIIdGhpbmtpbmcSDO7sdQoo3QqCeF+rgRoMjBfaFjqxLnI+6qEcIjAwgrhEkFrpQldREn+lVMdzFfnce/yWiYAu1AaHJKMGX9H2V8llILxgVpvoMdYQPCgqmQULARTd2FLBr5vXVhCzYYDT/hoe8dtV1VxaU4Qc8zL9rwz/bZLtc9ThEAY1Xbs/eXY9BV1tTkQoUy3rl5YZ+6I4MJtHLjrjyqKpWBFhTOpHlAZjZoGd/6ExdRkVJ7vEptDR6CGpNqxrKnNQzG3n6vx5gSmqYo55QoKwVax/PZR8PBVQIv/HKq6XoKdaSSqw5JsfYQZBHSmrU3oKBeA6Xg0764PKw4vDx4wwR8iWK6dx4Hfin5hNBIqEO75d7jY0GEjLe45YmjlAf5TiPYiJ8IStfBLCLjd2QYcRTBpIRoGKYqVUiGFyrVw0Wc4RfhXBXiNkBQvLmP0jDdZW3UhkSYUKg3KqdRtlG9RRgRUXrx/aTYFLa9kSOQ0QZsVCEVPJ7+31XGN9XaDAdl1VrjAij7lsal8Fa/2Zy7B4MpcX9AEheRrPUHstDfwcvUNg0Kfzg0nxKORH7J6Smc48GB8GEwZlqJicV3M1Ou6zaU6d27bofnXpjJH/bLClfHZf2/i1b35BGJsthtEyOxnAdmd562lKD0uN3JryYTtJQXYw6OvJwTLJlXE7tb8p4/yIpU9HRwQGgTvVMsjqC9us3zeLVEkCllOGwwwA7BFsPWkTjfZSfBo24dOLu3IMRwLBoGHoYJ9gOnFZQHNqjZlfar9fgrYscID6Lw2Z3a91+q3MqCF8wQF47t5XzaHMUOGIBql3vbuKy3nBhD7tFGbETjvRWeJx5cwjbGSde8igBkt1w1Ohp6cAs+NvNvAsQSnEk4m0SjtrLjtRkFGxgL03EUm3mWKfgyTMm7hVTXI9eJY3lwGC3WIOW4A3slb7+ezaXsbchhpt5MZgTr+UY/pxtvt/MAcnP7abpE1Rs/TCBu893TsRHrcKSaRmxWPJFRgB"
+            },
+            {
+              "type": "text",
+              "text": "I opened door number 2, and it leads to the ocean. There's someone here you can dance with or play hide and seek with, or you can go back to the hallway. What would you like to do?"
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#3",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 1303,
+      "outputTokens": 228,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 5.7,
+      "stop": "end_turn",
+      "finalText": "I took \"3\" to mean opening door 3, and it worked: the page moved to a new room at `.../doors/magic.html`. I've done nothing else there yet. This room has two actions, \"Cast light\" and going to another page.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "3"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "The user says \"3\" — likely open door 3."
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01Tdqjo1M5SyBRjaGdFzwttW",
+              "name": "openDoor3",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01Tdqjo1M5SyBRjaGdFzwttW",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSwgcKEAgUGAI4AUIIdGhpbmtpbmcSDNa9B2JISVLAfu7xSxoMxxYdrfpHaSjPkOpYIjC5JlubpuE0JX6f7cg27JTOTNFUL/8rgzJUTAxO76GAwGpIu4okdag/RoGzuz5loO0q3wYPjVJNvLFu+ri/r8v86LIBGAHVOtKU5qs1TkbROFIMTQarnWXETrPkltxiPXjU+Z4ebTcoPZDNJsM85Z91WakhP+g3MOTKkPnjB8mz03qR5eSplQu7B821KZAP8jT/8D28/6v+ccFVEqN2dUMyfdosFIgqZVCmd+aHJBHqpCoD0Af7XDhP9euoZSp322bPvLGyVL1hC7Ei5jlxlK/Z3ixfSud8PmkVZRSqfwyxk0Z3KxT2K1bR6IVZpwKVvj+dE0SeJNRYdrdgrfg8N8tZlurr9AgrTmyXpywOv75k2MJmmuMDgQT0L1hB89lwalLoxdsnt0BgCJKGg5wo8eLT2+JOPqmZh/Dn3DPy4rf3e7fPtwWxlPlJFRVE+H17dh0OYY38+ayGpym1bpKCByNhcPJge6L/8IHjEcq7wWhKF4dR6zLBX6aHvr4fSf0SLMyfYsXT8CHTDtCrW4hh3ooF3p9/xXdDVIiKLs999Wn0xKdhDDPZ/FGl47qIDWEtX6lf4sVYCO+2DsYPAYHIxiMkiiaqVwMHjM9p4FR0qHkXJ9UBNbkX1JfVVfgoN7enbx6k8LRV97/jBkpdZSJW39C+byQ2VeyCmkljFlO8wUBYEYzVOQz66VA5tOj/geVKIgQlk7zrXuVKCnOlcKRn0Gsfb7pEbYg3feCcmfT+BzunvhJD7dL/IYZYRhH7yX+uvjw75Iw1u+JZCuNHL1eGiEU9P1ZaLSpSwnRrDRPYcUTMgyL7fWjUM+xlfOOaoVZV+sBch7mzak8QqzuLbWbEtjaxaKZR5OLTC+WOkJ04DLCnf6hJ7Zb4LOrLuSM/+60KB9Y2cucfYMkkMrVr5gnF7KVX6SivB0/VefXko3rP+tI7tFuLwMZm/oPxI33W2TDtiQ/Wyt1DjgKSVh6v1Hohe3chMfmgusG72LWHQQ4qdlEROFeK+ebsxzvJhKR7E1D2mZ2QIzhKG/u4+XUyeIOLg4pzg5eGwFHADK88sIRdjsjf7NuT0WcsnwH83EqhcSlHBa7Nm4NXCNJ9GqFZF/uc0XRFOUrTkhMnU/4cDEa9sB1BTOfMhtj/tSIVmMSk3G4Tx01CTLsO9MuD2MzJ3g588h4JVK5E3PAWyOn2WlHBkW4yMQkX6bCyXvU3bwn9/ab3IqC6mhgB"
+            },
+            {
+              "type": "text",
+              "text": "I took \"3\" to mean opening door 3, and it worked: the page moved to a new room at `.../doors/magic.html`. I've done nothing else there yet. This room has two actions, \"Cast light\" and going to another page."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#3",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5236,
+      "outputTokens": 151,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 3.3,
+      "stop": "end_turn",
+      "finalText": "I opened Door 3, which led to the magic room. The only thing to do there is \"Cast light\", and I haven't done that yet. Let me know if you want me to.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "3"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSwAUKEAgUGAI4AUIIdGhpbmtpbmcSDPQ7vJRJ/jwf4iaQPBoMAFhqSlctxyZ4DdNoIjCLOWYiO/C86nYRXtS7oUnll6z/fJ4PUKoA+dpzR+oRFvdF5j+tHLwg7MMMe7VfQmMq3QSUzlWJOHLRhE9HTcfg4iFw+m458n8gntf4aLT6BHHoxyRo0oDReOEPUV9zK+JjfsM4toWepA1WbW0jWVdBwhrxG0atJLe3MxNIAgHUNGFeP7hemz8REgD2RP+xfSsjVVa4+ZdzpE6fw0SIMUt8azRNVN3Q7uM3TN6jBw8YE1xhW7tq7pyjoWuoMTGq1oUAZ3NmqMj5B6flPSOhGkYyh6U41b62xD5BqqZ4nOoAim3RSUBUKQTh5L3SwPnKXgVHMESAguxfYdDWjrx+WzsINNPIk6jCVoCiO+2atKDuU63pqlnrBmsRo9niOjjRMXVRwAyK4UsVYj5Ze/AzltjfL63wExkuzDPRXdFTGiwHymXh9lhZYXZyhhTu82Gmp/Mo4KF+QhgYymqCyNe3KTkuaJA0W6s47cgWYPFK+I3G5Ntyf49qiXAsL/3LcGaxUtSAzCtEyHWJEzRK6PhjeLRR1s7aACJBh8OsUS/6Gk0Rv8PGC+5L4QI+cTDIUOZkdF+BgKU29cPwo9ZWoQA4fTS2fHErxHqsXtd4yoJyTinWskAxeR/LoH29Svy2ADouDTm63Et/gmUiGgr/dEj8XdCkzMDQhoQmotSB3y1H4Kg3a6j9L8paArFvxs6RgW5LzKkpDQWo6R3kMHOhKrvaR4OlNTG+M4S9UIg2xeByXL4D8xPiQT97ZufqakN+0Lk4raSDUqdvYiVjL/hTNE59pk3myifsX3JA96CEbowNI73fu6D7zMwD3pE0zkxkf94KOqMhv99xooX7FGFiziXETigVepnM7WQr673bsXg6hEPLUhgB"
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01KpyE7fAt8CYvVjdLo5CjCa",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.openDoor3(); return r;"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01KpyE7fAt8CYvVjdLo5CjCa",
+              "content": "Result:\n{\n  \"navigated\": true,\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n}\n\nTool calls (1):\n- openDoor3({}) → navigated [47 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +castLight, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Cast light */\n  castLight(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened Door 3, which led to the magic room. The only thing to do there is \"Cast light\", and I haven't done that yet. Let me know if you want me to."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#4",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 2247,
+      "outputTokens": 121,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 5.2,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which led to a forest. When I asked the animal what it is, it said: \"I am the keeper of the ferns.\"",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "What are you?"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then talk to the animal and ask what it is."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01YFCHD1Hpob1PDznr6xTcYk",
+              "name": "openDoor1",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01YFCHD1Hpob1PDznr6xTcYk",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01HFQTN6tZXNiydf6WNksdzg",
+              "name": "talk",
+              "input": {
+                "choice": "What are you?"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01HFQTN6tZXNiydf6WNksdzg",
+              "content": "\"I am the keeper of the ferns.\""
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which led to a forest. When I asked the animal what it is, it said: \"I am the keeper of the ferns.\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#4",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5586,
+      "outputTokens": 136,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 3.6,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which led to the forest. When I asked the animal what it was, it said: **\"I am the keeper of the ferns.\"**",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "What are you?"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then talk to the animal and ask what it is."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01VrXV6HmfeXBua5pVnhZeg6",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor1();\nconst b = await tools.talk({choice: \"What are you?\"});\nreturn {a, b};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01VrXV6HmfeXBua5pVnhZeg6",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n  },\n  \"b\": \"I am the keeper of the ferns.\"\n}\n\nTool calls (2):\n- openDoor1({}) → navigated [49 ms]\n- talk({\"choice\":\"What are you?\"}) → completed [1004 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\n\nTools changed: +talk, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\ndeclare const tools: {\n  /** Talk with the animal. You can ask \"What are you?\" or say \"Give me a gift\" */\n  talk(args?: {\n    /** What the user has chosen to say to the animal. */\n    choice?: string;\n  }): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which led to the forest. When I asked the animal what it was, it said: **\"I am the keeper of the ferns.\"**"
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#5",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 2261,
+      "outputTokens": 123,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 5,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which led to a forest, and asked the animal there for a gift. It gave you a magical acorn 🌰.",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "Give me a gift"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then talk to the animal and ask to give me a gift."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01MRbDHKyosWtdn9NAvXh1tB",
+              "name": "openDoor1",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01MRbDHKyosWtdn9NAvXh1tB",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01BbpMPsBZXERnbCAntxYutt",
+              "name": "talk",
+              "input": {
+                "choice": "Give me a gift"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01BbpMPsBZXERnbCAntxYutt",
+              "content": "\"Here is a magical acorn! 🌰\""
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which led to a forest, and asked the animal there for a gift. It gave you a magical acorn 🌰."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#5",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5607,
+      "outputTokens": 147,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 4.3,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which leads to the forest. When I asked the animal for a gift, it said: \"Here is a magical acorn! 🌰\"",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "Give me a gift"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then talk to the animal and ask to give me a gift."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01Y5jwbfSBJXLaFC7MUEZURs",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r1 = await tools.openDoor1();\nconst r2 = await tools.talk({choice: \"Give me a gift\"});\nreturn {r1, r2};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01Y5jwbfSBJXLaFC7MUEZURs",
+              "content": "Result:\n{\n  \"r1\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n  },\n  \"r2\": \"Here is a magical acorn! 🌰\"\n}\n\nTool calls (2):\n- openDoor1({}) → navigated [43 ms]\n- talk({\"choice\":\"Give me a gift\"}) → completed [1003 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\n\nTools changed: +talk, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\ndeclare const tools: {\n  /** Talk with the animal. You can ask \"What are you?\" or say \"Give me a gift\" */\n  talk(args?: {\n    /** What the user has chosen to say to the animal. */\n    choice?: string;\n  }): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which leads to the forest. When I asked the animal for a gift, it said: \"Here is a magical acorn! 🌰\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#6",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 2340,
+      "outputTokens": 156,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 5.1,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which led to a forest page. Then I went back to the hallway, so you're on the hallway page again.",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01WHLuzThTUwBjpouwYgdNf5",
+              "name": "openDoor1",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01WHLuzThTUwBjpouwYgdNf5",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSlwYKEAgUGAI4AUIIdGhpbmtpbmcSDLzCItXiMjwyEjwDOhoMKV17HSKob4hzGiW3IjA66Pum2MEYKgyvp2shPDEMbbPI2IR4+8lErPkY5O7Cq80pQH+gz0BQCKyrQQZ3RwEqtAVhZqH1b4VlyX+QTZCMNd8j6VcAkD7CYAxI7Plk50pGtgaUHhZM69reQrnGlsk9hKRwv77MHvSpZIQIe5N8XOyW/7pqa4VF/0XV7Bi2jdMjZERNMaZyg2VSuAvrNpzS/6F+lmi7vE+ImBE5mGG3sNkkyL8L0xI9dBcCcdzbYZGQ5nN99uN3i9jf+n5sHZ3zAzo4FCwgMdiP0yxAzaB1vRpomUG6YA+HvZELxMbgdhUfXRQ+1ll6pi3RPEdNui9R5FQ6Aqky2lcW2nc3Ow+QWySsaAU4wRd5vHPYm28DHc4+a/6dDG6SK+eMaBzLTpcvUEkafTJJ639hbCvE/zXPk0r68cDAxm2099wz1qC5zmhzcQ2iNyX16+i3R14tl3zX6ej5kElpkrWz5wRMjWTzg5ssKZuqDHlfCC3BnbYIWamONoAr2GAbU3BBMKxhV+ororO5Bw3EbTj0kV+vKuFqSu3msDs2oXqlJXq8vdgC+DVGncD0qfKvStd1+oRstAh3DzU0o0iGBvhou1neTDEkQgZOdqX71EIzWZfRHk8hlXmmzb4HOSldLzTK4mNdOlGJ41hDh+h0w0bKne7wf7eiNkIhbVbzPFJFDCNK33d/XW68S5kEKfdyJC3fQY5QYRkWkFhO7qvS48K7nVsOIy9yIXu5/0YOPckVMdwXr0Jydt9TNUkpC0yVV61RtImbary5IbzrQkHG9ROsiL+vCMlejLFQUJD+qmd4G7CaKU6qXXI7CtnIq65MpIDNIKQ+VgX7XbI9TG0QGyaQSLDwQt3BD0kvJY7jXTm/sdBsjEClAmEPH4RY5drEdgpMea+wNKzYCCc1gx7thv559oZcErbe9znocE/AxivHqKiie7nleFI5kH4TzJOARPNF+dhOMop90u4neZu7emtQyX1qPZRkP+HXRAPLYxgB"
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_015XaidFrzqHdGSbQhhruzFr",
+              "name": "returnToHallway",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_015XaidFrzqHdGSbQhhruzFr",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which led to a forest page. Then I went back to the hallway, so you're on the hallway page again."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#6",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5687,
+      "outputTokens": 131,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 3.1,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which leads to the forest page, then went back to the hallway. You're on the hallway page now.",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_013mBXFeimcUVE2iqjVn8idA",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor1();\nconst b = await tools.returnToHallway();\nreturn {a, b, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_013mBXFeimcUVE2iqjVn8idA",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n  },\n  \"b\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (2):\n- openDoor1({}) → navigated [41 ms]\n- returnToHallway({}) → navigated [41 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which leads to the forest page, then went back to the hallway. You're on the hallway page now."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#7",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 2246,
+      "outputTokens": 154,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 5.7,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which took me to the ocean page, and asked him to dance. He said yes: \"Wheee! Look at me go!\"",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "dance",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to dance with him"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01W9jBsqyA8aMwrKR6gBxuKG",
+              "name": "openDoor2",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01W9jBsqyA8aMwrKR6gBxuKG",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSkAYKEAgUGAI4AUIIdGhpbmtpbmcSDHfQP2ZqKzb+R5qNphoMjSv+WCVqhZbogSZrIjBLWx2Qq4YIfrMXjorQZnUNLYjaYOI4ezbgdq/ylHzYpZ+PsTM0GfBDqN3PBOwMW2gqrQWUe3ZSXIKHYAZWtbMZTynXp7Hde7MZD76Jrz8OZuutaPTQuJAats/oFm46OnqL7mURss9jq6jMH/ca1KscczKSHAAo1NHQ2lkhNZ4MbTxzkDg/d4VDS+/nftyaM4a6EvgiuqUeTVmgxyNn7ApavwsArh7CbdEMyBZ6lEj44rJgH6VHiNvwag2uRcecl0qipJr+XHAVD1MiVTxNKKchjHeUPkoWEFRWQIGhuJhRjtpqiLYY3kjmqzYwIrJCE5la1nMTE4byuaFNBON+rS4ZNwvRenfGM/33Vfh/JtpwsgwyG8hFLK4YJ3AslrtNgA1ns8rLAcKFNpggx5kl8AQgq1BX92Nt95DZFGCxV8J7aRsdoQxZ44zIItdo4H3EtrYgbqJ4SGG3eUvB05LE4yofuuUQJ0pxauUE6FqCvZ2xOrreDVYSE3292Ihr8i5FZ3bzsHDjyNV2S4jnuFK4PbGWJvyIVzDAhX9B6+nm9BZD7Tbu2yu/v3108z5wwZIDepkLCsu+LqjcakKRaSmLDAbZaluyCQcDVI7KAQLe2R1UnNOcx51EYIN1dWZBW1RoMelzcutW4BuUF/P6Xfg3Z4RR4R7n9Of1P/82gKLkRhfEFfVCz4Sxn+qvNDnEXhHq5tJddVMwXWqncjAVzGaoknMivQv4+upSSQrK+BySf07cNdBsOOjspIHlIpDJPi/LKCEphcBGafZRNXCAP5bLlNx+CSBDz/jIEEzaUu1eyub9zNnmeXLeQAD5KOsV+22GW2WQKoyo/WhVOaGz41XexzdHMfGgJ9gGa6hqonbNKr8F+4SX0Nxe2eR55DkKGxA/iYDidwdiNaHnAp98BtSRVcXF740H0TNvuf1CSer3bNurK31PUtHAzcaO4scv9T60j5vRcUNOPbikOI878gh2EutNGAE="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01UHjTuFg2BjSW9gQEVefMnn",
+              "name": "dance",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01UHjTuFg2BjSW9gQEVefMnn",
+              "content": "\"Wheee! Look at me go!\""
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which took me to the ocean page, and asked him to dance. He said yes: \"Wheee! Look at me go!\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#7",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6122,
+      "outputTokens": 125,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 5.4,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which leads to the ocean page, and asked him to dance. He replied: \"Wheee! Look at me go!\"",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "dance",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to dance with him"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01WyfPfihXjh4viDsZMuV41t",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor2(); const b = await tools.dance(); return {a,b};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01WyfPfihXjh4viDsZMuV41t",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"b\": \"Wheee! Look at me go!\"\n}\n\nTool calls (2):\n- openDoor2({}) → navigated [40 ms]\n- dance({}) → completed [1003 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\n\nTools changed: +dance, +hide, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\ndeclare const tools: {\n  /** Dance with him */\n  dance(args?: {}): Promise<unknown>;\n  /** Play Hide & Seek */\n  hide(args?: {}): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which leads to the ocean page, and asked him to dance. He replied: \"Wheee! Look at me go!\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#8",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 2228,
+      "outputTokens": 172,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 5.6,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which led to an ocean-themed page, and asked to play hide & seek. The reply was: \"You can't see me...\"\n\nThe door-opening tool I used wasn't in the list of tools I'd been given, but the call went through and the page opened.",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "hide",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to play hide & seek"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01CQw2gLsHQQnX3N41wBV5Gw",
+              "name": "openDoor2",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01CQw2gLsHQQnX3N41wBV5Gw",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS2QUKEAgUGAI4AUIIdGhpbmtpbmcSDIaE75TCmzRPofX/JRoMPVxVX0KGUAILAERLIjAoVCNORRCt+CQIErlzf7mmwHrCMVPhri5DwVcie4NEsqw72252KQmOwS+x0uNrSboq9gQKC2vBQLi9bkcC5rsepbK+YQKpScJK1F/ik5Ar6p2U+2Nru18hKW8yCtCHNuKzKjTjJu55Zx/827oKfzi6i1K9eZNyquCTAMqrcSLOvocBq8TWYI+ud8kRbL6GsX9OUg+t7KA79ai2eRfPRZHhAzOJCb5S7JZLTh7tyhdgj1JDPRy4n6iPG5r4+YBOg8F8gtNMeUCzLFez8nHVOl+aLwafHDhuYnFRydGnTozy6oqjPvtVCSAS2Xx62TDt2/WkURZfMf5n5qBYBhfZhm0PevuUmM/bu2gKRgdm/IQJRqM607nSdGFgtsQyFBVEfKzebLn0DiV9J/X4WQII20ndBDyR+/be8gItPX3sDP6gBCcTTH0lrhssH2drOPLB/rmmE1CucINrs5Q0U7gcPwu4L4jl52gG+h5Wa4a+s4Cn9QO9PJvi11OTBu2E9qPvwZNxGqyUmPkB7iBcZitl8E+2nk1gDXD9ZknL5XJjBCQJ3N+BuQJK0PF2rOT96EUfFLWW4n8KmbQTXwpXTU0MHUHwoFXi1I/H+Y7FT83ezxIG5MhExcVxm5sg1ohavFxBfM+e86/kygNdQHAYXRAWpJdcaFMWDxI0M43gpXdm1UwUPF8pUHq+kCzWhR7EnvMCca2g/6Qt5EbfGpSAWg3knn4KFyd2yD4tPgWTlg/S6UviZWQlO0WPYObZwrUk7CX+YOop/rcFnehlKltxaQb7P8RZQirY/fS6oiipuTa/hZ9BDV8kabnaTrl3AmL7YzCblHRRzrdWPaWGYMw+ohXWR2IdXJsc6uM0sFqUolrhrufSctXG9VFq5VWYiU7nw9Z+63AHljrqzzhMmr4YAQ=="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01GrrF6qKfKRAfzdyxBag26G",
+              "name": "hide",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01GrrF6qKfKRAfzdyxBag26G",
+              "content": "\"You can't see me...\""
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which led to an ocean-themed page, and asked to play hide & seek. The reply was: \"You can't see me...\"\n\nThe door-opening tool I used wasn't in the list of tools I'd been given, but the call went through and the page opened."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#8",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6121,
+      "outputTokens": 126,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 3.7,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which leads to the ocean room, then asked to play Hide & Seek. The reply was: \"You can't see me...\"",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "hide",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to play hide & seek"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01DBeu8dmyiKf5M7SxUZrwxe",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor2(); const b = await tools.hide(); return {a,b};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01DBeu8dmyiKf5M7SxUZrwxe",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"b\": \"You can't see me...\"\n}\n\nTool calls (2):\n- openDoor2({}) → navigated [47 ms]\n- hide({}) → completed [1004 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\n\nTools changed: +dance, +hide, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\ndeclare const tools: {\n  /** Dance with him */\n  dance(args?: {}): Promise<unknown>;\n  /** Play Hide & Seek */\n  hide(args?: {}): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which leads to the ocean room, then asked to play Hide & Seek. The reply was: \"You can't see me...\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#9",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 2338,
+      "outputTokens": 164,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 5.9,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which led to an ocean page, and then went back to the hallway. You're on the hallway page with the three doors again.",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01PkzRcFhzr2quPa2P5torZn",
+              "name": "openDoor2",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01PkzRcFhzr2quPa2P5torZn",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSkwYKEAgUGAI4AUIIdGhpbmtpbmcSDGIUGW9xmazPIPcPDBoMjgWU/8akPpg4F7OYIjDV6Xhi3S60u2RyEFrXRcTRFtX5rE+NsYg+g7Mc+kOQTYAkW1ConsB2tWTbvtASkdAqsAU2ZIbjUF/jyPEeO3czAQ9U1k7jFZJbDwFb8dgIPVURI8pVfIOts5mf90F+Gx3KNJ+UmkpiTm75rNxKi+ty6TbYbVnhJPFRnKYlkBP+ZbUfIL7ZXGua0SisG7Tu4uXGs/TPDfrfgKbkmjl4B5oUjm8ESOTdjOTwQrE+ZvlrBJmP46jpwUoBv62OKfwxku/yLpR83ueF++JbwZbV/VywiGoVyKWZHlTQsT19klfyWbPye4hP0tvdgGCeW9fWzA25p8Ey8r4MYoGKUfUSY0pi8X/2Jq2lExLn8h2AGKbg3Ox445uvwLKvax6mn9hchExZIbmM82PJc/eKESHvp3c/mfdnhtiD4DoyQ3+vTZlBO4yLpAckbHsZkBw/KHmPv8jvI/nfX/Tk0dOB3mfbMhNfMpudQrIz5625kNCO7DgqxhDkw/+q8Zi8Ax4qultfrQ+Nr7s3VylMdeD4OWA14OuDO6lqfghMtAXk+XHbIlBd/uscvKlDoZwfMpUbSWpamdU4Drq4HOz1mcKfP9GylsNv14k6Y4l+QNkqii4TUHZTShYLN5nsjrE8w6q965lg80L/r4Hq8EI4QVsEzBDMeDCORQQlN3EtawnuwrHBDIGVfOeBPC1OEaO//M3AAqhlRAjHV2Mrv5Pk8d0BNE6hocOWGk6ivtMjDoWdChPrQkC7vQa9f8rFpWoPE/e9bLluKV0RiBmbHMk5Dm9PCoSLi3Xbdjqc2Qf9nhSnb+vWkPyTwhe2Q2fZ+If5G77mT1732vCkxWSCyWuGWh2mFEDrilvpogWfDPr1E/ms8K6ANqDotT0/ULu9EzsuR6ZcJvrE4rixyxzC1q9tNRrohUlaFvLvHc7GZJB/g2RmlO5VXRBYrZyWqgvilWbf/kTaukIyiHZ62jE5W0AuZRCamVO8ZJJM4d1RGAE="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_014YdV8HJr6p62hTcEnvLZr9",
+              "name": "returnToHallway",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_014YdV8HJr6p62hTcEnvLZr9",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which led to an ocean page, and then went back to the hallway. You're on the hallway page with the three doors again."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#9",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5978,
+      "outputTokens": 137,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 3.3,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which leads to the ocean page, then went back to the hallway. You're on the hallway page with the three doors again.",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01XovVyoyBGvRyV1T6iRY6yc",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor2(); const b = await tools.returnToHallway(); return {a,b, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01XovVyoyBGvRyV1T6iRY6yc",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"b\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (2):\n- openDoor2({}) → navigated [39 ms]\n- returnToHallway({}) → navigated [32 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which leads to the ocean page, then went back to the hallway. You're on the hallway page with the three doors again."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#10",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 4,
+      "inputTokens": 3425,
+      "outputTokens": 253,
+      "toolCalls": 4,
+      "pageToolCalls": 4,
+      "seconds": 9.6,
+      "stop": "end_turn",
+      "finalText": "I did all three steps and you're back in the hallway.\n1. I opened the second door, which led to the ocean room.\n2. When I asked him to dance, he said: \"Wheee! Look at me go!\"\n3. When I asked him to play hide & seek, he said: \"You can't see me...\"",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "dance",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "hide",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to dance with him and play hide & seek, finally return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_013ZD43fxpGWtYnnggfsqaxu",
+              "name": "openDoor2",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_013ZD43fxpGWtYnnggfsqaxu",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSjwYKEAgUGAI4AUIIdGhpbmtpbmcSDPYCeefPnaJxCXeuHhoMyUS+Fy1bMVPYC8MGIjDA8cU7CAh3itnHf6qKYlmQNlEoCqqvexs8L854hCXBvD/hlZauhSOQAedrnezrZ0oqrAUdPSMRn7Pi+txf3vuq0vJUgioHXXh1oV88wBoJLo7lg0+LOypN2IEilelPHRZMq4wcF3J3Goz00D0W2/D8gzB6fB2Jv56hAkTzQhgy4zvS6+zFyOc9Ib3JAdI51MsCn7LTvwONL0YOUder449lFA49EbOmgKBKyVSTO9qjb0npfMGrcnydOs9F27rhKKc+f2jSRXKz346T87GUApFqY7+/T8r4bLSbbTcC2+vSnGY8oLNDvSn0IhL/+xDBB/8f3rdqEc6bQxzkc8z9fII6i0GPnKbB+QvZwd2WyxUll+b/eV81Pp7hy1gxAoojxLhysaAPNPSHhlkjvM0BmxIN2P35s1/Ykg+Q43pu8Gtsp51/cy84LA/Jq2JBN0demFYMeh91lkZ+R0NWQRV3Xa29pbHmJ3KfrO1NN7TRPLr6m6GislLsJ0kTkdI31eW4rtZkBfYAobM1rHUC0qmqfturNuFmMb+1Vk5C4B0XlhhRdM/KcgTH5gP4iGtgmUB2wosv5CHkoTSayztZbmGXhf3ldnMe6YrnPzHmkegTSOrd0NMxmuTAf895q27At1Dem8pzlLKVW7xwJ6oK0hqFTDto9t6Yg+qUlSAf/Nd87kb424zbns9czO6mgDT7m0GAiIVMopT9eLcgWmvhqzm1nzcZWTDPJ0V/mVTnSDk9+pvDQ5mcCU55E8vMEabJC89ucwqdNQ8oFwyjecHWhKtEhnfVb6g8g8jDT950dBxiNkFxUhqdlMHjHX0eRmcDNrzch5k7H4Rsnl1gm/P9rKSXGRLhmoTEgSkiDWrJEUS9WGT/r7SUkkeJ8qBpcczBhwD/zR4CS9roP6yPCg6RpWbNNh+TGbt7WtYUDqVzTkCOyVCD4Dg917wGpIMWJZOP/TMlFJE3KrVTRb0CPnhO34H5280YAQ=="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01UWkBgYC5D5vpExYEZL7d5U",
+              "name": "dance",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_014BsZT8xNs85mHiFL7VGg5i",
+              "name": "hide",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01UWkBgYC5D5vpExYEZL7d5U",
+              "content": "\"Wheee! Look at me go!\""
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_014BsZT8xNs85mHiFL7VGg5i",
+              "content": "\"You can't see me...\""
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01XzXZEzXAVf8b4UghXDQax2",
+              "name": "returnToHallway",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01XzXZEzXAVf8b4UghXDQax2",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I did all three steps and you're back in the hallway.\n1. I opened the second door, which led to the ocean room.\n2. When I asked him to dance, he said: \"Wheee! Look at me go!\"\n3. When I asked him to play hide & seek, he said: \"You can't see me...\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#10",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6148,
+      "outputTokens": 219,
+      "toolCalls": 1,
+      "pageToolCalls": 4,
+      "seconds": 5.8,
+      "stop": "end_turn",
+      "finalText": "I did all four steps:\n1. Opened the second door, which leads to the ocean room.\n2. Asked him to dance, and he said: \"Wheee! Look at me go!\"\n3. Played hide & seek, and he said: \"You can't see me...\"\n4. Went back to the hallway, which is where you are now.",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "dance",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "hide",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to dance with him and play hide & seek, finally return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01RzYZHRxWK1RAcxKr9Wh2yK",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor2();\nconst b = await tools.dance();\nconst c = await tools.hide();\nconst d = await tools.returnToHallway();\nreturn {a,b,c,d, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01RzYZHRxWK1RAcxKr9Wh2yK",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"b\": \"Wheee! Look at me go!\",\n  \"c\": \"You can't see me...\",\n  \"d\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (4):\n- openDoor2({}) → navigated [43 ms]\n- dance({}) → completed [1003 ms]\n- hide({}) → completed [1003 ms]\n- returnToHallway({}) → navigated [40 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I did all four steps:\n1. Opened the second door, which leads to the ocean room.\n2. Asked him to dance, and he said: \"Wheee! Look at me go!\"\n3. Played hide & seek, and he said: \"You can't see me...\"\n4. Went back to the hallway, which is where you are now."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#11",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 2224,
+      "outputTokens": 181,
+      "toolCalls": 2,
+      "pageToolCalls": 1,
+      "seconds": 4.8,
+      "stop": "end_turn",
+      "finalText": "I opened the third door, which led to a page called \"magic\", then went back to the hallway (`doors/index.html`). The page didn't say anything about what was behind the door.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then return to hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01AuA941NgTyYgPPnqov1tx3",
+              "name": "openDoor3",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01AuA941NgTyYgPPnqov1tx3",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQShwYKEAgUGAI4AUIIdGhpbmtpbmcSDDb9zTjKm5/r8xBWDhoMwRq/5DDdD5AJh0bHIjD2VYojP3UyjejT2sZ9mMi/ZSqQCnGpZYnHIJWxySsFXffW8FvVFm6RvYZXM1KXwk8qpAXOz/vd9CKZbPAPByvUHFRL4viGXG15ctCCS5INKVxv2cTZDf3U06TZzncHtzkAp57LgswNCHX9HrItkgwxrPi04BJ8JlUnSYdF3bNaRXKDaDAREq/rm1AAWWp8Fj+yM0Nx62Uc+Kp4KA7QNMdnjQN4P+pTYJBv5m30UhubmT1dWyYQ2HqbzhBUwfV+1Qg5MZTNlvB51/guQ50NBu9Q8g+0wtOG+cCjsZaw41L/bhYf+Y4GlqtSs26gbZYuYxerBweok5+0tVKehoat3rzCNv/ByKC8aiu49mIQvGUD0K9Ue8WOtfiGkkpYIUtDNU72plsJCPJJd6s3rY1aB6vLLiRSJMjFEE19ZXJoB5NcQQteC3GoT60Os1VtyWc4EwgdznjqT26G5lAdaiASzPRFgpLChBrIXulDTEEllZPtejCFEsS6XYYrJGgfSOpsH5ToM6k2M0RvDmNdO4P6Vp2ghTnD8OTITC6oHQ0Qjo01KQJxg1mHqL9MlzEgmQSSqYz0/Da6ZALYht4zE9rSoWpf6oTuLfOvhmvzL8X71ujblDTnmbEo/F5bfO+OI7tK/PzNZQUJ8do1HTdH+cNl8WmBYMSi3o2X+0jpbzm673me3wkHQxU+RGtluN54/+A1fakevyF3oBMN8ku9ZVUoPP7FN3/NfBwt71rjjOsOLorwYpD1VezVvZf8uKqn9tuFgA9EbHzoypw2LKhPad9Enxl9hEggW/ZkhhEpXpvJ/59jBfrL/ZjEJQKtXhLRIK3DtBn56mEU5q5LvqCouletDb5if3Ole+ahNGglZG2olGIs9H5F231J99XjqY0FB2d+IwCB22POR1576yNcoX96k4lj45VI7+r+j7dMpkq9ipUaLwz3KwKMba+PDg9Eo8mrC4P2pB+ZkIvTGAE="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01KJc7tEjrkZ1bgbX9JXGWHy",
+              "name": "navigate",
+              "input": {
+                "url": "index.html"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01KJc7tEjrkZ1bgbX9JXGWHy",
+              "content": "{\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door, which led to a page called \"magic\", then went back to the hallway (`doors/index.html`). The page didn't say anything about what was behind the door."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#11",
+      "arm": "codemode",
+      "run": 1,
+      "success": false,
+      "turns": 4,
+      "inputTokens": 14343,
+      "outputTokens": 500,
+      "toolCalls": 3,
+      "pageToolCalls": 3,
+      "seconds": 10.5,
+      "stop": "end_turn",
+      "finalText": "I opened the third door and then went back to the hallway.\n\nThe third door led to a magic room. At first, the only option there was to cast light, with no way back to the hallway. I cast the light (\"The owl blinks at the sudden light!\"), the option to return appeared, and I used it. You're in the hallway now, and all three doors can be opened again.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "castLight",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then return to hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSygUKEAgUGAI4AUIIdGhpbmtpbmcSDGu/tKcTZlX0u3CToxoMQ4n3qkN0Hn0UGXAaIjBeX3M8Z6HpltR1IK2hUE2u6EEWf/WfOmXrBVQU5Q15lmxARZUfojTrAlJ+pufMWxcq5wT4wT3l3GXT4FeIu+6gs/lc0sevmcp9xwmym2WrexsCL/iFTBZrvlFYICgyiTRu0gl7im+uCWkfv/NhT9KniKTr3T7yAu60R555+2puf46dIP96UOH1oOidB1307MbxhMctTmzBqCdHPlwQweVbHDASEopNWrmq2DSeLJS7N1F3GgoCZ8OV7GHj8J/6xU+ZMWQmxSRz86oGC3MAvq0KcqV9asdZwnhUS+9geRJTS5Ilpz1jfkKUm9MMm4xym7tCgj7erTitaZp9hk7s4uuX7g/y/UfTQfDdnWD97RwSy7CGtOMDsIHN9hfolYNOtHwe/35BTQtDA3Nu/e7qXexp0v6jUecb8soiptb+ERORWzvnlyYBTZE2C/aYqHIlXcdYq8xJHzrx5sHOODpNjL9qTQF9ajjyS9DwumbfwsWGWYpsjD8WrS8UryACEDuPqkFYpOWeXbBuq7PJEc5b/usOi2J2RX9bITKC+A3tyy1JeX7SwpynKhGkjtlfR7NifAwd3+b8xizl/F8RH1ODgN0qwuXdkLRzncjfR8uxoSMXbZD/A4MSH49hN/TXHFRt2U63EGNisEY4eF5oIg0ky+bkm2qwcGdHYozOnWBJJga6Q8MYl5miILn43OQqv+rZL/BuG3T5anIm7WH7sgoa1A3hHdqvg3UU8JiJYwM3pGanwINBU+1sFFxgqOomDrA9q1kHTca0iZ7QfLBRuKJI7hJ4hd//H17LJXcu9ITNoBO/2MAQ2h7OteVJi+9a1WJPYueJi2dFBYERUtPvBMxNUaN55lARfdhgyUG4OSYoVA5G6YfouKBJ6lwU7E0YAQ=="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_018XxBiEZjaqmBLehULrRMbn",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.openDoor3(); await browser.sleep(1000); return {r, url: await browser.url(), tools: (await browser.tools()).map(t=>t.name)};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_018XxBiEZjaqmBLehULrRMbn",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\",\n  \"tools\": [\n    \"castLight\"\n  ]\n}\n\nTool calls (1):\n- openDoor3({}) → navigated [38 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +castLight, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Cast light */\n  castLight(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSgAYKEAgUGAI4AUIIdGhpbmtpbmcSDP4Kv8i4ZT4tYL4GPBoMsUHk6shGv1pwgXW2IjDhnxZKMtU2Y6k/kIPkDIyetvn/4DIWWMU4ZhEXZBhc/qzULyMDjftSm695xCVfg9EqnQUQuiIbsVhSRlmgBCZlW/3uwk4Oo0Irdbqtvkh0ykMi2xlu6n6XXuG7P71TSYGgScSmRDgn7/C7CkYhON0AhSx7zRWIdhW74UgavodGWRUu8aZ0qGlYqf8ziX+5U2EN29K+roBfqbR0Bha33yA1uakSQckDXl22KBW0QOt2LPEhRkkWL+jBBls1NJa7SAhtbld3yV7ITY/3tM+lyfA6pPASBBEJCLf4zOG0icOrRwqKIjvf6vxt7vpjm116jbeb7m2meZuGqPj2UsBxTV0YMsPMzMY/1I6Z1uDQ8e3KxN5r1ZdBJb5dMeOzTBK1UdlcScPamE3z3TowAUojoEAkxGtV1J7sTqf97ZvW3otxlWFDmY7OCjxZ41/olyv860FEXxGzNpP97umwTjL2pS2KkmJUOqBADreTNhZEDwO2C4Sxc8Cxc82lZpAw5JQa3AmRluqJi4sgEfXpZKZqhZ2wcnVmJKpiATBW2cZlIJ6YAovJAHYgvfS7C3vxwAOYYZ1uxxQIoQYqDu8oJfJoiVb5ZhCJLa13YeHpvvEHlKQNOX4GGk+y5nNCcNOa1hYwSZ3cLjxtClSxPnx+Ra7/sn+to5IiJBh0qdGx8LpXQ0Abppu4c5+E92Ic/Wth6MoVgLRh3TFcRE1KSu8OX6TrWi9TfnwREqvtDlXqdbJPtZkpXgbI4mO31BoD4Bv7tNE3w3Ne9weiEoRCtJqHGGpGcVb4WpEjE+G5pDqihPxXO47KAcWopbs7/tlwULAssScRB5X6N2SjyqfPzLjdVdT5iL2bRbbKbWW1YjLdExpbocuGKYwjmIOH7szG8S+48TBTNjuoBYkkBwkkCbJOosmo9qvc+lMGeVjr2V2Xdg4q2uw7dkr1Cg3NSu8PVU5LpRfNA1IYAQ=="
+            },
+            {
+              "type": "text",
+              "text": "The magic room has no returnToHallway tool. I'll try casting light to see if a way out appears."
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_018W7pw1t3ewnZMkubQCydE8",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.castLight(); await browser.sleep(1000); return {r, url: await browser.url(), tools: (await browser.tools()).map(t=>t.name)};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_018W7pw1t3ewnZMkubQCydE8",
+              "content": "Result:\n{\n  \"r\": \"The owl blinks at the sudden light!\",\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\",\n  \"tools\": [\n    \"returnToHallway\"\n  ]\n}\n\nTool calls (1):\n- castLight({}) → completed [1005 ms]\n\nPage: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +returnToHallway, -castLight\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01TuohedbowGBUifLCgYxUfX",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.returnToHallway(); return {r, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01TuohedbowGBUifLCgYxUfX",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (1):\n- returnToHallway({}) → navigated [42 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html? → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\n\nTools changed: +openDoor1, +openDoor2, +openDoor3, -returnToHallway\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\ndeclare const tools: {\n  /** Open the first mystery door. Only one door can be chosen. */\n  openDoor1(args?: {}): Promise<unknown>;\n  /** Open the second mystery door. Only one door can be chosen. */\n  openDoor2(args?: {}): Promise<unknown>;\n  /** Open the third mystery door. Only one door can be chosen. */\n  openDoor3(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door and then went back to the hallway.\n\nThe third door led to a magic room. At first, the only option there was to cast light, with no way back to the hallway. I cast the light (\"The owl blinks at the sudden light!\"), the option to return appeared, and I used it. You're in the hallway now, and all three doors can be opened again."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#12",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 1996,
+      "outputTokens": 118,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 5.7,
+      "stop": "end_turn",
+      "finalText": "I opened the third door, which led to the magic room, and then cast light. The page responded: \"The owl blinks at the sudden light!\"",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "castLight",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then cast light"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01Nn36nC1aujCfJAzWPLFKS2",
+              "name": "openDoor3",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01Nn36nC1aujCfJAzWPLFKS2",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSuwUKEAgUGAI4AUIIdGhpbmtpbmcSDKG4MVEyjCZHKMLthBoMX9lIhur5spkuyNAHIjD7nEPGz0Rw7ENLiJDpiMwpmWgtI7+6loRVm8Jtdl/w8EoYb4ivadRbyTN58fZshL8q2ARn0aJY4MGASpr5gJ3GqA4LbYalZw1v6nJvT/Y5ydhNqTBJIWb2+Y5LRFT7Us4717VFCjAl+BP4csm8i7dX0/7RXaQXeK2evMdcOKzrOQnpNmNN95Gp44a8ClIdxuf4TgHRN81K/L2LYieVRBra4qwGRUEJhqLtNjXQXkmqb0Tnf4Tm9GJTblB79WrUD4AnKrlQv5+wnqXr1cS0CprDqUKSwhbrwr2E5+kmIMCidYGM9K1PxEKPx2B5lqtpJmI81Lm4hHGT2U9D2g3GUOpOVjjGD+EQAp1Vwdv2nbA3VCyu2Fp3nn9lxNQEDKSYUsu99wj1RfqR+g0TY4xZA545KkFHcMIA25PFTxRh9BO/h2Hld3ROwba2Kt2W6bxnrks+nvDiDk9eFTVz/zsFuUx5KT6cRI8VVKYsq5vJo83KB073Xrz37rErYAaKRaNge1fTBH3lvMh4LZmkppX7Ds2Vz8zacTKCERl19QHJLR8S5ds2DLIWfz0UU3vxSXWqwHHk1bT7dKRTw9AlQ+J7OwxNcypgbWkuHGBDlEEf7xaiOgmezlA4JV1PFOcEBpexsy3Xfj086WW+Pk9b1Xes3mlQ/5P5qqsqu5sHThq4Cnz4pheOcagBbD/BZzv1EvxGANR752+NCynpoWsfHYm512PWJ85XgPOl5fp8RYLvEd6C3rW5Fhi1pJhFjT6Sc/GwvtnhTS2TGF6mxZv6bYEGeWWA8rSdEZH3IQB8IZsZM1ljenzYivblSAVp+Mlki2Adjw8sFYxWdeCYsIOoS7Xdt/fDCzd5auAdN+4RxQkYAQ=="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01VA8XQhAaxKyNWR4q5sKYMk",
+              "name": "castLight",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01VA8XQhAaxKyNWR4q5sKYMk",
+              "content": "\"The owl blinks at the sudden light!\""
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door, which led to the magic room, and then cast light. The page responded: \"The owl blinks at the sudden light!\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#12",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 10089,
+      "outputTokens": 304,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 11.9,
+      "stop": "end_turn",
+      "finalText": "I opened the third door, which leads to the magic room, then cast light. The page said: \"The owl blinks at the sudden light!\" The only thing you can do from here is go back to the hallway.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "castLight",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then cast light"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS6AUKEAgUGAI4AUIIdGhpbmtpbmcSDM+X/pe/SNcSlBwMBhoM/RBKXL7woi3++yjgIjCb7oMNRRYJI9rOBG61+3+S8CJxcitJCLE1WJFtIBGiHCYKzYO7cy7yXwzeCluvuLgqhQWHpvx91fQdwJubIhtT0GrveUnL8bHsgZK3jmo/WIdVHDuCztWjlG6y5gKKeFDA0ndgztHNVIhzwWsL/SOHsBgJeQHoND9OM3KOeR69BSPJhnutp5PF7T1v/ZzaRRip3YDrQRvDHgOMqPzk5Qe4nu58jZmhdIYADMlE35ZhHyUbCC7o0isKncW82weUucDXJMn1cg+5LhMmiM4q0XeqvF9YvquTgfwjtIr85tkdZbt1ak6nbgaBZe3YlKWxwp/5jmjS18uKC6gBtb2XtLgO1A+jd96bJOV1a7/c+hpz1jyBsEbXiyGBa9SgXwvL5lIK42ozMdVM6JCL3G9FZ958fNHZbT2og5EQLbcbU8focVUAtNOzX7BGiSvERJVJhqXbgsnU9TIehTVlTgljFITC0VRt4e2O+/HXKMCPdQNQviv90OaZlRFYaKxEdKs5XjkNUhDfZiHN5duo6bvSzymK7JXLESBuHoTWdurEhw3D6OLQOh+MozMb0X1xCKaiaQV6ycsmH1bdBSeHKG9BmVkIkQD0kmCY65+CM71pxuPnMR27Xy5Pu3bZBYYLIJxyVh/LDo6ydit1fsXnSUtVM0Y8gbevGFVjiMB+p9/gvKQ9G90AVrk4R0NehzL6NQFKqFlZXkvvCQ/BKmaPk/1x3JlPjKFzZZ7WaljJ0GLEkszgg9p218zCEY1HEHukfm7kORbmY0b4IPqBWZe/wedjBRwZarl444YNtvJfe0sUKdLop2FXtlI4JFPMSHQyy0m3h7Jl0Dg3gcvr+swbi+Ds23I6Qcx87BhJ7aTVTGPxtuBzo+xvZU1Did6EzSfZWwJLX5rwQqwzvO9CtXXUxnTWRQFgSLjvcZdgKYEYAQ=="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01RnZKYF7FrtFduyBSbpRJT4",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.openDoor3(); await browser.sleep(1000); return {r, url: await browser.url(), tools: await browser.tools()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01RnZKYF7FrtFduyBSbpRJT4",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\",\n  \"tools\": [\n    {\n      \"name\": \"castLight\",\n      \"description\": \"Cast light\"\n    }\n  ]\n}\n\nTool calls (1):\n- openDoor3({}) → navigated [40 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +castLight, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Cast light */\n  castLight(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01TT89Rx4wXiga1ksDyJyUPF",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.castLight(); await browser.sleep(500); return {r, tools: (await browser.tools()).map(t=>t.name)};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01TT89Rx4wXiga1ksDyJyUPF",
+              "content": "Result:\n{\n  \"r\": \"The owl blinks at the sudden light!\",\n  \"tools\": [\n    \"returnToHallway\"\n  ]\n}\n\nTool calls (1):\n- castLight({}) → completed [1005 ms]\n\nPage: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +returnToHallway, -castLight\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door, which leads to the magic room, then cast light. The page said: \"The owl blinks at the sudden light!\" The only thing you can do from here is go back to the hallway."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#13",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 4,
+      "inputTokens": 2942,
+      "outputTokens": 162,
+      "toolCalls": 3,
+      "pageToolCalls": 3,
+      "seconds": 7,
+      "stop": "end_turn",
+      "finalText": "I did all three steps. I opened the third door, which took me to a magic room. When I cast light there, the page said, \"The owl blinks at the sudden light!\" Then I went back to the hallway.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "castLight",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then cast light, and finally return to hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01DX5BN4v4go2cwtBTfr8AK1",
+              "name": "openDoor3",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01DX5BN4v4go2cwtBTfr8AK1",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSqAUKEAgUGAI4AUIIdGhpbmtpbmcSDE8Sq/Up3hFTU/YVkRoMk+1GjiPSmubbNak1IjCnOJHiEyV7cR6T3f2gu+TAHGknEoalhNH7zYJbfj+Z1J6JMG/ryH5Ee0jugPp2/eAqxQTl0WyPy6EDOLC1OBsc0rF9m2raiOGxuJvHd1BV0GBQhjrkPEdM65fpNBLhATbsSQqBDk/UDaZa744LUJ8/hzK1AmZmM6pq9yfRkZYDpkWEiWSImnx6OAFtoVKFBfR56B/HNG8XGxawxlibhDYJTRJqjC8TrTYgrIEWPrLAY2zaFb7BWcmPrqkk9UYeRvvUA2cXFlopMqIsQuJmCYnOzBB4h4GASBt2jJJbks2WJZgU7HCJiApOAR5xTh1N0Jh0tXt4W4V/oz0KDZhJx9zHdkXZlOVDi4ifP6JsSqF7Yrr94YcOnC0WVpUQjCTu1sy4eP7BaGU952JUsqL1bR9nJi9JuCfv6Jw3Cu+/7VqgA2Gy1/gNMmQC3StRnO1hvYaN0JhU5vety4ND//JNgcJl5yM7Q2y1VNIMIILF3u+L7XMAudH2xxU+mm7SgtiDhbU/loYa3DxXE90jtngDNf9Bntf9bV/xWkMdnBZFyEjCA5BetgXIL3JfXPlRWVPKIRh6Wc9gHPgspc+/oIyqKb23rJec/LpDkX76oylgf/Qkw7ueMf8bHkJ/dHqV1hK/8QHO0DPD8brcXPqkxUEjNhzETh1r7Bf29yzSzLCKePmUv+Qo1MbjL6gqqnVFub3V1ZkHvjJxAqdSgLkmzF+8gaNjU9ilg6EG69xbhtbW0E1yRBA9KeE47AYKGunjbH1v3mPNtIBjVL+vIeIIuHELqGfWXps6IwkOZ1/mxwIdg5SEx8NH7DGagMjG5tuUIt/3MW+2pcwgxzaBuxgB"
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01B6BXwbGNXtDdfRb96teYV4",
+              "name": "castLight",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01B6BXwbGNXtDdfRb96teYV4",
+              "content": "\"The owl blinks at the sudden light!\""
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01QxH4XcPAbaSqz8va4tDL4r",
+              "name": "returnToHallway",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01QxH4XcPAbaSqz8va4tDL4r",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I did all three steps. I opened the third door, which took me to a magic room. When I cast light there, the page said, \"The owl blinks at the sudden light!\" Then I went back to the hallway."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#13",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 10262,
+      "outputTokens": 372,
+      "toolCalls": 2,
+      "pageToolCalls": 3,
+      "seconds": 9.1,
+      "stop": "end_turn",
+      "finalText": "I opened the third door, which led to the magic room. When I cast light, the page said: \"The owl blinks at the sudden light!\" Then I went back to the hallway, and all three doors are available again.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "castLight",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then cast light, and finally return to hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS5gUKEAgUGAI4AUIIdGhpbmtpbmcSDKnT7ZhI0IB9akHg8BoMeoH+ab92TQWL65oVIjDnFyCZCOAn2yUcGTPPFIwsDPDEFSfIdLa8gLIce35PCu9iHZuGM+uGwzOBdrdi+GgqgwUO1g1FzElsOVOxigio2rtvGKw81qJoT1trUuW4P8ai8+TPHASReCmuGCDgM/tkV147xtZj8RkcF3cosNakuPg3X4/D55SCTqiwSh6Gc4qcsJsN+fS+Sal1F5Mp+05Fi/Ei6qPIdTOfWbpbFAV4jEzNcirB09MEvM1XtTi8d7iDtK8PxzdHxSxF2o9zsUhiNW2vq7tsMhhwoYelJec5lL2otM1XTBIIeARHOVA1us9gfxyeA0b5fUNHxOXMPB3tXlCYpgAOT7XF2z7J8K2LBPt74N7t7Lm2Dl4sHES2pmeuGLm++JPa3pQUST3o/T0owUeyEE+KBCyYXudxKpXiscCKIsVEbk+97j+pmWvS75ZcRqQvZ815WHI4Q4j3lBpiLLBiR8TNCsZDN+J655Mhq9Y32TF/UiFPuvLNlViLm/NMQGIau2fDFEHE1Pr+Ju5BGZ5XBTSLByPl28CpkRIikRMBmXzh8s/EK9JsqlUENiSr7+vzZGRjYkiF1mtcqtfKsXJ0GsxY3zoqXXBQNJi8WJFDn/sXP3Gx51UubD1Y4xSG27eVzKkVVQjp+ETR3WthERcd2TCSNedsGxpLBDZGMAKuM3gUBTHfJq5Mkx/5q+u8E82buPAXfh9cGl4iqYbe8ITEAi2jkZrTxJ5csKnDmuAMVmTE5cNLet0Um5cNsQ1ihFic0Jynzx1G9SeZpRXhRplt1cHViyhq/29keWJCkxjFYi7sONfd9IpqbqPWF7r9saZ9aNDHTIJ4x6wCcSTBnRh9gYAh+W7HUriCoLhmFl7/IC31yGsvEGqj1MzO+tuEz4mGz1skP1zY0R3DH/zyVyHsq9fLgA1IcevKur/fbnDYr43hGAE="
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01BSKthNqzDkYMVwrHjNCdny",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.openDoor3(); await browser.sleep(500); return {r, t: await browser.tools()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01BSKthNqzDkYMVwrHjNCdny",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n  },\n  \"t\": [\n    {\n      \"name\": \"castLight\",\n      \"description\": \"Cast light\"\n    }\n  ]\n}\n\nTool calls (1):\n- openDoor3({}) → navigated [58 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +castLight, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Cast light */\n  castLight(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01DdciRDe2PtZRAf5btgHm9K",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.castLight(); await browser.sleep(500); const t = await browser.tools(); let b=null; if (t.some(x=>x.name==='returnToHallway')) b = await tools.returnToHallway(); else b = await tools.returnToHallway().catch(e=>String(e)); return {a,t:t.map(x=>x.name),b, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01DdciRDe2PtZRAf5btgHm9K",
+              "content": "Result:\n{\n  \"a\": \"The owl blinks at the sudden light!\",\n  \"t\": [\n    \"returnToHallway\"\n  ],\n  \"b\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (2):\n- castLight({}) → completed [1003 ms]\n- returnToHallway({}) → navigated [34 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html? → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\n\nTools changed: +openDoor1, +openDoor2, +openDoor3, -castLight\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\ndeclare const tools: {\n  /** Open the first mystery door. Only one door can be chosen. */\n  openDoor1(args?: {}): Promise<unknown>;\n  /** Open the second mystery door. Only one door can be chosen. */\n  openDoor2(args?: {}): Promise<unknown>;\n  /** Open the third mystery door. Only one door can be chosen. */\n  openDoor3(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door, which led to the magic room. When I cast light, the page said: \"The owl blinks at the sudden light!\" Then I went back to the hallway, and all three doors are available again."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#14",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 2283,
+      "outputTokens": 150,
+      "toolCalls": 2,
+      "pageToolCalls": 2,
+      "seconds": 7.3,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which led to a forest, and asked the animal what it is. It answered: **\"I am the keeper of the ferns.\"**",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "What are you?"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, new tools will become available, then use a tool to talk to the animal and ask what it is."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01GFW3BLifoNsLqg8cmbTaaL",
+              "name": "openDoor1",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01GFW3BLifoNsLqg8cmbTaaL",
+              "content": "{\"navigated\":true,\"url\":\"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01K3yhhouW7fkT1UK4Bc2L2t",
+              "name": "talk",
+              "input": {
+                "choice": "What are you?"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01K3yhhouW7fkT1UK4Bc2L2t",
+              "content": "\"I am the keeper of the ferns.\""
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS0gUKEAgUGAI4AUIIdGhpbmtpbmcSDKIArLNhr8Qf/iteYRoMHKsIghtdBEes8SR7IjC9FwyYS4AXHhuNxetcwUHkVz1zNMd66jlL2SjuqRXIkR/vnsm8ATfAuqbYxUFVEOsq7wRY0WGl18cSjZcXwOe0zOpdQTJAQt7j8/LAVcXgZGGrZ4jlNLxqEz6MqKnQuJQVnwwmqZ9QscBwT5t9w3wjS9EHum/Iex5KfVtFY3NjNusosemoOcV9IeEbAO2Co/gczSLa1zkxMxcjFaBuZ4Gy9aC7LXwwNWCAsc7dz/19X8NXkHrVHY/ywPC4bYEBmPjkv5F066OnmI/xgrw4W/pA+w2b/zQbq+9xV2/sjMA/SC+COIDHciZ9VW1I7xQiRxDuyLW60jF5thTBk53k2dXWCG3L54VzDY3aJSNSyazVnAjumSQldIMr0poQvgD1mA6TYLpkoCKEHo3EuK7tBbfexVAhPVn8X9MB0Y/GgyM4DpZ47hW/a6YmCwav5j3/rlc/CapOgce0s2MX6AtAZOb4K7HA4NMoxelc9nT7hIzYJdl2J7iNMLTUvUYYpnfFM57iC+HeEOUItWmP4C26l6GNgKexl8HmyAh3pT9JPCPpFM95h2GJhANEUy3UgiR58BcPy5ll53Fq+J741lLPVg1c4JaXy/ZOzO5CM2E1YGYr+auJvMWg8BDMgw7oKUC3o0EvFW8OG+iJV4kXXSEUUXjDVR2iH9LX+eRClyAF+lYKoRE1NU8u7KYLOJ1rXMHdFnT9gXi5NdxmkntRyherjKPBKjN18Vtq0pXEvVsnbTS/2Kz1T6CW9KSX1CVfw9WVgFxmzj1DgRcl1OJ3TJQUbRrkbeWLUZEzkFRj7/LxMNvo5StE0L5+vF8/4PF+W8aOA4nazY34hBww6ZkLOydG/eLZCLQ0hWP8mYH3zg4GvxuPtO9HobiJYr60aAQXYlCcE1qfpBgB"
+            },
+            {
+              "type": "text",
+              "text": "I opened the first door, which led to a forest, and asked the animal what it is. It answered: **\"I am the keeper of the ferns.\"**"
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#14",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6390,
+      "outputTokens": 145,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 5.1,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which leads to a forest. When I asked the animal \"What are you?\", it said: **\"I am the keeper of the ferns.\"**",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "What are you?"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, new tools will become available, then use a tool to talk to the animal and ask what it is."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_015QUAC7HiRzP2qrDs2YYpcA",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r1 = await tools.openDoor1();\nconst r2 = await tools.talk({choice: \"What are you?\"});\nreturn {r1, r2};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_015QUAC7HiRzP2qrDs2YYpcA",
+              "content": "Result:\n{\n  \"r1\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n  },\n  \"r2\": \"I am the keeper of the ferns.\"\n}\n\nTool calls (2):\n- openDoor1({}) → navigated [47 ms]\n- talk({\"choice\":\"What are you?\"}) → completed [1005 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\n\nTools changed: +talk, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\ndeclare const tools: {\n  /** Talk with the animal. You can ask \"What are you?\" or say \"Give me a gift\" */\n  talk(args?: {\n    /** What the user has chosen to say to the animal. */\n    choice?: string;\n  }): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which leads to a forest. When I asked the animal \"What are you?\", it said: **\"I am the keeper of the ferns.\"**"
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "hotel-chain#1",
+      "arm": "classic",
+      "run": 1,
+      "success": false,
+      "turns": 5,
+      "inputTokens": 7905,
+      "outputTokens": 492,
+      "toolCalls": 6,
+      "pageToolCalls": 6,
+      "seconds": 9.7,
+      "stop": "end_turn",
+      "finalText": "I searched Tokyo hotels with a filter for gym and breakfast, and one hotel came up:\n\n**Metropolis Loft Hotel**: rated 4.6, $185 per night. It has a gym, breakfast and late checkout.\n\nThe Tokyo search loaded with some filters already on, so I cleared them and filtered again for just gym and breakfast. The result was the same.",
+      "calls": [
+        {
+          "name": "search_location",
+          "args": {
+            "query": "Tokyo"
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "filter_search_results",
+          "args": {
+            "amenities": ["gym", "breakfast"]
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_hotel_search_results",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "reset_filters",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "filter_search_results",
+          "args": {
+            "amenities": ["gym", "breakfast"]
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_hotel_search_results",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "I am looking for a hotel in Tokyo - filter for gym and breakfast"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01BcANbyJg7uhU7Pgk2ytSJm",
+              "name": "search_location",
+              "input": {
+                "query": "Tokyo"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01BcANbyJg7uhU7Pgk2ytSJm",
+              "content": "{\"success\":true,\"message\":\"Navigated to search results for Tokyo with active search filters applied.\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01C8jXfpg87QLdnRp7DoZqbH",
+              "name": "filter_search_results",
+              "input": {
+                "amenities": ["gym", "breakfast"]
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01C8jXfpg87QLdnRp7DoZqbH",
+              "content": "{\"success\":true,\"message\":\"Filtered results on page\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01TXdEjbTW4LsfC7QrHK5hLv",
+              "name": "get_hotel_search_results",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01TXdEjbTW4LsfC7QrHK5hLv",
+              "content": "{\"success\":true,\"count\":1,\"hotels\":[{\"id\":\"metropolis\",\"name\":\"Metropolis Loft Hotel\",\"rating\":4.6,\"price\":185,\"featured\":false,\"amenities\":[\"gym\",\"breakfast\",\"late checkout\"]}]}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS/gYKEAgUGAI4AUIIdGhpbmtpbmcSDPV3gNV5CkDR41uK9hoMSN2a+YOe25sLWytLIjACkq+dt8RUOZ+OQqwmSkiUu29S8QZeAMthLwdMwWoS5HFJeccMgz+bjDgRw4b+bZIqmwbs2Wp+8VWW3+HsXXZ6qwWM/fbfUzplcSYXDDLl5iW1jyaEv2Ye6Y4myi5vwLPRaU4Z3eqmnSYp4jQvt9nrC7/arF4GEH3EqexjAMOxRZ0MdpX8wo0yGhbEXaTiZvPEO5Ng+2usc42lQyXNwuFTbyuaqKZGg7QC3qn35GN4wbwhOXCyXlCvWTqttUv+HEOoxoFBEvayl4cied4hrTjSTDYPqyYcql6BiKyhO+in7PJynr1EVhEYxNZ9NRvb0k9OYQr3fYaXtGmj6mlSi9k2qJnEbBtTD0zORAoYcxR/HkNHJ8cPg+mjtZ710sDVlSBZ7uED0EqOqDBRKsTISO+2y1ZD3WVxsy2+z6Um5Kv6xZyOnRDnQ+cnZNdQNTUdpX7RhBj51iJSAC81J6w9pbNSgcl+aMOLJLab4YwAaXkfDPGm1oTyC+1SJLaiGGZpVdk2LpfcqGYnVGNM3tUPGdk+1Cg9vBGAVk5fuJate7O4wwb8ybi7zNedYBNytJoMUE+P2iZfpnd4SpnH6/Lyf49LRYMrqmYe9Utex/UHCfTvST5SqTALXzez3qOoHR0Uf4hSAeMbdDrBtp+I+KfB/N2o/6Wx8IvnzUdY9OEURep7BS8EIWLcoMASg5wrhtj1YJVZf1Oaj6RJUOVrFnLKRTg8KlUwnEngGunUFAGN7S+P0qZzDqhbuYhCm83BUNI/7OtGwtknIvLAwpqDNpnz4zQdqJ9mUJLxqzSsLR4u7kGYFVHWHV80kjyKw2QeI6RXXukM3wGE5Tpak9SHJDDLZCP/MWAz0CACzbJSyHlcIQZg0UjfjO6WGLnkuee4Hn0UvDJ7V/OuuXV+8Qpqt2eM+HldMjE2w+k59czEy2KEvdq88d2DB0imC3ds0EZwajLylWVJNV2QvX07odwI00GEgQoWp4mqln5ra5HfqrMvmaDXOrLPFqj3e3z3HtJjBy5/WFRXwotbigTSDz8Xfwaup7UhOGE7RDqSskdq6Ow0BXTaHawJMGft/FcQIygC9X9eqJTbYg/NwD5kShIawPY9zI06+F6meTdjXVPPYhQ+X5QYAQ=="
+            },
+            {
+              "type": "text",
+              "text": "The search mentioned that some filters were already active, so I'll clear them and apply only the ones you asked for."
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_013dHBh18wHUStfxY2heEGkc",
+              "name": "reset_filters",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_017SSXZAEyCEGNVXPjnX49Wj",
+              "name": "filter_search_results",
+              "input": {
+                "amenities": ["gym", "breakfast"]
+              },
+              "caller": {
+                "type": "direct"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01GYXpFoKy8Zmj9FY8FEu9Qv",
+              "name": "get_hotel_search_results",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_013dHBh18wHUStfxY2heEGkc",
+              "content": "{\"success\":true,\"message\":\"All filters have been reset\"}"
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_017SSXZAEyCEGNVXPjnX49Wj",
+              "content": "{\"success\":true,\"message\":\"Filtered results on page\"}"
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01GYXpFoKy8Zmj9FY8FEu9Qv",
+              "content": "{\"success\":true,\"count\":1,\"hotels\":[{\"id\":\"metropolis\",\"name\":\"Metropolis Loft Hotel\",\"rating\":4.6,\"price\":185,\"featured\":false,\"amenities\":[\"gym\",\"breakfast\",\"late checkout\"]}]}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I searched Tokyo hotels with a filter for gym and breakfast, and one hotel came up:\n\n**Metropolis Loft Hotel**: rated 4.6, $185 per night. It has a gym, breakfast and late checkout.\n\nThe Tokyo search loaded with some filters already on, so I cleared them and filtered again for just gym and breakfast. The result was the same."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "hotel-chain#1",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 3,
+      "inputTokens": 10728,
+      "outputTokens": 257,
+      "toolCalls": 2,
+      "pageToolCalls": 3,
+      "seconds": 4.6,
+      "stop": "end_turn",
+      "finalText": "I searched Tokyo and filtered for gym and breakfast. One hotel matches:\n\n**Metropolis Loft Hotel**\n- **Rating:** 4.6\n- **Price:** $185 per night\n- **Amenities:** gym, breakfast, late checkout",
+      "calls": [
+        {
+          "name": "search_location",
+          "args": {
+            "query": "Tokyo"
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "filter_search_results",
+          "args": {
+            "amenities": ["gym", "breakfast"]
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_hotel_search_results",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "I am looking for a hotel in Tokyo - filter for gym and breakfast"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01HFZK9ifqF5G1UcxnxYMT8H",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.search_location({query:\"Tokyo\"}); return r;"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01HFZK9ifqF5G1UcxnxYMT8H",
+              "content": "Result:\n{\n  \"success\": true,\n  \"message\": \"Navigated to search results for Tokyo with active search filters applied.\"\n}\n\nTool calls (1):\n- search_location({\"query\":\"Tokyo\"}) → completed [10 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/ → https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/#/search?q=Tokyo\n\nTools changed: +filter_search_results, +reset_filters, +get_hotel_search_results\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/#/search?q=Tokyo\ndeclare const tools: {\n  /** Look up specific amenity or policy details for a hotel */\n  lookup_amenity(args: {\n    /** The ID of the hotel */\n    hotel_id: string;\n    /** The amenity or policy to look up (e.g. \"late checkout\") */\n    amenity: \"gym\" | \"spa\" | \"dining\" | \"wifi\" | \"breakfast\" | \"rooftop bar\" | \"bar\" | \"laundry\" | \"late checkout\" | \"free parking\" | \"washer\";\n  }): Promise<unknown>;\n  /** Find me a hotel in a specific location */\n  search_location(args: {\n    /** The location query (e.g. \"Cleveland\") */\n    query: string;\n    /** Optional check-in date (YYYY-MM-DD) */\n    checkin_date?: string;\n    /** Optional number of nights to stay */\n    nights?: number;\n    /** Optional number of adult guests */\n    adults?: number;\n    /** Optional number of child guests */\n    kids?: number;\n    /** Optional number of pets */\n    pets?: number;\n  }): Promise<unknown>;\n  /** View the details of a specific hotel by name or id */\n  view_hotel(args: {\n    /** The exact name or ID of the hotel to view */\n    hotel_name_or_id: string;\n  }): Promise<unknown>;\n  /** Filter the search results by max price and required amenities */\n  filter_search_results(args?: {\n    /** Maximum price per night */\n    max_price?: number;\n    /** Required amenities */\n    amenities?: Array<\"gym\" | \"spa\" | \"dining\" | \"wifi\" | \"breakfast\" | \"rooftop bar\" | \"bar\" | \"laundry\" | \"late checkout\" | \"free parking\" | \"washer\">;\n  }): Promise<unknown>;\n  /** Remove all applied search filters and show all results for the current location. */\n  reset_filters(args?: {}): Promise<unknown>;\n  /**\n   * Retrieve the list of hotels matching the current search query and applied filters.\n   * (read-only)\n   */\n  get_hotel_search_results(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_014AkkDECbdD9uFFEtnt1Shk",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "await tools.filter_search_results({amenities:[\"gym\",\"breakfast\"]}); return await tools.get_hotel_search_results();"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_014AkkDECbdD9uFFEtnt1Shk",
+              "content": "Result:\n{\n  \"success\": true,\n  \"count\": 1,\n  \"hotels\": [\n    {\n      \"id\": \"metropolis\",\n      \"name\": \"Metropolis Loft Hotel\",\n      \"rating\": 4.6,\n      \"price\": 185,\n      \"featured\": false,\n      \"amenities\": [\n        \"gym\",\n        \"breakfast\",\n        \"late checkout\"\n      ]\n    }\n  ]\n}\n\nTool calls (2):\n- filter_search_results({\"amenities\":[\"gym\",\"breakfast\"]}) → completed [3 ms]\n- get_hotel_search_results({}) → completed [5 ms]\n\nPage: https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/#/search?q=Tokyo"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I searched Tokyo and filtered for gym and breakfast. One hotel matches:\n\n**Metropolis Loft Hotel**\n- **Rating:** 4.6\n- **Price:** $185 per night\n- **Amenities:** gym, breakfast, late checkout"
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "hotel-chain#2",
+      "arm": "classic",
+      "run": 1,
+      "success": false,
+      "turns": 5,
+      "inputTokens": 8152,
+      "outputTokens": 578,
+      "toolCalls": 6,
+      "pageToolCalls": 6,
+      "seconds": 9.4,
+      "stop": "end_turn",
+      "finalText": "Only one hotel in Cleveland is under $200 a night with free parking: **Cleveland Lakeside Suites**.\n\n- **Price:** $195 per night\n- **Rating:** 4.6\n- **Amenities:** Free parking, gym, washer, wifi\n- **Rooms:** Modern multi-room suites overlooking Lake Erie. They sleep up to 4 guests and allow pets.\n\nThe search already had some filters turned on, so I cleared them and used only your two. I got the same single result.",
+      "calls": [
+        {
+          "name": "search_location",
+          "args": {
+            "query": "Cleveland"
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "filter_search_results",
+          "args": {
+            "max_price": 200,
+            "amenities": ["free parking"]
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_hotel_search_results",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "reset_filters",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "filter_search_results",
+          "args": {
+            "max_price": 200,
+            "amenities": ["free parking"]
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_hotel_search_results",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "I am looking for a hotel in Cleveland, max price $200, and must have free parking"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01ATZZPBy11gqYFzBJtcNgQF",
+              "name": "search_location",
+              "input": {
+                "query": "Cleveland"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01ATZZPBy11gqYFzBJtcNgQF",
+              "content": "{\"success\":true,\"message\":\"Navigated to search results for Cleveland with active search filters applied.\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01QnAKo3QJd6eyzLjnGEE4pi",
+              "name": "filter_search_results",
+              "input": {
+                "max_price": 200,
+                "amenities": ["free parking"]
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01QnAKo3QJd6eyzLjnGEE4pi",
+              "content": "{\"success\":true,\"message\":\"Filtered results on page\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01ERdR8GZyve75YedKuT7Tme",
+              "name": "get_hotel_search_results",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01ERdR8GZyve75YedKuT7Tme",
+              "content": "{\"success\":true,\"count\":1,\"hotels\":[{\"id\":\"cleveland-lakeside\",\"name\":\"Cleveland Lakeside Suites\",\"rating\":4.6,\"price\":195,\"featured\":false,\"amenities\":[\"gym\",\"free parking\",\"washer\",\"wifi\"],\"description\":\"Contemporary suites overlooking Lake Erie. Offering spacious multi-room layouts for up to 4 guests and pets.\"}]}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSjQcKEAgUGAI4AUIIdGhpbmtpbmcSDLEBFAs5lTD8bUcrXxoMeVh+cDtcQStXgLtnIjC0yVsps/3eeR7raKxNZx5rXvID3HprZ9UpYqO1nNOiAVOPni4W+TooCXuUYnLYsZ0qqgZAwQkVE3HMbIcpZZcu5vIGN91daR6Z73FHNm1meLvUi/yqQfF5VrcoOakxjPZ8BO4o0Kg6oUhisBKF+IuXlJXIgLXKZgO5fY/Ls2EZENh9Aq9YsUEQrCJQrm9nMh8mELxaNOmUcwp3AxO9sh/aSWItto7nNtmdYUcySpBT5ecAWu+OeEi4DNupdY7MPNms/gljs9AMI/DynI/PbDf8rDwF2g9O9ATOi3hRC8qZDwOpDBwDoM7cxklel0vTz2f3t2AWIjnezLqRLcexsxW5dbD870s7qSiOA9W5YPWWsVJXhVlhuqnraOuXY7svItmemdS5tVWBaVpmTeWk2Ni7yXSJquCQ3OP6TPWWsTQfY3eLL8HPuFlISBqUFSSSyKJZm7lCpK9y8+TRvuzVIHJsaoCbDlCh70SR1FA4gtWagb9EjN545XOVScdsFFbDhrfa8ELUJNGRZ7Q/DOP64b+yNqYnb8rPZV4t3g0AOfig28vE4MvJp5yZrXX8fpQfwdKgnoeFTOKrsHujoXEUniwRBPxIXzj421XP/swr7ACYupBus4YCswbim1G5vruUgpBgvgpGY1EQgyFMwIpteJrDHQXKMkk8uVGXenb/zr4kmqJIBx/rhnki2bT1En3UbWZ+J5OPRswecefLDIVQfCzp3dUs8V1NEWyIO2ZTXM2oIv8QeZHjBImttGY16qmenmAq1JWg5p/glJHlr8/kJkQLZvYIyu8huViXVuDaimnXaW+t2pxh5de3oIGiBfxLNpb1bzbGWWHSHPSYjsxYiTK/x7PmoWMyR/CAApydHIkCgH+uNSe0NI6wofoVwzo32jG7EeRC88rFQG3yHj4PeBkaDpQ2jj9lBXKmVVmtm+DoWVaf+p/PBWcCMqb5WTl488+jsVAu/D9Z1ioAb0VL8Agi7YayF5sMCvyHn8byoin3fL3fKYdkuA0lpXTAupzDuaWAfe8njXDLEv929tF2EH5ZQddCGbCRQRHb/r3F4T2aH5SyfiX3zXncFr8yKYSUtgOrvLbSwjs2t7OTevonRKXJvczEIpv/UwkEi3zyObVPUAnmtfijYlpzZ1ULc4UYAQ=="
+            },
+            {
+              "type": "text",
+              "text": "The search said filters were already active, so I'll reset and apply only yours to make sure nothing is excluded."
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_018ewBpYdFj4hEFJejSdkARE",
+              "name": "reset_filters",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01Exf2oP8P3RsazrU8jYxXcU",
+              "name": "filter_search_results",
+              "input": {
+                "max_price": 200,
+                "amenities": ["free parking"]
+              },
+              "caller": {
+                "type": "direct"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01BytRrb3QWLgqinq7GFtLHG",
+              "name": "get_hotel_search_results",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_018ewBpYdFj4hEFJejSdkARE",
+              "content": "{\"success\":true,\"message\":\"All filters have been reset\"}"
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01Exf2oP8P3RsazrU8jYxXcU",
+              "content": "{\"success\":true,\"message\":\"Filtered results on page\"}"
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01BytRrb3QWLgqinq7GFtLHG",
+              "content": "{\"success\":true,\"count\":1,\"hotels\":[{\"id\":\"cleveland-lakeside\",\"name\":\"Cleveland Lakeside Suites\",\"rating\":4.6,\"price\":195,\"featured\":false,\"amenities\":[\"gym\",\"free parking\",\"washer\",\"wifi\"],\"description\":\"Contemporary suites overlooking Lake Erie. Offering spacious multi-room layouts for up to 4 guests and pets.\"}]}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "Only one hotel in Cleveland is under $200 a night with free parking: **Cleveland Lakeside Suites**.\n\n- **Price:** $195 per night\n- **Rating:** 4.6\n- **Amenities:** Free parking, gym, washer, wifi\n- **Rooms:** Modern multi-room suites overlooking Lake Erie. They sleep up to 4 guests and allow pets.\n\nThe search already had some filters turned on, so I cleared them and used only your two. I got the same single result."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "hotel-chain#2",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 7540,
+      "outputTokens": 279,
+      "toolCalls": 1,
+      "pageToolCalls": 3,
+      "seconds": 4.5,
+      "stop": "end_turn",
+      "finalText": "I searched Cleveland with a $200 limit and free parking, and one hotel matches: **Cleveland Lakeside Suites**.\n\n- **Price:** $195 per night\n- **Rating:** 4.6\n- **Amenities:** free parking, gym, washer, wifi\n- **About:** Modern suites with several rooms that look out over Lake Erie. They fit up to 4 guests, and pets are welcome.\n\nThe search results on the page now show just this hotel.",
+      "calls": [
+        {
+          "name": "search_location",
+          "args": {
+            "query": "Cleveland"
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "filter_search_results",
+          "args": {
+            "max_price": 200,
+            "amenities": ["free parking"]
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_hotel_search_results",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "I am looking for a hotel in Cleveland, max price $200, and must have free parking"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01FFfxU6HpozzMbJhxoFmNW5",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "await tools.search_location({query:\"Cleveland\"});\nconst f = await tools.filter_search_results({max_price:200, amenities:[\"free parking\"]});\nconst r = await tools.get_hotel_search_results({});\nreturn {f, r};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01FFfxU6HpozzMbJhxoFmNW5",
+              "content": "Result:\n{\n  \"f\": {\n    \"success\": true,\n    \"message\": \"Filtered results on page\"\n  },\n  \"r\": {\n    \"success\": true,\n    \"count\": 1,\n    \"hotels\": [\n      {\n        \"id\": \"cleveland-lakeside\",\n        \"name\": \"Cleveland Lakeside Suites\",\n        \"rating\": 4.6,\n        \"price\": 195,\n        \"featured\": false,\n        \"amenities\": [\n          \"gym\",\n          \"free parking\",\n          \"washer\",\n          \"wifi\"\n        ],\n        \"description\": \"Contemporary suites overlooking Lake Erie. Offering spacious multi-room layouts for up to 4 guests and pets.\"\n      }\n    ]\n  }\n}\n\nTool calls (3):\n- search_location({\"query\":\"Cleveland\"}) → completed [8 ms]\n- filter_search_results({\"max_price\":200,\"amenities\":[\"free parking\"]}) → completed [6 ms]\n- get_hotel_search_results({}) → completed [13 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/ → https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/#/search?q=Cleveland\n\nTools changed: +filter_search_results, +reset_filters, +get_hotel_search_results\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/#/search?q=Cleveland\ndeclare const tools: {\n  /** Look up specific amenity or policy details for a hotel */\n  lookup_amenity(args: {\n    /** The ID of the hotel */\n    hotel_id: string;\n    /** The amenity or policy to look up (e.g. \"late checkout\") */\n    amenity: \"gym\" | \"spa\" | \"dining\" | \"wifi\" | \"breakfast\" | \"rooftop bar\" | \"bar\" | \"laundry\" | \"late checkout\" | \"free parking\" | \"washer\";\n  }): Promise<unknown>;\n  /** Find me a hotel in a specific location */\n  search_location(args: {\n    /** The location query (e.g. \"Cleveland\") */\n    query: string;\n    /** Optional check-in date (YYYY-MM-DD) */\n    checkin_date?: string;\n    /** Optional number of nights to stay */\n    nights?: number;\n    /** Optional number of adult guests */\n    adults?: number;\n    /** Optional number of child guests */\n    kids?: number;\n    /** Optional number of pets */\n    pets?: number;\n  }): Promise<unknown>;\n  /** View the details of a specific hotel by name or id */\n  view_hotel(args: {\n    /** The exact name or ID of the hotel to view */\n    hotel_name_or_id: string;\n  }): Promise<unknown>;\n  /** Filter the search results by max price and required amenities */\n  filter_search_results(args?: {\n    /** Maximum price per night */\n    max_price?: number;\n    /** Required amenities */\n    amenities?: Array<\"gym\" | \"spa\" | \"dining\" | \"wifi\" | \"breakfast\" | \"rooftop bar\" | \"bar\" | \"laundry\" | \"late checkout\" | \"free parking\" | \"washer\">;\n  }): Promise<unknown>;\n  /** Remove all applied search filters and show all results for the current location. */\n  reset_filters(args?: {}): Promise<unknown>;\n  /**\n   * Retrieve the list of hotels matching the current search query and applied filters.\n   * (read-only)\n   */\n  get_hotel_search_results(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I searched Cleveland with a $200 limit and free parking, and one hotel matches: **Cleveland Lakeside Suites**.\n\n- **Price:** $195 per night\n- **Rating:** 4.6\n- **Amenities:** free parking, gym, washer, wifi\n- **About:** Modern suites with several rooms that look out over Lake Erie. They fit up to 4 guests, and pets are welcome.\n\nThe search results on the page now show just this hotel."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "hotel-chain#3",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 2293,
+      "outputTokens": 140,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 3.7,
+      "stop": "end_turn",
+      "finalText": "I opened the details page for The Aurelian Shibuya. The page didn't send back any of the hotel's details, such as rooms, prices or amenities. If you'd like, I can look up specific amenities or start a booking from here.",
+      "calls": [
+        {
+          "name": "view_hotel",
+          "args": {
+            "hotel_name_or_id": "The Aurelian Shibuya"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "View the details for hotel 'The Aurelian Shibuya'"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01WujLGZsQCfQZ2CRQUzErQ8",
+              "name": "view_hotel",
+              "input": {
+                "hotel_name_or_id": "The Aurelian Shibuya"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01WujLGZsQCfQZ2CRQUzErQ8",
+              "content": "{\"success\":true,\"message\":\"Navigated to hotel details for The Aurelian Shibuya\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the details page for The Aurelian Shibuya. The page didn't send back any of the hotel's details, such as rooms, prices or amenities. If you'd like, I can look up specific amenities or start a booking from here."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "hotel-chain#3",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 7643,
+      "outputTokens": 205,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 5.8,
+      "stop": "end_turn",
+      "finalText": "I've opened the details page for The Aurelian Shibuya (hotel ID: `aurelian`). The tool only confirmed that the page loaded, so I can't see the details it shows. I can check specific amenities for you or start a booking from here.",
+      "calls": [
+        {
+          "name": "view_hotel",
+          "args": {
+            "hotel_name_or_id": "The Aurelian Shibuya"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "View the details for hotel 'The Aurelian Shibuya'"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01GCKbEjSuRFycV1AL2D1411",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "return await tools.view_hotel({hotel_name_or_id: \"The Aurelian Shibuya\"});"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01GCKbEjSuRFycV1AL2D1411",
+              "content": "Result:\n{\n  \"success\": true,\n  \"message\": \"Navigated to hotel details for The Aurelian Shibuya\"\n}\n\nTool calls (1):\n- view_hotel({\"hotel_name_or_id\":\"The Aurelian Shibuya\"}) → completed [12 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/ → https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/#/hotel/aurelian\n\nTools changed: +start_booking\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/hotel-chain/#/hotel/aurelian\ndeclare const tools: {\n  /** Look up specific amenity or policy details for a hotel */\n  lookup_amenity(args: {\n    /** The ID of the hotel */\n    hotel_id: string;\n    /** The amenity or policy to look up (e.g. \"late checkout\") */\n    amenity: \"gym\" | \"spa\" | \"dining\" | \"wifi\" | \"breakfast\" | \"rooftop bar\" | \"bar\" | \"laundry\" | \"late checkout\" | \"free parking\" | \"washer\";\n  }): Promise<unknown>;\n  /** Find me a hotel in a specific location */\n  search_location(args: {\n    /** The location query (e.g. \"Cleveland\") */\n    query: string;\n    /** Optional check-in date (YYYY-MM-DD) */\n    checkin_date?: string;\n    /** Optional number of nights to stay */\n    nights?: number;\n    /** Optional number of adult guests */\n    adults?: number;\n    /** Optional number of child guests */\n    kids?: number;\n    /** Optional number of pets */\n    pets?: number;\n  }): Promise<unknown>;\n  /** View the details of a specific hotel by name or id */\n  view_hotel(args: {\n    /** The exact name or ID of the hotel to view */\n    hotel_name_or_id: string;\n  }): Promise<unknown>;\n  /** Initiate the booking process for the currently viewed hotel. */\n  start_booking(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQShgYKEAgUGAI4AUIIdGhpbmtpbmcSDIWyK+Uj6bhsBTjkERoM34kKfP3dxzk5hRR2IjC0QNPOm/j8rL9GHZpjrzjToOVGwsoyNHbAaH6dQ3IKD5wNl39D4z2U+p3hv0HimosqowVdjalJ0N3DhyWYpSmMjkbutkl8Z+SFberbr0rGjbWdL1yBHc3nAwE7HpnBYL0GyxFOGDFp56R/86eg4JJgXUwNEPfBWalPwCBt0qDYitSln89pwimIho8hlXhiOKB7s22MKIvDmcf3d9IZ6k04WJNPM5p93ZhEmBX/t0Ci8+yQF1nl9MpvFDMQaXFdyurSqVCpGv9WmNhI7eDP8BGoyrj+eaHHAn0gc0gPGnBSQxUDndE5Mx2KecOVgFnGvYtmTIZnsCNUPWz4sXpxii3NYfR86QVRRoW5a9Y3BKN5ZIjER7ponkjL08cHhmk9P/PZHBjuP1GsRDNMJ4Bfa9j53ev1s33C/FFJf3Dsf4qwMr+8ajz2ujFzQkl05IuvGZ2o6+MkUi2AOKgrJsQiESK0n9lADgH2EfaFi5qkjH30r0beObUP6XAXerCtWHaqybJAdI1FIZf4AoRjA6Ecm7wlf/2qbeuUhx6n+on1+8YM1XDB4WouLQUEPoOSMsD2g+68oR3inVU7NnhbfZgs9uovpk0N67pc9Ecw0fTzceDmW3h27WaAJnbds9cemoaEsmnP8YUSz7Qm3vmhjacfJFsE302y3OVT8V8LUdSOhSD3UgZoq0PXuTE0cHyyWUqVsBdzkPiULipJ7fgvRnnX/S70vQejjchMGLymWCSXE40rGEwJ8PJwnvibuPg8yFvYBXPwZw9Eo0pjPy//0jjJf0P0r5sArVnjzSAJ0hohrl0B8aBamKTo+8ia6srqtxtpzHKaE+kLk0tJyyF0v6XJ5ba4bC56n6zNKGOVWFnjZyEbJGt/neeJcEeiyuPRpz5Ri6itm070XzjW1CGZnbLJNqiX1GnmMmiEvRqWH4H2YFk1SlurIaKTsl1LND3N2dewLJslzenQG1EYAQ=="
+            },
+            {
+              "type": "text",
+              "text": "I've opened the details page for The Aurelian Shibuya (hotel ID: `aurelian`). The tool only confirmed that the page loaded, so I can't see the details it shows. I can check specific amenities for you or start a booking from here."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "sport-shop-angular#1",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 3376,
+      "outputTokens": 254,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 4.3,
+      "stop": "end_turn",
+      "finalText": "I searched the soccer category for \"soccer ball\" and got 4 results, but only one is a ball:\n\n- **Google Pro Match Ball**: $165, adult size, only 2 in stock. It's certified for professional matches.\n\nThe other results are related gear, not balls:\n- Gemini Future Ultimate Soccer Boots: $220\n- Gemini Future Ultimate Youth Soccer Boots: $85\n- Nano Banana Solo Soccer Trainer: $14.99. This is a hands-free training aid for practicing ball control.",
+      "calls": [
+        {
+          "name": "search_product",
+          "args": {
+            "query": "soccer ball",
+            "category": "SOCCER"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Search for a soccer ball."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_012V2uwhZhXpUFGoZcoscFJj",
+              "name": "search_product",
+              "input": {
+                "query": "soccer ball",
+                "category": "SOCCER"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_012V2uwhZhXpUFGoZcoscFJj",
+              "content": "{\"success\":true,\"message\":\"Navigating to search results for {\\\"q\\\":\\\"soccer ball\\\",\\\"category\\\":\\\"SOCCER\\\"}\",\"count\":4,\"products\":[{\"id\":\"google-mls-pro-ball\",\"name\":\"Google Pro Match Ball\",\"price\":165,\"category\":\"SOCCER\",\"description\":\"Google Pro Match certified. Seamless, thermally bonded surface for a more predictable trajectory.\",\"image\":\"assets/products/google-mls-pro-ball.png\",\"size\":\"adult\",\"tags\":[\"professional\",\"ball\",\"google\"],\"availability\":2},{\"id\":\"gemini-ultimate-boots\",\"name\":\"Gemini Future Ultimate Soccer Boots\",\"price\":220,\"category\":\"SOCCER\",\"description\":\"The future of playmaking by Gemini. Advanced compression band for ultimate fit and lockdown.\",\"image\":\"assets/products/gemini-ultimate-boots.png\",\"size\":\"adult\",\"tags\":[\"shoes\",\"cleats\",\"gemini\"],\"availability\":11},{\"id\":\"gemini-ultimate-boots-youth\",\"name\":\"Gemini Future Ultimate Youth Soccer Boots\",\"price\":85,\"category\":\"SOCCER\",\"description\":\"Future-focused performance for rising stars. Gemini tech ensures a adaptive fit that lets young playmakers move with absolute freedom.\",\"image\":\"assets/products/gemini-ultimate-boots-youth.png\",\"size\":\"child\",\"tags\":[\"shoes\",\"cleats\",\"gemini\",\"youth\"],\"availability\":7},{\"id\":\"nano-banana-soccer-trainer\",\"name\":\"Nano Banana Solo Soccer Trainer\",\"price\":14.99,\"category\":\"SOCCER\",\"description\":\"Master your ball control without the chase. Nano Banana hands-free trainer allows for maximum repetitions on touches, passing, and receiving.\",\"image\":\"assets/products/gemini-ultimate-boots.png\",\"size\":\"child\",\"tags\":[\"training\",\"solo\",\"equipment\",\"nano banana\"],\"availability\":5}]}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I searched the soccer category for \"soccer ball\" and got 4 results, but only one is a ball:\n\n- **Google Pro Match Ball**: $165, adult size, only 2 in stock. It's certified for professional matches.\n\nThe other results are related gear, not balls:\n- Gemini Future Ultimate Soccer Boots: $220\n- Gemini Future Ultimate Youth Soccer Boots: $85\n- Nano Banana Solo Soccer Trainer: $14.99. This is a hands-free training aid for practicing ball control."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "sport-shop-angular#1",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 7494,
+      "outputTokens": 274,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 4.3,
+      "stop": "end_turn",
+      "finalText": "I searched for \"soccer ball\" in the Soccer category and got 4 results. Only one of them is a ball:\n\n- **Google Pro Match Ball**: $165, adult size, 2 in stock. It's a certified pro match ball with a seamless, heat-bonded surface.\n\nThe other three results are related gear, not balls:\n- Gemini Future Ultimate Soccer Boots: $220\n- Gemini Future Ultimate Youth Soccer Boots: $85\n- Nano Banana Solo Soccer Trainer: $14.99, a hands-free training aid\n\nThe results are open on the page.",
+      "calls": [
+        {
+          "name": "search_product",
+          "args": {
+            "query": "soccer ball",
+            "category": "SOCCER"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Search for a soccer ball."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01J9WYifPcXFDiwgtRXjkyfg",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "return await tools.search_product({query:\"soccer ball\", category:\"SOCCER\"});"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01J9WYifPcXFDiwgtRXjkyfg",
+              "content": "Result:\n{\n  \"success\": true,\n  \"message\": \"Navigating to search results for {\\\"q\\\":\\\"soccer ball\\\",\\\"category\\\":\\\"SOCCER\\\"}\",\n  \"count\": 4,\n  \"products\": [\n    {\n      \"id\": \"google-mls-pro-ball\",\n      \"name\": \"Google Pro Match Ball\",\n      \"price\": 165,\n      \"category\": \"SOCCER\",\n      \"description\": \"Google Pro Match certified. Seamless, thermally bonded surface for a more predictable trajectory.\",\n      \"image\": \"assets/products/google-mls-pro-ball.png\",\n      \"size\": \"adult\",\n      \"tags\": [\n        \"professional\",\n        \"ball\",\n        \"google\"\n      ],\n      \"availability\": 2\n    },\n    {\n      \"id\": \"gemini-ultimate-boots\",\n      \"name\": \"Gemini Future Ultimate Soccer Boots\",\n      \"price\": 220,\n      \"category\": \"SOCCER\",\n      \"description\": \"The future of playmaking by Gemini. Advanced compression band for ultimate fit and lockdown.\",\n      \"image\": \"assets/products/gemini-ultimate-boots.png\",\n      \"size\": \"adult\",\n      \"tags\": [\n        \"shoes\",\n        \"cleats\",\n        \"gemini\"\n      ],\n      \"availability\": 11\n    },\n    {\n      \"id\": \"gemini-ultimate-boots-youth\",\n      \"name\": \"Gemini Future Ultimate Youth Soccer Boots\",\n      \"price\": 85,\n      \"category\": \"SOCCER\",\n      \"description\": \"Future-focused performance for rising stars. Gemini tech ensures a adaptive fit that lets young playmakers move with absolute freedom.\",\n      \"image\": \"assets/products/gemini-ultimate-boots-youth.png\",\n      \"size\": \"child\",\n      \"tags\": [\n        \"shoes\",\n        \"cleats\",\n        \"gemini\",\n        \"youth\"\n      ],\n      \"availability\": 7\n    },\n    {\n      \"id\": \"nano-banana-soccer-trainer\",\n      \"name\": \"Nano Banana Solo Soccer Trainer\",\n      \"price\": 14.99,\n      \"category\": \"SOCCER\",\n      \"description\": \"Master your ball control without the chase. Nano Banana hands-free trainer allows for maximum repetitions on touches, passing, and receiving.\",\n      \"image\": \"assets/products/gemini-ultimate-boots.png\",\n      \"size\": \"child\",\n      \"tags\": [\n        \"training\",\n        \"solo\",\n        \"equipment\",\n        \"nano banana\"\n      ],\n      \"availability\": 5\n    }\n  ]\n}\n\nTool calls (1):\n- search_product({\"query\":\"soccer ball\",\"category\":\"SOCCER\"}) → completed [30 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/sport-shop-angular/ → https://googlechromelabs.github.io/webmcp-tools/demos/sport-shop-angular/#/search?q=soccer%20ball&category=SOCCER\n\nTools changed: +refine_search, +add_search_result_to_cart, +get_current_search_results\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/sport-shop-angular/#/search?q=soccer%20ball&category=SOCCER\ndeclare const tools: {\n  /** Returns detailed information about a product. You can provide its exact productId, or productName. */\n  get_product_info(args?: {\n    /** The unique ID of the product. */\n    productId?: string;\n    /** A part of the product name or keywords to match (e.g. 'training balls'). */\n    productName?: string;\n  }): Promise<unknown>;\n  /** Returns active promotional campaigns, eligibility requirements, and general store rules (e.g., local pickup categories). */\n  get_store_promos_and_rules(args?: {}): Promise<unknown>;\n  /** Opens the shopping cart modal to review items and proceed to checkout. */\n  open_cart(args?: {}): Promise<unknown>;\n  /** Search for products based on the query. */\n  search_product(args?: {\n    /** Search term for products (e.g. 'soccer boots', 'running gear'). */\n    query?: string;\n    /** The product category to browse. */\n    category?: \"ALL\" | \"BASKETBALL\" | \"SOCCER\" | \"BASEBALL\" | \"RUNNING\";\n    /** Product size. Use 'child' for kids/children, 'adult' for adults. */\n    size?: \"ALL\" | \"adult\" | \"child\";\n  }): Promise<unknown>;\n  /** Navigates to the product detail page for a given product. You can provide its exact productId, or productName. */\n  view_product(args?: {\n    /** The unique ID of the product. */\n    productId?: string;\n    /** A part of the product name or keywords to match (e.g. 'training balls'). */\n    productName?: string;\n  }): Promise<unknown>;\n  /** Refine the current search results by applying a price filter. */\n  refine_search(args: {\n    /** The price range to filter by. */\n    priceRange: \"all\" | \"0-49.99\" | \"50-99.99\" | \"100+\";\n  }): Promise<unknown>;\n  /** Adds a product from the current search results to the shopping cart. You can provide its index, exact productId, or productName. */\n  add_search_result_to_cart(args?: {\n    /** The index of the item in the search results. (e.g. 0, first, second, 3rd etc.) */\n    index?: number;\n    /** The unique ID of the product. */\n    productId?: string;\n    /** A part of the product name or keywords to match (e.g. 'training balls'). */\n    productName?: string;\n  }): Promise<unknown>;\n  /** Returns the current search results displayed on the page. */\n  get_current_search_results(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I searched for \"soccer ball\" in the Soccer category and got 4 results. Only one of them is a ball:\n\n- **Google Pro Match Ball**: $165, adult size, 2 in stock. It's a certified pro match ball with a seamless, heat-bonded surface.\n\nThe other three results are related gear, not balls:\n- Gemini Future Ultimate Soccer Boots: $220\n- Gemini Future Ultimate Youth Soccer Boots: $85\n- Nano Banana Solo Soccer Trainer: $14.99, a hands-free training aid\n\nThe results are open on the page."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "sport-shop-angular#2",
+      "arm": "classic",
+      "run": 1,
+      "success": true,
+      "turns": 4,
+      "inputTokens": 10300,
+      "outputTokens": 559,
+      "toolCalls": 4,
+      "pageToolCalls": 4,
+      "seconds": 9,
+      "stop": "end_turn",
+      "finalText": "I searched kids' baseball gear and set the price filter to $0–49.99. That's the closest option to \"under $50\" the store offers. Three items came up:\n\n1. **Google Impact Training Balls (12-pack)**: $24.00. These fly a limited distance and are built to take repeated hits. 12 in stock.\n2. **Gemini Pro Grip Batting Gloves**: $19.99. Leather palms with mesh to keep hands cool. Only 3 left.\n3. **Nano Banana Speed-Balance Alloy Bat**: $48.50. A lightweight bat made for young hitters. Only 1 left.\n\nThe Nano Banana Field Master glove is labeled \"under $50\" but actually costs $52.99, so the filter left it out. Baseball items can only be shipped, not picked up locally, and there are no baseball promotions running right now.\n\nI haven't added anything to your cart. Just tell me which one you want.",
+      "calls": [
+        {
+          "name": "search_product",
+          "args": {
+            "query": "baseball",
+            "category": "BASEBALL",
+            "size": "child"
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_store_promos_and_rules",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "refine_search",
+          "args": {
+            "priceRange": "0-49.99"
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_current_search_results",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "I'm looking for a gift for my kid. He likes baseball. Apply filter for 50$ if available"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_018YJxgr3bSfBnnFx853mP6U",
+              "name": "search_product",
+              "input": {
+                "query": "baseball",
+                "category": "BASEBALL",
+                "size": "child"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01ExrKBvUF3wqo7TEoMR3gUR",
+              "name": "get_store_promos_and_rules",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_018YJxgr3bSfBnnFx853mP6U",
+              "content": "{\"success\":true,\"message\":\"Navigating to search results for {\\\"q\\\":\\\"baseball\\\",\\\"category\\\":\\\"BASEBALL\\\",\\\"size\\\":\\\"child\\\"}\",\"count\":5,\"products\":[{\"id\":\"nano-banana-glove\",\"name\":\"Nano Banana Field Master\",\"price\":52.99,\"category\":\"BASEBALL\",\"description\":\"Crafted from premium synthetic leather, the Nano Banana Field Master offers pro-grade durability and an instant break-in feel. Master every play with a glove that blends tradition with elite performance.\",\"image\":\"assets/products/nano-banana-glove.png\",\"size\":\"child\",\"tags\":[\"youth\",\"glove\",\"gift\",\"under $50\",\"nano banana\"],\"availability\":8},{\"id\":\"google-impact-balls\",\"name\":\"Google Impact Training Balls (12pk)\",\"price\":24,\"category\":\"BASEBALL\",\"description\":\"Build confidence at the plate with indestructible limited-flight training balls by Google. Engineered for repeated impact, they provide instant feedback without leaving the field.\",\"image\":\"assets/products/google-impact-balls.png\",\"size\":\"child\",\"tags\":[\"training\",\"gift\",\"under $50\",\"google\"],\"availability\":12},{\"id\":\"gemini-pro-grip-gloves\",\"name\":\"Gemini Pro Grip Batting Gloves\",\"price\":19.99,\"category\":\"BASEBALL\",\"description\":\"Dominating at the plate requires a superior hold. Gemini Pro Grip gloves feature genuine leather palms and ventilated mesh for maximum comfort and control during every swing.\",\"image\":\"assets/products/gemini-pro-grip-gloves.png\",\"size\":\"child\",\"tags\":[\"apparel\",\"gift\",\"under $50\",\"gemini\"],\"availability\":3},{\"id\":\"nano-banana-speed-bat\",\"name\":\"Nano Banana Speed-Balance Alloy Bat\",\"price\":48.5,\"category\":\"BASEBALL\",\"description\":\"Specifically engineered for the youth hitter, this Nano Banana speed-balanced alloy bat delivers explosive energy transfer and a lightweight feel for lightning-fast swings.\",\"image\":\"assets/products/nano-banana-speed-bat.png\",\"size\":\"child\",\"tags\":[\"bat\",\"gift\",\"under $50\",\"nano banana\"],\"availability\":1},{\"id\":\"nano-banana-youth-helmet\",\"name\":\"Nano Banana Youth Helmet\",\"price\":249.99,\"category\":\"BASEBALL\",\"description\":\"Durable ABS shell for youth protection with the Nano Banana signature style.\",\"image\":\"assets/products/nano-banana-youth-helmet.png\",\"size\":\"child\",\"tags\":[\"protection\",\"helmet\",\"youth\",\"nano banana\"],\"availability\":8}]}"
+            },
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01ExrKBvUF3wqo7TEoMR3gUR",
+              "content": "{\"success\":true,\"promotions\":[{\"id\":\"basketball_3_for_2\",\"name\":\"Basketball 3-for-2 Promo\",\"description\":\"Buy 3 Basketball items, get the cheapest one for free. Discount is applied automatically at checkout.\",\"eligibleCategories\":[\"BASKETBALL\"]}],\"storeRules\":{\"localPickupEligibility\":{\"description\":\"Only Soccer and Running gear are eligible for local pickup. Other items are shipping only.\",\"eligibleCategories\":[\"SOCCER\",\"RUNNING\"],\"ineligibleCategories\":[\"BASKETBALL\",\"BASEBALL\"]}}}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01BhqTefHEZcpzWEEBenT5T2",
+              "name": "refine_search",
+              "input": {
+                "priceRange": "0-49.99"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01BhqTefHEZcpzWEEBenT5T2",
+              "content": "{\"success\":true,\"message\":\"Filtered results by 0-49.99\"}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_012kzGGhZJ4XVYvhenvHFUxk",
+              "name": "get_current_search_results",
+              "input": {},
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_012kzGGhZJ4XVYvhenvHFUxk",
+              "content": "{\"success\":true,\"message\":\"Found 3 products.\",\"results\":[{\"id\":\"google-impact-balls\",\"name\":\"Google Impact Training Balls (12pk)\",\"price\":24,\"category\":\"BASEBALL\",\"description\":\"Build confidence at the plate with indestructible limited-flight training balls by Google. Engineered for repeated impact, they provide instant feedback without leaving the field.\",\"image\":\"assets/products/google-impact-balls.png\",\"size\":\"child\",\"tags\":[\"training\",\"gift\",\"under $50\",\"google\"],\"availability\":12},{\"id\":\"gemini-pro-grip-gloves\",\"name\":\"Gemini Pro Grip Batting Gloves\",\"price\":19.99,\"category\":\"BASEBALL\",\"description\":\"Dominating at the plate requires a superior hold. Gemini Pro Grip gloves feature genuine leather palms and ventilated mesh for maximum comfort and control during every swing.\",\"image\":\"assets/products/gemini-pro-grip-gloves.png\",\"size\":\"child\",\"tags\":[\"apparel\",\"gift\",\"under $50\",\"gemini\"],\"availability\":3},{\"id\":\"nano-banana-speed-bat\",\"name\":\"Nano Banana Speed-Balance Alloy Bat\",\"price\":48.5,\"category\":\"BASEBALL\",\"description\":\"Specifically engineered for the youth hitter, this Nano Banana speed-balanced alloy bat delivers explosive energy transfer and a lightweight feel for lightning-fast swings.\",\"image\":\"assets/products/nano-banana-speed-bat.png\",\"size\":\"child\",\"tags\":[\"bat\",\"gift\",\"under $50\",\"nano banana\"],\"availability\":1}]}"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSgAYKEAgUGAI4AUIIdGhpbmtpbmcSDLwKVzdAAtUvdaPavhoMfs17YOwGSTVHRxnXIjDLKFVqa25eWi/Cs+XjGf2u2Qqn2Aq5RGCrX0XIVqLrlWGiE4y53vHq32LAMhiIrNcqnQWxkgkXW3OyHrxZ2PQHEiBlBH/bLFmCRG14shzFAwpVKHonrWjLOG/H4/y4zcJLGILplkQ55vfMWquWSNVG5ffL9IA4QA1ht9LhMtpqlm/QNpruJGVJaU6p0GtVTj0dzga+nExZHP/UDXjzmU6lQ9BoA1f5KEnQsuKo84nvTWxYSM/rMXaMbdVBt0zRV/qnVN+gqG9OO9M3EYyk0VNQtRy7Xi15fc1O3GOs6q42T/bIAB0XYJU75nzECcrf5abf0WOGpdyAAC7xQwqnw9H5qr2CuOX7cmeEpuRHByOxD+cbHmIvxC1bKCv8Z8Y3nTI6B//bVsRtmYUhzruxatqJfImkmuSt8kuKDfDAaP6c1updfEa2smpbfFng/A5PKtUnClFogWg7XLopCQGxQCxIq1Uq4y9xu8EbRx98976F8Ke7ewGore4DlWQKwfNw/XE7jCfsQPEm1rxGyzQgnCVuFZfwzs4Zk8RuhWGDmk/y5NxAR5FjS1vnwgJSPQftzUlgIr+4iPMzJ1GAV5j6mS9UiAbemw295xj6M+lleGYsfdT1MctBUapNwUYta2vjourT5IUH8mYHqXI5tXaGntdBQr53ADCbL2/8nii8Rrz2odYi+W+YQgnsO6AqYW6b1GnjBm7DZ4ixp1l8IZWRetjKLKqohel9Cif6KKcWc+w/gQ+ww3V+QGrZV+JCCilxrfPD0YQ0IjatYtU7hQ9wZNws+nNQA0fQluTymthSKVwfmlq+lPcpToXFuKYAngc6joTv+CKFNkPpMD2tYvOle3HXDudv1GYbBuZu58d2cmjFjlOXpcPAgZ/Q/ZiVcbgiVtmhif4nriRWPzGZfSi0yHt/Oo3m570S/VARFIjhcALQlflcisCf3jeNNK1wNWNJq4oYAQ=="
+            },
+            {
+              "type": "text",
+              "text": "I searched kids' baseball gear and set the price filter to $0–49.99. That's the closest option to \"under $50\" the store offers. Three items came up:\n\n1. **Google Impact Training Balls (12-pack)**: $24.00. These fly a limited distance and are built to take repeated hits. 12 in stock.\n2. **Gemini Pro Grip Batting Gloves**: $19.99. Leather palms with mesh to keep hands cool. Only 3 left.\n3. **Nano Banana Speed-Balance Alloy Bat**: $48.50. A lightweight bat made for young hitters. Only 1 left.\n\nThe Nano Banana Field Master glove is labeled \"under $50\" but actually costs $52.99, so the filter left it out. Baseball items can only be shipped, not picked up locally, and there are no baseball promotions running right now.\n\nI haven't added anything to your cart. Just tell me which one you want."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "sport-shop-angular#2",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 9780,
+      "outputTokens": 369,
+      "toolCalls": 1,
+      "pageToolCalls": 3,
+      "seconds": 4.9,
+      "stop": "end_turn",
+      "finalText": "I searched kids' baseball gear and applied the \"Under $50\" filter ($0–49.99). Three items match:\n\n1. **Gemini Pro Grip Batting Gloves**: $19.99 (3 in stock)\n2. **Google Impact Training Balls (12-pack)**: $24.00 (12 in stock)\n3. **Nano Banana Speed-Balance Alloy Bat**: $48.50 (only 1 left). It's made for young hitters.\n\nThe Nano Banana Field Master glove is tagged \"under $50,\" but it costs $52.99, so the filter left it out.",
+      "calls": [
+        {
+          "name": "search_product",
+          "args": {
+            "query": "baseball",
+            "category": "BASEBALL",
+            "size": "child"
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "refine_search",
+          "args": {
+            "priceRange": "0-49.99"
+          },
+          "outcome": "completed"
+        },
+        {
+          "name": "get_current_search_results",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "I'm looking for a gift for my kid. He likes baseball. Apply filter for 50$ if available"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_018jpbdbqGxGZ4WTKnkNy1eV",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.search_product({query:\"baseball\", category:\"BASEBALL\", size:\"child\"});\nconst f = await tools.refine_search({priceRange:\"0-49.99\"});\nconst res = await tools.get_current_search_results();\nreturn {r, f, res};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_018jpbdbqGxGZ4WTKnkNy1eV",
+              "content": "Result:\n{\n  \"r\": {\n    \"success\": true,\n    \"message\": \"Navigating to search results for {\\\"q\\\":\\\"baseball\\\",\\\"category\\\":\\\"BASEBALL\\\",\\\"size\\\":\\\"child\\\"}\",\n    \"count\": 5,\n    \"products\": [\n      {\n        \"id\": \"nano-banana-glove\",\n        \"name\": \"Nano Banana Field Master\",\n        \"price\": 52.99,\n        \"category\": \"BASEBALL\",\n        \"description\": \"Crafted from premium synthetic leather, the Nano Banana Field Master offers pro-grade durability and an instant break-in feel. Master every play with a glove that blends tradition with elite performance.\",\n        \"image\": \"assets/products/nano-banana-glove.png\",\n        \"size\": \"child\",\n        \"tags\": [\n          \"youth\",\n          \"glove\",\n          \"gift\",\n          \"under $50\",\n          \"nano banana\"\n        ],\n        \"availability\": 8\n      },\n      {\n        \"id\": \"google-impact-balls\",\n        \"name\": \"Google Impact Training Balls (12pk)\",\n        \"price\": 24,\n        \"category\": \"BASEBALL\",\n        \"description\": \"Build confidence at the plate with indestructible limited-flight training balls by Google. Engineered for repeated impact, they provide instant feedback without leaving the field.\",\n        \"image\": \"assets/products/google-impact-balls.png\",\n        \"size\": \"child\",\n        \"tags\": [\n          \"training\",\n          \"gift\",\n          \"under $50\",\n          \"google\"\n        ],\n        \"availability\": 12\n      },\n      {\n        \"id\": \"gemini-pro-grip-gloves\",\n        \"name\": \"Gemini Pro Grip Batting Gloves\",\n        \"price\": 19.99,\n        \"category\": \"BASEBALL\",\n        \"description\": \"Dominating at the plate requires a superior hold. Gemini Pro Grip gloves feature genuine leather palms and ventilated mesh for maximum comfort and control during every swing.\",\n        \"image\": \"assets/products/gemini-pro-grip-gloves.png\",\n        \"size\": \"child\",\n        \"tags\": [\n          \"apparel\",\n          \"gift\",\n          \"under $50\",\n          \"gemini\"\n        ],\n        \"availability\": 3\n      },\n      {\n        \"id\": \"nano-banana-speed-bat\",\n        \"name\": \"Nano Banana Speed-Balance Alloy Bat\",\n        \"price\": 48.5,\n        \"category\": \"BASEBALL\",\n        \"description\": \"Specifically engineered for the youth hitter, this Nano Banana speed-balanced alloy bat delivers explosive energy transfer and a lightweight feel for lightning-fast swings.\",\n        \"image\": \"assets/products/nano-banana-speed-bat.png\",\n        \"size\": \"child\",\n        \"tags\": [\n          \"bat\",\n          \"gift\",\n          \"under $50\",\n          \"nano banana\"\n        ],\n        \"availability\": 1\n      },\n      {\n        \"id\": \"nano-banana-youth-helmet\",\n        \"name\": \"Nano Banana Youth Helmet\",\n        \"price\": 249.99,\n        \"category\": \"BASEBALL\",\n        \"description\": \"Durable ABS shell for youth protection with the Nano Banana signature style.\",\n        \"image\": \"assets/products/nano-banana-youth-helmet.png\",\n        \"size\": \"child\",\n        \"tags\": [\n          \"protection\",\n          \"helmet\",\n          \"youth\",\n          \"nano banana\"\n        ],\n        \"availability\": 8\n      }\n    ]\n  },\n  \"f\": {\n    \"success\": true,\n    \"message\": \"Filtered results by 0-49.99\"\n  },\n  \"res\": {\n    \"success\": true,\n    \"message\": \"Found 3 products.\",\n    \"results\": [\n      {\n        \"id\": \"google-impact-balls\",\n        \"name\": \"Google Impact Training Balls (12pk)\",\n        \"price\": 24,\n        \"category\": \"BASEBALL\",\n        \"description\": \"Build confidence at the plate with indestructible limited-flight training balls by Google. Engineered for repeated impact, they provide instant feedback without leaving the field.\",\n        \"image\": \"assets/products/google-impact-balls.png\",\n        \"size\": \"child\",\n        \"tags\": [\n          \"training\",\n          \"gift\",\n          \"under $50\",\n          \"google\"\n        ],\n        \"availability\": 12\n      },\n      {\n        \"id\": \"gemini-pro-grip-gloves\",\n        \"name\": \"Gemini Pro Grip Batting Gloves\",\n        \"price\": 19.99,\n        \"category\": \"BASEBALL\",\n        \"description\": \"Dominating at the plate requires a superior hold. Gemini Pro Grip gloves feature genuine leather palms and ventilated mesh for maximum comfort and control during every swing.\",\n        \"image\": \"assets/products/gemini-pro-grip-gloves.png\",\n        \"size\": \"child\",\n        \"tags\": [\n          \"apparel\",\n          \"gift\",\n          \"under $50\",\n          \"gemini\"\n        ],\n        \"availability\": 3\n      },\n      {\n        \"id\": \"nano-banana-speed-bat\",\n        \"name\": \"Nano Banana Speed-Balance Alloy Bat\",\n        \"price\": 48.5,\n        \"category\": \"BASEBALL\",\n        \"description\": \"Specifically engineered for the youth hitter, this Nano Banana speed-balanced alloy bat delivers explosive energy transfer and a lightweight feel for lightning-fast swings.\",\n        \"image\": \"assets/products/nano-banana-speed-bat.png\",\n        \"size\": \"child\",\n        \"tags\": [\n          \"bat\",\n          \"gift\",\n          \"under $50\",\n          \"nano banana\"\n        ],\n        \"availability\": 1\n      }\n    ]\n  }\n}\n\nTool calls (3):\n- search_product({\"query\":\"baseball\",\"category\":\"BASEBALL\",\"size\":\"child\"}) → completed [18 ms]\n- refine_search({\"priceRange\":\"0-49.99\"}) → completed [29 ms]\n- get_current_search_results({}) → completed [24 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/sport-shop-angular/ → https://googlechromelabs.github.io/webmcp-tools/demos/sport-shop-angular/#/search?q=baseball&category=BASEBALL&size=child\n\nTools changed: +refine_search, +add_search_result_to_cart, +get_current_search_results\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/sport-shop-angular/#/search?q=baseball&category=BASEBALL&size=child\ndeclare const tools: {\n  /** Returns detailed information about a product. You can provide its exact productId, or productName. */\n  get_product_info(args?: {\n    /** The unique ID of the product. */\n    productId?: string;\n    /** A part of the product name or keywords to match (e.g. 'training balls'). */\n    productName?: string;\n  }): Promise<unknown>;\n  /** Returns active promotional campaigns, eligibility requirements, and general store rules (e.g., local pickup categories). */\n  get_store_promos_and_rules(args?: {}): Promise<unknown>;\n  /** Opens the shopping cart modal to review items and proceed to checkout. */\n  open_cart(args?: {}): Promise<unknown>;\n  /** Search for products based on the query. */\n  search_product(args?: {\n    /** Search term for products (e.g. 'soccer boots', 'running gear'). */\n    query?: string;\n    /** The product category to browse. */\n    category?: \"ALL\" | \"BASKETBALL\" | \"SOCCER\" | \"BASEBALL\" | \"RUNNING\";\n    /** Product size. Use 'child' for kids/children, 'adult' for adults. */\n    size?: \"ALL\" | \"adult\" | \"child\";\n  }): Promise<unknown>;\n  /** Navigates to the product detail page for a given product. You can provide its exact productId, or productName. */\n  view_product(args?: {\n    /** The unique ID of the product. */\n    productId?: string;\n    /** A part of the product name or keywords to match (e.g. 'training balls'). */\n    productName?: string;\n  }): Promise<unknown>;\n  /** Refine the current search results by applying a price filter. */\n  refine_search(args: {\n    /** The price range to filter by. */\n    priceRange: \"all\" | \"0-49.99\" | \"50-99.99\" | \"100+\";\n  }): Promise<unknown>;\n  /** Adds a product from the current search results to the shopping cart. You can provide its index, exact productId, or productName. */\n  add_search_result_to_cart(args?: {\n    /** The index of the item in the search results. (e.g. 0, first, second, 3rd etc.) */\n    index?: number;\n    /** The unique ID of the product. */\n    productId?: string;\n    /** A part of the product name or keywords to match (e.g. 'training balls'). */\n    productName?: string;\n  }): Promise<unknown>;\n  /** Returns the current search results displayed on the page. */\n  get_current_search_results(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS2QUKEAgUGAI4AUIIdGhpbmtpbmcSDLSyCJMGTJnWLumAoRoMPdQREpAe7TYhL/yNIjCEeq8sFtJ55weDMnu8SQGZB42Rgo3UuaIMG9HP7LTMst/Abya61jCc2f2r6fg7QHoq9gTXZmM+gmi7jxyWxyZvVVMWjuzSnkg6Fu1fJjXsPi0IR4+aA7LJWPcjCUwhswLij97PiCoZwIdnYz2Y8Nhg+rRpn2Flx/m6uBbArDQLLkX+JB2DOVxJUyDhnqCws9STorzZwshFTf7vQVhQeq3rb/51SZbNUKTK3gRhntx5nfNQ8wkQ5/kxOO7lmAPjnGMiHrppFSsSmGf2FMOm8kgChwBQXxVvk2xAWzmDc0fALI9qY2QHQhaoq9Pp1Yylpck4l9ExWeOJjdL6++73hBD0Jf9Aj2xHZYnfuWx7gnia5O6ePoZXPbJHRhXHg22t/gr74uz8CxVORgmHR3aJhW+Dz7+5p15hGWM4xhgVrzNJMFngDttIuIT26y5Wmv0WsrZXCNOMJGXDa3iofldqIqfZdYxHD4sICj6AGZ7JXVWtwiSioNP2d8E0bYZvT9wgx/no7XU/ZkhXfCy7PLaNonSI6RQzUeLam07DDrh+v7I+6K/o+Tl8w7/63FfRgyknC+Qo1RnNYC0Z/oC0h8IfrX1qEziWUiJswp+F9Y9azN8eKTw39XbLU3EnQqFpXTgIxlODWgrbRZaHtt+C8KIztjCU0MYsPh/nJuFO/5XFEpLyf/iW91eABo2bsjt3TpSZDhA65N4P+daYB7dlsqDsq7RqFy2YuapnIfiQPObkpEUW6FiPHg+/ljFJJk6R/GyHrORN7WsAVrq6cCrc3Yh+azALZwncxF/dYRw/nsltn11tmqM4VZKQw3ARcBdMF5O+V/U6wdcL/9iyxYdZtXYY+MZ5R5b47QtBFm8GjHlC73hDy5WFwqkD/Mpf74FvKZeZ8vdS9U5pABr3kvcYAQ=="
+            },
+            {
+              "type": "text",
+              "text": "I searched kids' baseball gear and applied the \"Under $50\" filter ($0–49.99). Three items match:\n\n1. **Gemini Pro Grip Batting Gloves**: $19.99 (3 in stock)\n2. **Google Impact Training Balls (12-pack)**: $24.00 (12 in stock)\n3. **Nano Banana Speed-Balance Alloy Bat**: $48.50 (only 1 left). It's made for young hitters.\n\nThe Nano Banana Field Master glove is tagged \"under $50,\" but it costs $52.99, so the filter left it out."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    }
+  ]
+}
