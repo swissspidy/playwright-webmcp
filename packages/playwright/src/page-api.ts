@@ -155,5 +155,7 @@ export const PAGE_API_SOURCE = `(${installPageApi.toString()})();`;
  */
 export function inPage<R, A = undefined>(target: Page | Frame, fn: (api: PageApi, arg: A) => R | Promise<R>, arg?: A): Promise<R> {
   // One string evaluation installs the facade if needed and runs fn; Playwright awaits the promise.
-  return target.evaluate(`${PAGE_API_SOURCE}\n(${fn.toString()})(window.__webmcpPage, ${JSON.stringify(arg) ?? "undefined"})`) as Promise<R>;
+  // The argument goes through JSON.parse, not in as an object literal, so an own "__proto__" key survives.
+  const argSource = arg === undefined ? "undefined" : `JSON.parse(${JSON.stringify(JSON.stringify(arg))})`;
+  return target.evaluate(`${PAGE_API_SOURCE}\n(${fn.toString()})(window.__webmcpPage, ${argSource})`) as Promise<R>;
 }

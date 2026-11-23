@@ -303,6 +303,8 @@ PW_CHROMIUM=/opt/google/chrome/chrome pnpm run test:e2e   # or: pnpm run test:st
 npx @swissspidy/webmcp-audit https://shop.example --executable /opt/google/chrome-unstable/chrome
 ```
 
+`test:stable` and `test:dev` default to the Linux install paths (`/opt/google/chrome/chrome`, `/opt/google/chrome-unstable/chrome`). On macOS and Windows, set `PW_CHROMIUM` to the installed Chrome binary, for example `PW_CHROMIUM="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" pnpm run test:stable`.
+
 Chrome or Chromium 155 or later is required. Earlier builds took `executeTool()` input only as a JSON string and returned `inputSchema` as one; the packages no longer account for that, so calls fail there with the browser's own input error. CI runs the suites on Chrome Stable on every push, and on Chrome Dev as an informational job, because the API is still an origin trial and the dev channel is where changes land first. Things the fixture accounts for, because tests written against one build must behave the same on the next:
 
 - `getTools()` returns `RegisteredTool` objects without `execute`, with `inputSchema` as an object. A build fills in whichever annotation defaults it knows (`consequentialHint` and `debugging` are recent), so contracts keep only the hints a tool declared `true`.
@@ -556,8 +558,8 @@ pnpm run build           # typecheck resolves workspace packages through their b
 pnpm run typecheck
 pnpm run test:unit       # @swissspidy/webmcp-lint and @swissspidy/eslint-plugin-webmcp, node --test
 pnpm run test:e2e        # Playwright's Chromium with --enable-features=WebMCP; PW_CHROMIUM picks another binary, PW_ARGS adds flags
-pnpm run test:stable     # the same on Google Chrome Stable (npx playwright install chrome)
-pnpm run test:dev        # the same on Google Chrome Dev (https://www.google.com/chrome/dev/)
+pnpm run test:stable     # the same on Google Chrome Stable (npx playwright install chrome); Linux path by default, set PW_CHROMIUM elsewhere
+pnpm run test:dev        # the same on Google Chrome Dev (https://www.google.com/chrome/dev/); Linux path by default, set PW_CHROMIUM elsewhere
 pnpm run lint            # @swissspidy/eslint-plugin-webmcp on examples/react-shop
 pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
