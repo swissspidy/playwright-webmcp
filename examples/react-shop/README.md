@@ -18,5 +18,5 @@ pnpm --filter react-shop dev      # open it in a browser
 To see the plugin at work, shorten a description in `src/tools.js` or remove a `<label>` in `App.jsx` and run `lint` again. The Playwright suite runs on Playwright's Chromium with `--enable-features=WebMCP`; to run it on another Chrome build instead:
 
 ```sh
-PW_CHROMIUM=/opt/google/chrome-beta/chrome pnpm --filter react-shop test
+PW_CHROMIUM=/opt/google/chrome-unstable/chrome pnpm --filter react-shop test
 ```

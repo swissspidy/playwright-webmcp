@@ -36,14 +36,29 @@ jobs:
       - run: pnpm run lint
 
   e2e:
-    # Playwright's Chromium implements WebMCP behind --enable-features=WebMCP, which the
-    # Playwright configs pass; no other browser is needed.
-    name: Playwright (Node ${{ matrix.node }})
+    # The suites on Google Chrome: Stable, which is what WebMCP users run and must stay
+    # green, and Dev, where API changes land first. Dev moves weekly and the specification
+    # is still changing, so that leg is informational and does not block merges. The
+    # Playwright configs pass --enable-features=WebMCP; PW_CHROMIUM picks the binary.
+    name: Playwright (Chrome ${{ matrix.channel }}, Node ${{ matrix.node }})
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.channel == 'dev' }}
     strategy:
       fail-fast: false
       matrix:
-        node: [24, 26]
+        include:
+          - channel: stable
+            node: 24
+            install: chrome
+            executable: /opt/google/chrome/chrome
+          - channel: stable
+            node: 26
+            install: chrome
+            executable: /opt/google/chrome/chrome
+          - channel: dev
+            node: 26
+            install: chrome-dev
+            executable: /opt/google/chrome-unstable/chrome
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -56,42 +71,19 @@ jobs:
           cache: true
           require-lockfile: true
       - run: pnpm run build
-      - run: pnpm exec playwright install --with-deps chromium
+      # --force: the runner image already ships Chrome Stable, which Playwright otherwise refuses
+      # to install over; this way both legs get the channel's current build.
+      - run: pnpm exec playwright install --with-deps --force ${{ matrix.install }}
+      - run: ${{ matrix.executable }} --version
       - run: pnpm run test:e2e
+        env:
+          PW_CHROMIUM: ${{ matrix.executable }}
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: failure()
         with:
-          name: playwright-results-node${{ matrix.node }}
+          name: playwright-results-${{ matrix.channel }}-node${{ matrix.node }}
           path: |
             packages/*/test-results
             packages/*/playwright-report
-            examples/*/test-results
-          retention-days: 7
-
-  beta:
-    # The same suites on Google Chrome Beta, one milestone ahead of Playwright's
-    # Chromium, so API changes show up before they reach the stable build. Chrome
-    # Beta moves every week; this job is informational and does not block merges.
-    name: Chrome Beta
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: pnpm/setup@731dfb6463bbd11c11fd0ee11fe00ed0e36d48a1 # v3.2.0
-        with:
-          cache: true
-          require-lockfile: true
-      - run: pnpm run build
-      - run: pnpm exec playwright install --with-deps chrome-beta
-      - run: /opt/google/chrome-beta/chrome --version
-      - run: pnpm run test:beta
-      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        if: failure()
-        with:
-          name: playwright-results-beta
-          path: |
-            packages/*/test-results
             examples/*/test-results
           retention-days: 7

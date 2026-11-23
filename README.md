@@ -24,7 +24,7 @@ The shape is deliberately the same as axe-core: one engine that judges tool defi
 
 The rule engine is the same in all four; only what feeds it differs. Page-level rules (duplicate names, similar descriptions, tool count, cross-origin frames) need a live page and are therefore not in the ESLint plugin. [`examples/react-shop`](examples/react-shop) shows the whole chain on a Vite + React app with [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool).
 
-Everything here runs against the browser's own WebMCP implementation: Playwright's Chromium with `--enable-features=WebMCP`, and Google Chrome Beta; see [Browsers](#browsers).
+Everything here runs against the browser's own WebMCP implementation: Playwright's Chromium with `--enable-features=WebMCP`, and Google Chrome Stable and Dev; see [Browsers](#browsers).
 
 ## Quick start
 
@@ -298,12 +298,12 @@ WebMCP is behind a feature flag in Chromium, so the suites launch Playwright's C
 
 ```sh
 npx playwright install chromium                  # Playwright's Chromium, with the flag from the config
-npx playwright install chrome-beta
-PW_CHROMIUM=/opt/google/chrome-beta/chrome pnpm run test:e2e   # or: pnpm run test:beta
-npx @swissspidy/webmcp-audit https://shop.example --executable /opt/google/chrome-beta/chrome
+npx playwright install chrome chrome-dev
+PW_CHROMIUM=/opt/google/chrome/chrome pnpm run test:e2e   # or: pnpm run test:stable, pnpm run test:dev
+npx @swissspidy/webmcp-audit https://shop.example --executable /opt/google/chrome-unstable/chrome
 ```
 
-Chrome or Chromium 155 or later is required. Earlier builds took `executeTool()` input only as a JSON string and returned `inputSchema` as one; the packages no longer account for that, so calls fail there with the browser's own input error. CI runs the suites on Playwright's Chromium on every push, and on Chrome Beta as an informational job, because the API is still an origin trial and the beta channel is where changes land first. Things the fixture accounts for, because tests written against one build must behave the same on the next:
+Chrome or Chromium 155 or later is required. Earlier builds took `executeTool()` input only as a JSON string and returned `inputSchema` as one; the packages no longer account for that, so calls fail there with the browser's own input error. CI runs the suites on Chrome Stable on every push, and on Chrome Dev as an informational job, because the API is still an origin trial and the dev channel is where changes land first. Things the fixture accounts for, because tests written against one build must behave the same on the next:
 
 - `getTools()` returns `RegisteredTool` objects without `execute`, with `inputSchema` as an object. A build fills in whichever annotation defaults it knows (`consequentialHint` and `debugging` are recent), so contracts keep only the hints a tool declared `true`.
 - `executeTool(tool, input)` takes the tool object, not a name, and `input` as an object. The promise resolves with a string: JSON for objects, `String(value)` for primitives, `"undefined"` when the callback returned nothing.
@@ -556,7 +556,8 @@ pnpm run build           # typecheck resolves workspace packages through their b
 pnpm run typecheck
 pnpm run test:unit       # @swissspidy/webmcp-lint and @swissspidy/eslint-plugin-webmcp, node --test
 pnpm run test:e2e        # Playwright's Chromium with --enable-features=WebMCP; PW_CHROMIUM picks another binary, PW_ARGS adds flags
-pnpm run test:beta       # the same on Google Chrome Beta (npx playwright install chrome-beta)
+pnpm run test:stable     # the same on Google Chrome Stable (npx playwright install chrome)
+pnpm run test:dev        # the same on Google Chrome Dev (npx playwright install chrome-dev)
 pnpm run lint            # @swissspidy/eslint-plugin-webmcp on examples/react-shop
 pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
@@ -592,7 +593,7 @@ Chrome reports declarative form problems as DevTools issues (missing tool name o
 ## Status and limits
 
 - Pre-1.0. APIs will move, and the WebMCP specification itself is still changing; Chrome runs an origin trial and the API is otherwise behind `--enable-features=WebMCP`.
-- The suites run on Playwright's Chromium and on Google Chrome Beta (see [Browsers](#browsers)); the beta channel moves weekly, so that CI job is informational until the API ships to stable. There is no polyfill here: a browser without `document.modelContext` sees only declarative forms in a snapshot and can execute nothing.
+- CI runs the suites on Google Chrome Stable and Dev (see [Browsers](#browsers)); the dev channel moves weekly, so that leg is informational. There is no polyfill here: a browser without `document.modelContext` sees only declarative forms in a snapshot and can execute nothing.
 - The `promptApi` harness follows Chromium's tool-use protocol as specified in its IDL and web tests; it has not been run against a released build with the on-device model and tool use enabled.
 - Page-side recording covers executions that go through `document.modelContext` in the page, including the ones the `promptApi` fixture and `toolsForAgent()` callables trigger. Calls driven by Chrome's own built-in agent are only visible through the CDP collector.
 - The declarative schema derivation follows the explainer, whose exact algorithm is still marked as TBD.
