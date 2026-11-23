@@ -6,18 +6,18 @@
  * session is created with tool declarations (`name`, `description`,
  * `inputSchema`) and `expectedOutputs: [{ type: "tool-call" }]`; `prompt()`
  * then resolves to a content sequence that may carry `tool-call` items, the
- * harness executes each through `document.modelContext.executeTool()`, prompts
+ * harness executes each through the page API (`./page-api.ts`), prompts
  * again with the matching `tool-response` items, and repeats until the model
  * answers in text.
  *
- * `runPromptApiInPage` is evaluated inside the top frame, so it must stay
- * self contained: no imports, no closures over module scope.
+ * `runPromptApiInPage` is evaluated inside the top frame through `inPage()`,
+ * so it must stay self contained: no imports, no closures over module scope.
  */
 import { ATTACHMENTS, type EvalCase } from "@swissspidy/webmcp-lint";
-import type { WebMCP as WebMCPTypes } from "webmcp-types";
 import { evaluateAgent, type AgentRunner, type AgentRunResult, type EvalRunOptions, type EvalRunResult } from "./agent.js";
 import { fakeLanguageModelSource, type FakeLanguageModelPlan } from "./fake-language-model.js";
 import type { WebMCP } from "./fixture.js";
+import { inPage, type PageApi, type PageTool } from "./page-api.js";
 
 export interface PromptApiRunOptions {
   /** User turns, sent in order within one session. */
@@ -87,7 +87,7 @@ interface ToolCallItem {
   value: { callID: string; name: string; arguments?: object | null };
 }
 
-export async function runPromptApiInPage(options: SerializableRunOptions): Promise<PromptApiRunResult> {
+export async function runPromptApiInPage(api: PageApi, options: SerializableRunOptions): Promise<PromptApiRunResult> {
   const g = globalThis as unknown as Record<string, any>;
   const LanguageModel = g.LanguageModel;
   const calls: PromptApiCall[] = [];
@@ -98,9 +98,7 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
     return { ...result, status: "unavailable", reason: "LanguageModel is not defined in this browser." };
   }
 
-  const modelContext = document.modelContext as WebMCPTypes.ModelContext | undefined;
-  if (!modelContext) return { ...result, status: "unavailable", reason: "No WebMCP modelContext on the page." };
-  const mc: WebMCPTypes.ModelContext = modelContext;
+  if (!api.available()) return { ...result, status: "unavailable", reason: "No WebMCP modelContext on the page." };
 
   function stripNulls(value: unknown): unknown {
     if (value === null) return undefined;
@@ -115,20 +113,14 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
     }
     return value;
   }
-  function safe(v: unknown): unknown {
-    try {
-      return JSON.parse(JSON.stringify(v === undefined ? null : v));
-    } catch {
-      return String(v);
-    }
-  }
+  const safe = api.toJson;
 
-  let listed: WebMCPTypes.RegisteredTool[] = [];
+  let listed: PageTool[] = [];
   const expected = options.expectedTools ?? [];
   const waitUntil = Date.now() + options.waitForToolsMs;
   for (;;) {
     try {
-      listed = (await mc.getTools()) ?? [];
+      listed = await api.listTools();
     } catch (err) {
       return { ...result, status: "error", reason: `getTools() failed: ${String((err as Error)?.message ?? err)}` };
     }
@@ -139,7 +131,7 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
   if (options.toolNames) listed = listed.filter((t) => options.toolNames!.includes(t.name));
   result.toolsOffered = listed.map((t) => t.name);
 
-  function schemaOf(tool: WebMCPTypes.RegisteredTool): Record<string, unknown> {
+  function schemaOf(tool: PageTool): Record<string, unknown> {
     return (tool.inputSchema as Record<string, unknown> | undefined) ?? { type: "object", properties: {} };
   }
 
@@ -149,32 +141,21 @@ export async function runPromptApiInPage(options: SerializableRunOptions): Promi
 
   async function execute(name: string, args: Record<string, unknown>): Promise<{ ok: true; value: unknown } | { ok: false; error: string }> {
     const startedAt = Date.now();
-    const tool = byName.get(name);
-    if (!tool) {
-      const message = `The model called "${name}", which the page does not expose.`;
-      calls.push({ name, args: safe(args ?? {}) as Record<string, unknown>, error: message, startedAt, durationMs: Date.now() - startedAt });
-      return { ok: false, error: message };
+    const record = (outcome: { result: unknown } | { error: string }) =>
+      calls.push({ name, args: safe(args ?? {}) as Record<string, unknown>, ...outcome, startedAt, durationMs: Date.now() - startedAt });
+    if (!byName.has(name)) {
+      const error = `The model called "${name}", which the page does not expose.`;
+      record({ error });
+      return { ok: false, error };
     }
-    try {
-      // Same convention as WebMCP.call(): the input as an object, and the string result decoded.
-      const returned: unknown = await mc.executeTool(tool, args ?? {}, { __playwrightWebmcp: true } as never);
-      let raw: unknown = returned;
-      if (returned === "undefined") raw = undefined;
-      else if (typeof returned === "string") {
-        try {
-          raw = JSON.parse(returned);
-        } catch {
-          raw = returned;
-        }
-      }
-      const cleaned = options.stripNulls ? stripNulls(safe(raw)) : safe(raw);
-      calls.push({ name, args: safe(args ?? {}) as Record<string, unknown>, result: cleaned, startedAt, durationMs: Date.now() - startedAt });
-      return { ok: true, value: cleaned };
-    } catch (err) {
-      const message = String((err as Error)?.message ?? err);
-      calls.push({ name, args: safe(args ?? {}) as Record<string, unknown>, error: message, startedAt, durationMs: Date.now() - startedAt });
-      return { ok: false, error: message };
+    const outcome = await api.execute(name, args ?? {});
+    if (!outcome.ok) {
+      record({ error: outcome.error });
+      return { ok: false, error: outcome.error };
     }
+    const cleaned = options.stripNulls ? stripNulls(safe(outcome.result)) : safe(outcome.result);
+    record({ result: cleaned });
+    return { ok: true, value: cleaned };
   }
 
   // The tool-response values are the interfaces Chromium exposes; a scripted LanguageModel may lack them.
@@ -329,7 +310,7 @@ export class PromptApiHarness implements AgentRunner {
     // Offer the model every tool the fixture can see; the in-page list may need a moment to catch up.
     const known = (await this.webmcp.tools()).map((t) => t.name).filter((name) => !given.toolNames || given.toolNames.includes(name));
     const opts = normalizeRunOptions({ expectedTools: known, ...given });
-    const result = await this.webmcp.page.evaluate(runPromptApiInPage, opts);
+    const result = await inPage(this.webmcp.page, runPromptApiInPage, opts);
     const missing = known.filter((name) => !result.toolsOffered.includes(name));
     if (missing.length && process.env.WEBMCP_DEBUG)
       console.error(`[webmcp promptApi] page's getTools() did not list ${missing.join(", ")} within ${opts.waitForToolsMs} ms`);

@@ -34,6 +34,7 @@ import {
 import { CdpCollector, type CdpTool } from "./cdp.js";
 import { runSmoke, watchPage, type SmokeOptions } from "./smoke.js";
 import { RECORDER_SOURCE } from "./recorder.js";
+import { inPage } from "./page-api.js";
 import { PromptApiHarness } from "./prompt-api.js";
 
 const debug = process.env.WEBMCP_DEBUG
@@ -312,9 +313,8 @@ export class WebMCP {
   async reachableTools(options: { from?: number } = {}): Promise<ReachableTool[]> {
     const frame = this.page.frames()[options.from ?? 0];
     if (!frame) throw new Error(`No frame at index ${options.from}`);
-    return frame.evaluate(async () => {
-      const mc = document.modelContext;
-      if (!mc) return [];
+    return inPage(frame, async (api) => {
+      if (!api.available()) return [];
       const origins = new Set<string>();
       for (const el of Array.from(document.querySelectorAll("iframe"))) {
         try {
@@ -322,7 +322,7 @@ export class WebMCP {
           if (origin !== location.origin) origins.add(origin);
         } catch {}
       }
-      const listed = origins.size ? await mc.getTools({ fromOrigins: [...origins] }) : await mc.getTools();
+      const listed = await api.listTools({ fromOrigins: [...origins] });
       return listed.map((t) => ({
         name: String(t.name),
         origin: String(t.origin ?? location.origin),
@@ -567,12 +567,7 @@ export class WebMCP {
    * canceled without them.
    */
   async supportsToolEvents(): Promise<boolean> {
-    return this.page
-      .evaluate(() => {
-        const mc = document.modelContext as object | undefined;
-        return Boolean(mc && "ontoolactivated" in mc && "ontoolcancel" in mc);
-      })
-      .catch(() => false);
+    return inPage(this.page, (api) => api.supportsToolEvents()).catch(() => false);
   }
 
   private async requireToolEvents(what: string): Promise<void> {
@@ -658,55 +653,16 @@ export class WebMCP {
     const startedAt = Date.now();
     // The page holds the call's AbortController under this token; aborting the signal here aborts it there.
     const token = `${startedAt}-${Math.random().toString(36).slice(2)}`;
-    // An abort can reach the page before the call has made its controller; it then leaves a mark the call finds.
-    const abort = () =>
-      void owner
-        .evaluate((t) => {
-          const aborts = ((window as any).__webmcpAborts ??= Object.create(null)) as Record<string, AbortController | "aborted">;
-          const controller = aborts[t];
-          if (controller instanceof AbortController) controller.abort();
-          else aborts[t] = "aborted";
-        }, token)
-        .catch(() => {});
+    // An abort can reach the page before the call has started; the page API then cancels it up front.
+    const abort = () => void inPage(owner, (api, t) => api.abort(t), token).catch(() => {});
     // Finding the owner frame takes time; a cancel during it must not slip past the listener.
     if (signal?.aborted) throw new ToolCanceledError(`Tool "${name}" was canceled before it started`);
     signal?.addEventListener("abort", abort, { once: true });
-    const outcome = await owner.evaluate(
-      async ([toolName, toolArgs, abortToken]) => {
-        const mc = document.modelContext!;
-        const listed = (await mc.getTools()) ?? [];
-        const tool = listed.find((t) => t.name === toolName);
-        if (!tool) return { ok: false as const, error: `No WebMCP tool named "${toolName}" is registered` };
-        const aborts = ((window as any).__webmcpAborts ??= Object.create(null)) as Record<string, AbortController | "aborted">;
-        if (aborts[abortToken] === "aborted") {
-          delete aborts[abortToken];
-          return { ok: false as const, error: "signal is aborted without reason", canceled: true };
-        }
-        const controller = new AbortController();
-        aborts[abortToken] = controller;
-        try {
-          // executeTool() takes the RegisteredTool object and the input as an object.
-          const raw: unknown = await mc.executeTool(tool, toolArgs, { __playwrightWebmcp: true, signal: controller.signal } as never);
-          // The result arrives as a string: JSON for objects, String(value) for primitives, "undefined" for no result.
-          let result: unknown;
-          if (typeof raw !== "string") result = JSON.parse(JSON.stringify(raw === undefined ? null : raw));
-          else if (raw === "undefined") result = undefined;
-          else {
-            try {
-              result = JSON.parse(raw);
-            } catch {
-              result = raw;
-            }
-          }
-          return { ok: true as const, result };
-        } catch (err) {
-          return { ok: false as const, error: String((err as Error)?.message ?? err), canceled: (err as Error)?.name === "AbortError" };
-        } finally {
-          delete aborts[abortToken];
-        }
-      },
-      [name, args, token] as const,
-    );
+    const outcome = await inPage(owner, (api, [toolName, toolArgs, abortToken]) => api.execute(toolName, toolArgs, { abortToken }), [
+      name,
+      args,
+      token,
+    ] as const);
     signal?.removeEventListener("abort", abort);
     const entry: RecordedCall = {
       name,

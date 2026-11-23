@@ -11,7 +11,7 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:4173",
     // WebMCP is behind a feature flag in Chromium; PW_CHROMIUM picks another binary (for example
-    // Chrome Beta) and PW_ARGS adds further flags.
+    // Chrome Stable or Dev) and PW_ARGS adds further flags.
     launchOptions: {
       ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
       args: ["--enable-features=WebMCP", ...(process.env.PW_ARGS ?? "").split(/\s+/).filter(Boolean)],
