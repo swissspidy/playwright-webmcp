@@ -19,7 +19,7 @@ npx playwright install chromium
 npx @swissspidy/webmcp-audit https://shop.example --max-pages 20 --smoke --out .webmcp-audit
 ```
 
-The browser has to implement WebMCP. Playwright's Chromium does behind a flag, which the audit passes on its own (`--enable-features=WebMCP`); `--executable` points it at another build, such as Chrome Beta or Canary.
+The browser has to implement WebMCP. Playwright's Chromium does behind a flag, which the audit passes on its own (`--enable-features=WebMCP`); `--executable` points it at another build, such as Chrome Dev or Canary.
 
 ```
 Usage: webmcp-audit <url> [options]
@@ -88,7 +88,7 @@ Because these are real executions, only tools that declare `annotations: { readO
 
 Findings become annotations on the run, the Markdown report lands in the job summary, and `--baseline` turns a stored `report.json` from an earlier run into a contract: a tool whose description, schema or annotations changed on a page reports `contract-changed`, a page that disappeared reports `baseline-page-missing`. Logins, cookies and storage state are out of scope here; use the `@swissspidy/playwright-webmcp` fixture for those.
 
-To audit with another Chrome build, for example the current beta: `--executable /opt/google/chrome-beta/chrome`.
+To audit with another Chrome build, for example the current dev build: `--executable /opt/google/chrome-unstable/chrome`.
 
 ## As a library
 
