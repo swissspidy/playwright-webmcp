@@ -215,6 +215,9 @@ importers:
       '@swissspidy/webmcp-codemode':
         specifier: workspace:*
         version: link:../../packages/codemode
+      '@swissspidy/webmcp-lint':
+        specifier: workspace:*
+        version: link:../../packages/core
       playwright:
         specifier: 1.65.1
         version: 1.65.1

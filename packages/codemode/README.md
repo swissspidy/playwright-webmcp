@@ -183,6 +183,10 @@ Any object with CDP's `send(method, params)` and `on(event, handler)` works too,
 | `canNavigate`      | any web | Narrows the URLs `browser.goto()` may request (redirects and tool-triggered navigations are not checked). Only http(s) URLs are ever allowed.                                          |
 | `firstToolWaitMs`  | 2000    | After a navigation, how long to wait for a page without tools to register its first one before reporting its tools, so pages that hydrate show up in `browser.tools()` and in results. |
 | `unwrapResults`    | true    | Unwrap `structuredContent`, or JSON in `{ content: [{ type: "text" }] }`.                                                                                                              |
+| `knownPages`       | none    | Pages seen in an earlier session, as `codeMode.knownPages()` returned them.                                                                                                            |
+| `maxKnownPages`    | 20      | How many other known pages `declarations()` lists, most recently seen first.                                                                                                           |
+
+Code mode remembers every page it sees: its tools, including ones that appear only after another has been used, and the calls that led there. `declarations()` lists the other pages under `KnownPages`, so a script can navigate and call the next page's tools in one go instead of ending to look at them first. Persist `codeMode.knownPages()` and pass it back as `knownPages` to carry that into later sessions.
 
 ### With your own agent
 
@@ -252,6 +256,28 @@ The table shows medians of 3 runs per cell. All 24 runs succeeded. The model was
 | One search, then arithmetic                   | 2 turns, 2.1k in, $0.011   | 3 turns, 6.8k in, $0.031  |
 
 Code mode pays off when a script can reduce a large tool result before the model sees it, or chain many calls across pages. For one or two small calls, the API in the tool description costs more than it saves. When the model reaches a page it has not seen, it usually lists the page's tools before acting. It does that instead of guessing names, which costs one round trip per new page.
+
+### Bigger tasks, and Anthropic's programmatic tool calling
+
+`--big` runs seven bigger tasks on the deployed [webmcp-tools](https://github.com/GoogleChromeLabs/webmcp-tools) demos. They need many dependent calls or large tool results, for example 240 seeded spreadsheet rows read in pages, or a 64×64 canvas to transform. A third arm, `ptc`, gives the same page tools to Anthropic's [programmatic tool calling](https://platform.claude.com/docs/en/agents-and-tools/tool-use/programmatic-tool-calling): Claude writes Python in the API's code execution container, and each tool call from that code comes back to the client to run on the page.
+
+The table shows medians of 3 runs per cell, with the same model and settings as above (results: [classic and code mode](../../examples/codemode-bench/results/2026-11-22T21-50-00-281Z.md), [ptc](../../examples/codemode-bench/results/2026-11-22T22-28-14-646Z.md)). The ptc column leaves out code execution container time.
+
+| Task                                              | Classic          | Code mode            | ptc                   |
+| ------------------------------------------------- | ---------------- | -------------------- | --------------------- |
+| Best region in Q2, over 240 rows read in pages    | $0.331           | **$0.173**           | $0.191                |
+| A sorted summary sheet from the same rows         | $0.680           | **$0.228**           | $0.385                |
+| Label all 240 rows by revenue                     | $0.179           | **$0.167**           | $0.245                |
+| Count one colour on a 64×64 canvas                | $0.145           | **$0.131**           | $0.156                |
+| Mirror the left half of the canvas onto the right | $0.296           | **$0.141**           | $0.214                |
+| A total over about 8 KB of search results         | **$0.021**       | $0.071               | $0.081                |
+| Add every matching product to the cart            | **$0.060**       | $0.090               | $0.220, failed 3 of 3 |
+| **Total for 21 runs**                             | $5.09, 21 passed | **$2.96, 21 passed** | $4.56, 18 passed      |
+
+Two things explain the ptc column:
+
+- **Round trips:** each call from the container is a separate API request that resends the conversation. The sorted summary took 19 requests, and labelling the rows took 22.
+- **Navigation:** the container knows only the tools listed in the request. The add-to-cart tool appears only after a search, so ptc scripts could not add anything. Code mode waits for a tool that the next page registers.
 
 ## Limits of the prototype
 

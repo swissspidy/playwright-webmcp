@@ -1,4 +1,4 @@
-import { declarations, toolDefinitions } from "./declarations.js";
+import { declarations, pageKey, toolDefinitions, type KnownPage } from "./declarations.js";
 import { ToolRegistry, type CdpLikeSession, type InvokeOutcome, type ToolInfo } from "./registry.js";
 import { QuickJSExecutor, type Executor, type ResolvedProvider, type ToolFn } from "./executor.js";
 import type { LogEntry, SandboxError, SandboxLimits, SandboxResult } from "./sandbox.js";
@@ -57,6 +57,15 @@ export interface CodeModeOptions extends SandboxLimits {
    * above are up to that executor.
    */
   executor?: Executor;
+  /**
+   * Pages seen in an earlier session, as `knownPages()` returned them. Code mode remembers every page
+   * it sees and lists the others in `declarations()`, so a script can call a page's tools right after
+   * navigating there instead of ending to look at them first. Persist `knownPages()` to carry that
+   * across sessions.
+   */
+  knownPages?: KnownPage[];
+  /** How many other pages `declarations()` lists, most recently seen first. Default 20; 0 lists none. */
+  maxKnownPages?: number;
 }
 
 export interface CallRecord {
@@ -67,6 +76,16 @@ export interface CallRecord {
   durationMs: number;
   /** `pending`: the script ended (finished, failed or timed out) before the call settled. */
   outcome: "pending" | "completed" | "navigated" | "error" | "canceled" | "denied" | "unavailable";
+  /**
+   * Whether the call was sent to the page. A call can end without that: denied, unavailable, or still
+   * waiting for its tool (outcome `pending`) when the script ended.
+   */
+  invoked?: boolean;
+  /**
+   * The order in which calls were sent to the page, counted per CodeMode instance. Concurrent calls
+   * are recorded in the order the script made them, which can differ when one waits for its tool.
+   */
+  dispatch?: number;
   result?: unknown;
   error?: string;
 }
@@ -121,11 +140,19 @@ export function unwrapResult(output: unknown): unknown {
 
 export class CodeMode {
   private queue: Promise<unknown> = Promise.resolve();
+  private dispatched = 0;
+  /** Pages seen, by key, least recently seen first. */
+  private readonly pages = new Map<string, KnownPage>();
+  /** The last tool call that navigated: the page it ran on and, when known, the page it went to. */
+  private lastNavigation?: { tool: string; from: string; to?: string };
 
   private constructor(
     readonly registry: ToolRegistry,
     private readonly options: CodeModeOptions,
-  ) {}
+  ) {
+    for (const p of options.knownPages ?? []) this.pages.set(p.page, structuredClone(p));
+    this.remember();
+  }
 
   /** Attach to a Playwright page, a Puppeteer page, or any CDP session with `send` and `on`. */
   static async create(target: PageLike | CdpLikeSession, options: CodeModeOptions = {}): Promise<CodeMode> {
@@ -146,7 +173,57 @@ export class CodeMode {
    * updates to an API the model has already seen.
    */
   declarations(options: { compact?: boolean } = {}): string {
-    return declarations(this.registry.list(), { url: this.registry.url(), toolWaitMs: this.toolWaitMs, compact: options.compact });
+    const current = pageKey(this.registry.url());
+    const max = this.options.maxKnownPages ?? 20;
+    const others = [...this.pages.values()].filter((p) => p.page !== current);
+    const knownPages = max > 0 ? others.slice(-max).reverse() : [];
+    return declarations(this.registry.list(), { url: this.registry.url(), toolWaitMs: this.toolWaitMs, compact: options.compact, knownPages });
+  }
+
+  /** Every page seen so far (and those passed as `knownPages`), least recently seen first. */
+  knownPages(): KnownPage[] {
+    return structuredClone([...this.pages.values()]);
+  }
+
+  /** Records the current page (once it has settled) before browser.goto/back/reload leaves it. */
+  private async rememberBeforeLeaving(signal: AbortSignal, operation: string): Promise<void> {
+    await this.registry.settle();
+    this.remember();
+    // The script may have ended while the page settled; a navigation must not outlive it.
+    if (signal.aborted) throw hostError("NavigationCanceledError", `browser.${operation}() was not started: the script ended`);
+  }
+
+  /** Record the current page's tools, and the call that led here. */
+  private remember(): void {
+    const url = this.registry.url();
+    const tools = this.registry.list();
+    if (!url || !tools.length) return;
+    const key = pageKey(url);
+    const known = this.pages.get(key);
+    const via = known?.via ?? [];
+    const nav = this.lastNavigation;
+    // Consumed by the page it led to (or, if that is not known, by the next other page), so that a
+    // later, unrelated page does not inherit it. A navigation within one page key adds no route.
+    if (nav && (nav.to ? nav.to === key : nav.from !== key)) {
+      if (nav.from !== key && !via.some((v) => v.tool === nav.tool && v.from === nav.from)) via.push({ tool: nav.tool, from: nav.from });
+      this.lastNavigation = undefined;
+    }
+    const seen = new Set<string>();
+    const pageTools = tools
+      .filter((t) => !seen.has(t.name) && !!seen.add(t.name))
+      .map(({ name, description, inputSchema, outputSchema, annotations }) => ({
+        name,
+        description,
+        ...(inputSchema ? { inputSchema } : {}),
+        ...(outputSchema ? { outputSchema } : {}),
+        ...(annotations ? { annotations } : {}),
+      }));
+    // Merged with the tools seen there before: a page's tools can depend on its state (one appears
+    // once another has been used), and the next visit may need any of them. Newer definitions win.
+    const merged = [...(known?.tools ?? []).map((t) => pageTools.find((n) => n.name === t.name) ?? t)];
+    for (const t of pageTools) if (!merged.some((m) => m.name === t.name)) merged.push(t);
+    this.pages.delete(key);
+    this.pages.set(key, { page: key, url, tools: merged, via });
   }
 
   /** Run a script. Scripts run one at a time per page. */
@@ -160,6 +237,7 @@ export class CodeMode {
     const started = Date.now();
     const registry = this.registry;
     await registry.settle();
+    this.remember();
     const urlBefore = registry.url();
     const toolsBefore = names(registry.list());
     const defsBefore = toolDefinitions(registry.list());
@@ -178,6 +256,7 @@ export class CodeMode {
         case "tools":
           // Right after a navigation the next page may not have registered its tools yet.
           await registry.settle();
+          this.remember();
           return registry.list().map((t) => ({
             name: t.name,
             description: t.description,
@@ -194,12 +273,15 @@ export class CodeMode {
           const web = url.protocol === "http:" || url.protocol === "https:";
           if (!web || (this.options.canNavigate && !this.options.canNavigate(url)))
             throw hostError("NavigationDeniedError", `Navigation to ${url.href} is not allowed`);
+          await this.rememberBeforeLeaving(controller.signal, "goto");
           await registry.navigate(url.href);
           return null;
         }
         case "back":
+          await this.rememberBeforeLeaving(controller.signal, "back");
           return registry.back();
         case "reload":
+          await this.rememberBeforeLeaving(controller.signal, "reload");
           await registry.reload();
           return null;
         case "waitForTool":
@@ -236,6 +318,7 @@ export class CodeMode {
     const grace = lastCallEnd + 250 - Date.now();
     if (grace > 0) await new Promise((resolve) => setTimeout(resolve, grace));
     await registry.settle();
+    this.remember();
     const toolsAfter = names(registry.list());
     const defsAfter = toolDefinitions(registry.list());
     return {
@@ -304,6 +387,8 @@ export class CodeMode {
           { tool: name, url: registry.url(), available },
         );
       }
+      // The page this tool is on, possibly reached by an earlier call in this script.
+      this.remember();
       if (this.options.onToolCall && !sameRegistration(approved, tool)) {
         let verdict: boolean | string;
         try {
@@ -336,13 +421,22 @@ export class CodeMode {
         }
         continue;
       }
+      // The page the tool runs on, which a wait for the tool can have changed since the call started.
+      const from = pageKey(registry.url());
+      record.invoked = true;
+      record.dispatch = ++this.dispatched;
       const outcome: InvokeOutcome = await registry.invoke(tool, args, this.options.toolTimeoutMs ?? 30_000).catch((err) => ({
         status: "error" as const,
         error: String(err?.message ?? err),
       }));
       // The registration went away between lookup and invocation (re-registered, or the page moved
       // on). The browser refused before running anything, so trying the current registration is safe.
-      if (outcome.status === "error" && "stale" in outcome && outcome.stale && attempt < 2) continue;
+      if (outcome.status === "error" && "stale" in outcome && outcome.stale) {
+        // Refused before it ran: the page never received this call.
+        record.invoked = undefined;
+        record.dispatch = undefined;
+        if (attempt < 2) continue;
+      }
       switch (outcome.status) {
         case "completed": {
           const result = this.options.unwrapResults === false ? outcome.output : unwrapResult(outcome.output);
@@ -350,6 +444,7 @@ export class CodeMode {
           return result;
         }
         case "navigated": {
+          this.lastNavigation = { tool: name, from, ...(outcome.url ? { to: pageKey(outcome.url) } : {}) };
           const result =
             outcome.output === undefined
               ? { navigated: true, url: outcome.url }

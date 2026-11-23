@@ -321,3 +321,16 @@ test("a tool redefined under the same name across a navigation counts as changed
   expect(again.tools.changed).toEqual([]);
   expect(formatResult(again, { declarations: cm.declarations({ compact: true }) })).not.toContain("Updated API");
 });
+
+test("a call the browser refuses as stale, with no registration left to retry, did not reach the page", async () => {
+  const { s, cm } = await setup();
+  s.addTools({ name: "t", toolId: "old" });
+  s.commands["WebMCP.invokeTool"] = () => {
+    // The registration goes away and the browser refuses the command.
+    s.emit("WebMCP.toolsRemoved", { tools: [{ name: "t", frameId: "main", toolId: "old" }] });
+    return new Error("No tool with that id");
+  };
+  const r = await cm.execute(`try { await tools.t(); } catch (e) { return e.name; }`);
+  expect(r.calls[0].invoked).toBeUndefined();
+  expect(r.calls[0].dispatch).toBeUndefined();
+});

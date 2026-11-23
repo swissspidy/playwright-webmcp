@@ -172,8 +172,132 @@ test("declarations describe the current page and follow navigation", async ({ co
   expect(r.tools.added).toEqual(expect.arrayContaining(["get_cart", "clear_cart"]));
   const cart = cm.declarations();
   expect(cart).toContain("get_cart(args?: {}): Promise<unknown>;");
-  expect(cart).not.toContain("search_products");
+  // The home page's tools are only listed under KnownPages now.
+  expect(cart.slice(0, cart.indexOf("type KnownPages"))).not.toContain("search_products");
   expect(formatResult(r, { declarations: cart })).toContain("Updated API:");
+});
+
+test("remembers pages it has seen and lists them in the declarations", async ({ codeMode }) => {
+  const cm = await codeMode();
+  expect(cm.declarations()).not.toContain("KnownPages");
+  await cm.execute(`await tools.open_product({ id: 2 }); await tools.get_product();`);
+  // Back on the search page, the product page is listed with its tools and the call that led there.
+  await cm.execute(`await tools.back_to_search();`);
+  const home = cm.declarations();
+  expect(home).toContain("type KnownPages = {");
+  expect(home).toMatch(/"http:\/\/[^"]+\/product": \{/);
+  expect(home).toContain("Reached by tools.open_product() on http://");
+  expect(home).toContain("add_to_cart(args");
+  // The current page is not listed among the others, and compact declarations leave them out.
+  expect(home.slice(home.indexOf("type KnownPages"))).not.toContain("search_products(args");
+  expect(cm.declarations({ compact: true })).not.toContain("KnownPages");
+
+  const pages = cm.knownPages();
+  // Least recently seen first: the search page was seen again last.
+  expect(pages.map((p) => new URL(p.page).pathname)).toEqual(["/product", "/"]);
+  expect(pages[0].via).toEqual([{ tool: "open_product", from: pages[1].page }]);
+  expect(pages[0].tools.map((t) => t.name)).toEqual(expect.arrayContaining(["get_product", "add_to_cart"]));
+});
+
+test("a known page keeps the tools seen there before", async ({ codeMode, page }) => {
+  const cm = await codeMode();
+  await cm.execute(`await tools.go_to_cart();`);
+  // A tool the page registers for a while, then removes: it stays known, as the page may register it again.
+  await page.evaluate(() => {
+    const controller = new AbortController();
+    ((document as any).modelContext ?? (navigator as any).modelContext).registerTool(
+      { name: "temporary", description: "Here for a moment.", inputSchema: { type: "object", properties: {} }, execute: async () => "ok" },
+      { signal: controller.signal },
+    );
+    (window as any).dropTemporary = () => controller.abort();
+  });
+  expect((await cm.execute(`return await tools.temporary();`)).result).toBe("ok");
+  await page.evaluate(() => (window as any).dropTemporary());
+  await expect.poll(() => cm.registry.get("temporary")).toBeUndefined();
+  await cm.execute(`return null;`);
+  const cart = cm.knownPages().find((p) => p.page.endsWith("/cart"));
+  expect(cart?.tools.map((t) => t.name)).toEqual(expect.arrayContaining(["get_cart", "temporary"]));
+});
+
+test("knownPages carries seen pages into a new session", async ({ codeMode, page }) => {
+  const first = await codeMode();
+  await first.execute(`await tools.go_to_cart();`);
+  const saved = first.knownPages();
+  await page.goto("/");
+  const second = await CodeMode.create(page, { knownPages: saved });
+  expect(second.declarations()).toContain("get_cart(args?: {}): Promise<unknown>;");
+  expect((await CodeMode.create(page, { knownPages: saved, maxKnownPages: 0 })).declarations()).not.toContain("KnownPages");
+});
+
+test.describe("known pages, review fixes", () => {
+  test("a page inspected with browser.tools() is remembered", async ({ codeMode }) => {
+    const cm = await codeMode();
+    await cm.execute(`await tools.open_product({ id: 1 }); await browser.tools(); await browser.goto("/cart");`);
+    expect(cm.knownPages().map((p) => new URL(p.page).pathname)).toEqual(expect.arrayContaining(["/", "/product", "/cart"]));
+  });
+
+  test("a navigation within one page key leaves no route for a later page", async ({ codeMode, page }) => {
+    const cm = await codeMode();
+    await cm.execute(`await tools.open_product({ id: 1 });`);
+    await page.evaluate(() =>
+      ((document as any).modelContext ?? (navigator as any).modelContext).registerTool({
+        name: "next_product",
+        description: "Open the next product.",
+        inputSchema: { type: "object", properties: {} },
+        execute: () => {
+          location.href = "/product?id=2";
+          return new Promise(() => {});
+        },
+      }),
+    );
+    expect((await cm.execute(`return await tools.next_product();`)).calls[0].outcome).toBe("navigated");
+    await cm.execute(`await browser.goto("/cart");`);
+    const cart = cm.knownPages().find((p) => p.page.endsWith("/cart"));
+    expect(cart?.via).toEqual([]);
+  });
+
+  test("a route starts at the page the tool ran on", async ({ codeMode }) => {
+    const cm = await codeMode();
+    // back_to_search is not on the search page: the call waits for the product page and runs there.
+    await cm.execute(`await Promise.all([tools.open_product({ id: 1 }), tools.back_to_search()]);`);
+    const pages = cm.knownPages();
+    const product = pages.find((p) => p.page.endsWith("/product"))!;
+    const home = pages.find((p) => new URL(p.page).pathname === "/")!;
+    expect(home.via).toEqual([{ tool: "back_to_search", from: product.page }]);
+  });
+
+  test("browser.goto() remembers the page it leaves", async ({ codeMode }) => {
+    const cm = await codeMode();
+    await cm.execute(`await tools.open_product({ id: 1 }); await browser.goto("/cart");`);
+    const product = cm.knownPages().find((p) => p.page.endsWith("/product"));
+    expect(product?.tools.map((t) => t.name)).toEqual(expect.arrayContaining(["get_product", "add_to_cart"]));
+  });
+
+  test("a browser.goto() still settling when the script ends does not navigate", async ({ codeMode, page }) => {
+    const cm = await codeMode();
+    // The product page registers its tools late, so goto's settle is still waiting when the script returns.
+    await cm.execute(`await tools.open_product({ id: 1 }); browser.goto("/cart"); return "done";`);
+    await page.waitForTimeout(1000);
+    expect(new URL(page.url()).pathname).toBe("/product");
+  });
+
+  test("calls are numbered in the order the page received them", async ({ codeMode }) => {
+    const cm = await codeMode();
+    // get_product is requested first but waits for the product page, which open_product opens.
+    const r = await cm.execute(`await Promise.all([tools.get_product(), tools.open_product({ id: 1 })]);`);
+    expect(r.calls.map((c) => c.name)).toEqual(["get_product", "open_product"]);
+    const byName = Object.fromEntries(r.calls.map((c) => [c.name, c]));
+    expect(byName.open_product.dispatch).toBeLessThan(byName.get_product.dispatch!);
+  });
+
+  test("calls say whether they reached the page", async ({ codeMode }) => {
+    const cm = await codeMode({ toolWaitMs: 2000 });
+    const r = await cm.execute(`tools.get_product(); return await tools.cart_size();`);
+    const byName = Object.fromEntries(r.calls.map((c) => [c.name, c]));
+    expect(byName.cart_size).toMatchObject({ outcome: "completed", invoked: true });
+    expect(byName.get_product).toMatchObject({ outcome: "pending" });
+    expect(byName.get_product.invoked).toBeUndefined();
+  });
 });
 
 test("console output is captured", async ({ codeMode }) => {

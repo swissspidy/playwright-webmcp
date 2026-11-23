@@ -1,0 +1,1046 @@
+{
+  "meta": {
+    "model": "claude-opus-5-5",
+    "effort": "medium",
+    "runs": 1,
+    "date": "2026-11-22",
+    "demosUrl": "https://googlechromelabs.github.io/webmcp-tools/demos",
+    "rememberPages": true
+  },
+  "results": [
+    {
+      "task": "doors#1",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 4268,
+      "outputTokens": 129,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 3.4,
+      "stop": "end_turn",
+      "finalText": "I opened the first mystery door, and it led to a forest with an animal in it. You can talk to the animal, for example by asking \"What are you?\" or saying \"Give me a gift\", or you can go back to the hallway.",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open the first mystery door."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_0193EzMjXDiBFQdHPdaVeJ9n",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "return await tools.openDoor1();"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_0193EzMjXDiBFQdHPdaVeJ9n",
+              "content": "Result:\n{\n  \"navigated\": true,\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n}\n\nTool calls (1):\n- openDoor1({}) → navigated [66 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\n\nTools changed: +talk, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\ndeclare const tools: {\n  /** Talk with the animal. You can ask \"What are you?\" or say \"Give me a gift\" */\n  talk(args?: {\n    /** What the user has chosen to say to the animal. */\n    choice?: string;\n  }): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first mystery door, and it led to a forest with an animal in it. You can talk to the animal, for example by asking \"What are you?\" or saying \"Give me a gift\", or you can go back to the hallway."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#2",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5147,
+      "outputTokens": 211,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 4.1,
+      "stop": "end_turn",
+      "finalText": "I opened Door 2. It leads to an ocean scene with someone you can dance with or play hide and seek with. You can also go back to the hallway. Tell me what you'd like to do.",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Number 2."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01HStDnU31uosmn3DkEo3JG1",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.openDoor2(); await browser.sleep(500); return {r, url: await browser.url(), tools: await browser.tools()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01HStDnU31uosmn3DkEo3JG1",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\",\n  \"tools\": [\n    {\n      \"name\": \"dance\",\n      \"description\": \"Dance with him\"\n    },\n    {\n      \"name\": \"hide\",\n      \"description\": \"Play Hide & Seek\"\n    },\n    {\n      \"name\": \"returnToHallway\",\n      \"description\": \"Return to Hallway.\",\n      \"inputSchema\": {\n        \"type\": \"object\",\n        \"properties\": {},\n        \"required\": []\n      },\n      \"annotations\": {\n        \"autosubmit\": true\n      }\n    }\n  ]\n}\n\nTool calls (1):\n- openDoor2({}) → navigated [60 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\n\nTools changed: +dance, +hide, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\ndeclare const tools: {\n  /** Dance with him */\n  dance(args?: {}): Promise<unknown>;\n  /** Play Hide & Seek */\n  hide(args?: {}): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSigYKEAgUGAI4AUIIdGhpbmtpbmcSDCPu2iTod+wimMIcgBoMTJkuy9d5GbMD01fbIjDqBmNXjrMPGjvXKXD5p334dLMN15I9m7MmveOjKD/IY1aQu5ZaNfLGa47JihM9uWwqpwWV21mwpPhgLiwIbxyh+hBwcSzAuV+KGsR5pityLrPFiNea65K02Sw90n1+kNeDWbtO0cfaV5Ox96rsViJDaijtj/jPUxQ3IHMTltYMfB5hZ3uuo1SLdHBBiYYNVn208GfpMpIukex7GXtPgX8APSwNTX0zo3RPiOm+O0Fes3YluQLySSfcqxzVDOpVwb+vz7Sam/M3H31AVrLa21LTt41GQd5nuE/c2T/9NJRjmal4mcg++W70Y8HfiLcPYZlkh80Mey1CXy/bey5TnFxHQDX+PkVIXKGAqth3msUHMt/FKg/lUFdmpsxpdaEhZQFlbP8Vdz88bv9GkO5Pl62yskGJ1O2fnfjq50HXQdZdsMSuKaf5v+GGiY0Y6imJAPhn2kDbjHMfBc0MUJvenWe72mvrXKbFWd5DB9MUjapVHzUTlHqfqHn2IchohCUUez9Zcjj+s8cUGJsY9vL7bxFEeYz8XsCwH3gjcUiDV+iJfZpKyG1Q+BTUgtROQVK8yQpI7UMbITI1ecgV+RdgCuVsdflaRGHblu8wpSiYFyeQEHtU2DweptPakD3WDDwlqjRsLVuIuEFRy9rLxZapyoVgHXaOioaAn2qgsshaQp0x3wNwvaGtYAZ456WcRr42ymwzeKrOX4LO/4MDn6ThqYnLPUllLQQ5Fq1Yj4CfpO6RJyxg+ICABnO9PkEJjbRxrfrxy2juKsz2HA+BaW086qQUBDEd5UrJd8ZomM7liSggXgFS27whITALRchbdHhGw//JG1qfwGKm7eX3efNJyozahD8BBP0W1SHIzRmzWXSlNthSaWzfGryYQqwI/B50vvI+eEceEqKFxp5aC/okoinzusuSyfM+gSMnXxurjbBrltMGFYe+VHAVbZKh6go4uOKZkWSB7mvxo7tnGAE="
+            },
+            {
+              "type": "text",
+              "text": "I opened Door 2. It leads to an ocean scene with someone you can dance with or play hide and seek with. You can also go back to the hallway. Tell me what you'd like to do."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#3",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5311,
+      "outputTokens": 135,
+      "toolCalls": 1,
+      "pageToolCalls": 1,
+      "seconds": 3.9,
+      "stop": "end_turn",
+      "finalText": "I opened the third door, and it led to a \"magic\" room. The only thing you can do here is \"Cast light.\" Should I cast it?",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "3"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQSlgUKEAgUGAI4AUIIdGhpbmtpbmcSDC8TQH/fVf4LAdgk8RoMXnwA7/fO2DbkXCcSIjCcDQHWeZX8cL2hCNxWfM5QW3UgYPPN9pbwjxbrFd49yDr0Kqh3woOsRQbsz+27Kn4qswRF16xTqwxCGnvEmTFiMTDZGub+ppteY/Mm/yCGEjBe14Dh/ZQQNGtjhdgsUmnCX2ZzVNqlqDvK3x8VJpezbjuaKa/Rhgc1fsyhJcNJILZQmy0cdv7nyCqosWdE8WiNEHpQn9UVVrjq1kR9HHUir9SlCfQAgZ9KUf99U2qy4HbflWOr7k+O5auOUBcTakiuAGo6J+rtTPnoWPJWlei42Ehw/w79gk91wo/CVyvsC9u1p1Nigg+v8sOTNwT/1gWdI027Tnh28tLyUnkrR0rGVpmbXKzbrjBfVr/JYIDSlliHJRrwxtQ5E0Xo1R9Ogd1MQ4ObM5FtvxN8GqBLoP/eTibHuTTwVijUXGVKkWcf6QjcIwrWePNyK3VLUyHghe+fDHcFy3NAHBFCj9eVZHmiOjkZgKpqIzs0vjAZpz0aFe+Vk/7ezk8VxAZZU8KbZAc7YsrOXnE3HOJ2mG29EW5vHHGQFIVEZqgq0Y9pXgSajkK1xD8wYWdXB5nC31YJ830HbbhLCbxUz5UJgsT2frFhS5qyMrJOowvgT21wS5cPCHi+jMSGj7XVU0gLL8pdH50P1EgFKaF+Sj35FYWtmA4pKiGQMrU2Rv5OqBxzlqvQz2PzOUx80XwxLDorTBoNd77+ljii8UjO47yx+atc3kd+mXOcOW60ymIbybBNfpGw9Lt/UTyKonKgGZtAHoP7OHtRTq8L8K0hAGgZ/Dk5vukFzfy39vM5KHxrAtPseI2CcXNZEyu+KxgB"
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_017pa8KjP2e14KYHwjFsk6B1",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.openDoor3(); return {r, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_017pa8KjP2e14KYHwjFsk6B1",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n}\n\nTool calls (1):\n- openDoor3({}) → navigated [49 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +castLight, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Cast light */\n  castLight(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door, and it led to a \"magic\" room. The only thing you can do here is \"Cast light.\" Should I cast it?"
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#4",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5618,
+      "outputTokens": 137,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 5.4,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which leads to a forest. When I asked the animal what it is, it said: **\"I am the keeper of the ferns.\"**",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "What are you?"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then talk to the animal and ask what it is."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01PHNnbNWAqYVYwxKDn2LotK",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor1();\nconst b = await tools.talk({choice: \"What are you?\"});\nreturn {a, b};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01PHNnbNWAqYVYwxKDn2LotK",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n  },\n  \"b\": \"I am the keeper of the ferns.\"\n}\n\nTool calls (2):\n- openDoor1({}) → navigated [40 ms]\n- talk({\"choice\":\"What are you?\"}) → completed [1005 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\n\nTools changed: +talk, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\ndeclare const tools: {\n  /** Talk with the animal. You can ask \"What are you?\" or say \"Give me a gift\" */\n  talk(args?: {\n    /** What the user has chosen to say to the animal. */\n    choice?: string;\n  }): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which leads to a forest. When I asked the animal what it is, it said: **\"I am the keeper of the ferns.\"**"
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#5",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5631,
+      "outputTokens": 136,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 4.6,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which leads to the forest, and asked the animal for a gift. It gave you a magical acorn 🌰.",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "Give me a gift"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then talk to the animal and ask to give me a gift."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01Hu38xt3TqnLkkBhXrRiN4A",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor1();\nconst b = await tools.talk({choice: \"Give me a gift\"});\nreturn {a, b};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01Hu38xt3TqnLkkBhXrRiN4A",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n  },\n  \"b\": \"Here is a magical acorn! 🌰\"\n}\n\nTool calls (2):\n- openDoor1({}) → navigated [39 ms]\n- talk({\"choice\":\"Give me a gift\"}) → completed [1008 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\n\nTools changed: +talk, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\ndeclare const tools: {\n  /** Talk with the animal. You can ask \"What are you?\" or say \"Give me a gift\" */\n  talk(args?: {\n    /** What the user has chosen to say to the animal. */\n    choice?: string;\n  }): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which leads to the forest, and asked the animal for a gift. It gave you a magical acorn 🌰."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#6",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 5719,
+      "outputTokens": 128,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 3,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which led to the forest, then went back to the hallway. You're in the hallway now.",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, then return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01JzR9EM7VqUajFiQ84uPxvL",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor1(); const b = await tools.returnToHallway(); return {a,b, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01JzR9EM7VqUajFiQ84uPxvL",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n  },\n  \"b\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (2):\n- openDoor1({}) → navigated [47 ms]\n- returnToHallway({}) → navigated [38 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which led to the forest, then went back to the hallway. You're in the hallway now."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#7",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6154,
+      "outputTokens": 126,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 4.2,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which leads to an ocean scene, and asked him to dance. He replied: \"Wheee! Look at me go!\"",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "dance",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to dance with him"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_0162Mcvqtghm6BxhRDnwBjXq",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor2(); const b = await tools.dance(); return {a,b};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_0162Mcvqtghm6BxhRDnwBjXq",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"b\": \"Wheee! Look at me go!\"\n}\n\nTool calls (2):\n- openDoor2({}) → navigated [45 ms]\n- dance({}) → completed [1004 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\n\nTools changed: +dance, +hide, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\ndeclare const tools: {\n  /** Dance with him */\n  dance(args?: {}): Promise<unknown>;\n  /** Play Hide & Seek */\n  hide(args?: {}): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which leads to an ocean scene, and asked him to dance. He replied: \"Wheee! Look at me go!\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#8",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6153,
+      "outputTokens": 124,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 3.4,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which leads to the ocean room, and asked to play hide & seek. The answer was: \"You can't see me...\"",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "hide",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to play hide & seek"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01FG7eZGD2rmbykHTLDe49q2",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor2();\nconst b = await tools.hide();\nreturn {a,b};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01FG7eZGD2rmbykHTLDe49q2",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"b\": \"You can't see me...\"\n}\n\nTool calls (2):\n- openDoor2({}) → navigated [42 ms]\n- hide({}) → completed [1003 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\n\nTools changed: +dance, +hide, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\ndeclare const tools: {\n  /** Dance with him */\n  dance(args?: {}): Promise<unknown>;\n  /** Play Hide & Seek */\n  hide(args?: {}): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which leads to the ocean room, and asked to play hide & seek. The answer was: \"You can't see me...\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#9",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6010,
+      "outputTokens": 131,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 2.8,
+      "stop": "end_turn",
+      "finalText": "I opened the second door, which led to the ocean page, then went back to the hallway. You're on the hallway page now.",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01JieekestJJ1rbZH7w9K34n",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor2(); const b = await tools.returnToHallway(); return {a, b, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01JieekestJJ1rbZH7w9K34n",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"b\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (2):\n- openDoor2({}) → navigated [40 ms]\n- returnToHallway({}) → navigated [35 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the second door, which led to the ocean page, then went back to the hallway. You're on the hallway page now."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#10",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6118,
+      "outputTokens": 199,
+      "toolCalls": 1,
+      "pageToolCalls": 4,
+      "seconds": 5.7,
+      "stop": "end_turn",
+      "finalText": "I did all four steps:\n1. I opened the second door, which led to the ocean page.\n2. I asked him to dance. He said \"Wheee! Look at me go!\"\n3. I asked to play hide & seek. He said \"You can't see me...\"\n4. I went back to the hallway.",
+      "calls": [
+        {
+          "name": "openDoor2",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "dance",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "hide",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open second door, then ask to dance with him and play hide & seek, finally return to the hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01TTcAi55qKmLtCWkhxMjaDZ",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r=[];r.push(await tools.openDoor2());r.push(await tools.dance());r.push(await tools.hide());r.push(await tools.returnToHallway());return r;"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01TTcAi55qKmLtCWkhxMjaDZ",
+              "content": "Result:\n[\n  {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/ocean.html?\"\n  },\n  \"Wheee! Look at me go!\",\n  \"You can't see me...\",\n  {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  }\n]\n\nTool calls (4):\n- openDoor2({}) → navigated [40 ms]\n- dance({}) → completed [1003 ms]\n- hide({}) → completed [1003 ms]\n- returnToHallway({}) → navigated [41 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I did all four steps:\n1. I opened the second door, which led to the ocean page.\n2. I asked him to dance. He said \"Wheee! Look at me go!\"\n3. I asked to play hide & seek. He said \"You can't see me...\"\n4. I went back to the hallway."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#11",
+      "arm": "codemode",
+      "run": 1,
+      "success": false,
+      "turns": 4,
+      "inputTokens": 14281,
+      "outputTokens": 414,
+      "toolCalls": 3,
+      "pageToolCalls": 3,
+      "seconds": 8.2,
+      "stop": "end_turn",
+      "finalText": "I opened the third door and you're back in the hallway now. The third door led to a magic room. The option to return to the hallway didn't show up until I cast light, which made an owl blink, so I had to do that first.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "castLight",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then return to hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "thinking",
+              "thinking": "",
+              "signature": "CAQS6gUKEAgUGAI4AUIIdGhpbmtpbmcSDC2Jze0iOo1T/OAThxoMT388I8x6Mr+tye8RIjDpdJqguU8BGQHoQLTOWTzHfbf8FuGf+xct0R/cZqZSrcn9X1LgkJl9+T6kMddT0rIqhwXsweixmQi9089nCIHXaoxOKxJ5JKQVni4wNcNVcFAIjcdfd6bA4dXHzLDcBe/6cATrOSktJU8EZYhoukoKTLkDI7Jb0M+a1PSL8lqNbi7Mi1cPPse7529r5CefdVklcT1W/Ai2zaKPJ+NJ0vYvumQl/KTy1qe7ClTkh3qyK83mS19MYoZChNHdS/rsSBnx/fybLPHEh6pgGaK+csr4yGcxMlligxOeIoFpsiRv4Dljm3JysAj2jBXxYMco3/sJCtBQEYvwqcd6IhFmAkD/okbPoUZOV55sZ/muqPOdjgFKlEy/KlyZD+yubLojl/FIMYhfS4fhoaAHDlCgSUfd7iFC1843VIp4UqjI/Sk9qcLKqRzZFFFbqohC72WLf3mjwqnGWqaAKzJIdrf6hAW+DqD5CXaqgjOgiJyMwVb+AqNIQfgXwXx7n9TgeEOpc1ljWEdz7ivoN+enMv1tNzckL1fB0ZRfZdM8yLnQSe4a6qLWooJhjO2A2EiZgiek0aDKRG7059j08si/Yf8BTRqzVXQOuXHK3XFY/ziwR8VlpkvfI4GHTnArFZ8Pbd1xy4eYiBMxLqJwz7hw1wvTrdBTs7YiGfcFI2NFUFNUgdCvDCVY2sthBO/m93ENJDmTCTET7LX4AmRsREUw2v0VbcPvdCHWThPE4xVg5dLRna0d3upMqFDaSsvsQOXMV9fobObd8IUrZYHgiHTQZYlMjCesd0dE4LNG70n/oE4zN5QtjOBhBCkNC8OhyUTfUAQKrw3+yxVmeePfIuG5kG0+81TbOq7DNOtnXTYOlsgxrH0UJJhpD4BpSdlVN0raFWdBuX24ZeQ+v2lfxmH4BtTMx7aushPLZuB3dCN56BgB"
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_01QqmM9CEDEePQzibLD623Xc",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.openDoor3(); await browser.sleep(500); return {r, url: await browser.url(), tools: (await browser.tools()).map(t=>t.name)};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01QqmM9CEDEePQzibLD623Xc",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\",\n  \"tools\": [\n    \"castLight\"\n  ]\n}\n\nTool calls (1):\n- openDoor3({}) → navigated [45 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +castLight, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Cast light */\n  castLight(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "No return tool available; maybe castLight reveals it."
+            },
+            {
+              "type": "tool_use",
+              "id": "toolu_011QZWjqJmqLKA1chrjUoC4s",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.castLight(); await browser.sleep(500); return {r, tools: (await browser.tools()).map(t=>t.name)};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_011QZWjqJmqLKA1chrjUoC4s",
+              "content": "Result:\n{\n  \"r\": \"The owl blinks at the sudden light!\",\n  \"tools\": [\n    \"returnToHallway\"\n  ]\n}\n\nTool calls (1):\n- castLight({}) → completed [1004 ms]\n\nPage: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +returnToHallway, -castLight\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01BFwcgMhstZUbchUHhY34hU",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r = await tools.returnToHallway(); return {r, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01BFwcgMhstZUbchUHhY34hU",
+              "content": "Result:\n{\n  \"r\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (1):\n- returnToHallway({}) → navigated [45 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html? → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\n\nTools changed: +openDoor1, +openDoor2, +openDoor3, -returnToHallway\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\ndeclare const tools: {\n  /** Open the first mystery door. Only one door can be chosen. */\n  openDoor1(args?: {}): Promise<unknown>;\n  /** Open the second mystery door. Only one door can be chosen. */\n  openDoor2(args?: {}): Promise<unknown>;\n  /** Open the third mystery door. Only one door can be chosen. */\n  openDoor3(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door and you're back in the hallway now. The third door led to a magic room. The option to return to the hallway didn't show up until I cast light, which made an owl blink, so I had to do that first."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#12",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6300,
+      "outputTokens": 124,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 4,
+      "stop": "end_turn",
+      "finalText": "I opened the third door, which led to the magic room, then cast light. The page responded: \"The owl blinks at the sudden light!\"",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "castLight",
+          "args": {},
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then cast light"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01VBjXhiLJL7SUCqEZvakfzA",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor3(); const b = await tools.castLight(); return {a,b};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01VBjXhiLJL7SUCqEZvakfzA",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n  },\n  \"b\": \"The owl blinks at the sudden light!\"\n}\n\nTool calls (2):\n- openDoor3({}) → navigated [49 ms]\n- castLight({}) → completed [1003 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\n\nTools changed: +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\ndeclare const tools: {\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door, which led to the magic room, then cast light. The page responded: \"The owl blinks at the sudden light!\""
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#13",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6240,
+      "outputTokens": 155,
+      "toolCalls": 1,
+      "pageToolCalls": 3,
+      "seconds": 3.8,
+      "stop": "end_turn",
+      "finalText": "I opened the third door, which led to the magic room. Casting light there made the owl blink at the sudden light. Then I took you back to the hallway.",
+      "calls": [
+        {
+          "name": "openDoor3",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "castLight",
+          "args": {},
+          "outcome": "completed"
+        },
+        {
+          "name": "returnToHallway",
+          "args": {},
+          "outcome": "navigated"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open third door, then cast light, and finally return to hallway"
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_019yZLZPZA8Vdkg46y8jVW6q",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const a = await tools.openDoor3();\nconst b = await tools.castLight();\nconst c = await tools.returnToHallway();\nreturn {a,b,c, url: await browser.url()};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_019yZLZPZA8Vdkg46y8jVW6q",
+              "content": "Result:\n{\n  \"a\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/magic.html?\"\n  },\n  \"b\": \"The owl blinks at the sudden light!\",\n  \"c\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n  },\n  \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?\"\n}\n\nTool calls (3):\n- openDoor3({}) → navigated [43 ms]\n- castLight({}) → completed [1003 ms]\n- returnToHallway({}) → navigated [39 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/index.html?"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the third door, which led to the magic room. Casting light there made the owl blink at the sudden light. Then I took you back to the hallway."
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    },
+    {
+      "task": "doors#14",
+      "arm": "codemode",
+      "run": 1,
+      "success": true,
+      "turns": 2,
+      "inputTokens": 6486,
+      "outputTokens": 142,
+      "toolCalls": 1,
+      "pageToolCalls": 2,
+      "seconds": 4,
+      "stop": "end_turn",
+      "finalText": "I opened the first door, which led to a forest. When I asked the animal what it is, it said: **\"I am the keeper of the ferns.\"**",
+      "calls": [
+        {
+          "name": "openDoor1",
+          "args": {},
+          "outcome": "navigated"
+        },
+        {
+          "name": "talk",
+          "args": {
+            "choice": "What are you?"
+          },
+          "outcome": "completed"
+        }
+      ],
+      "transcript": [
+        {
+          "role": "user",
+          "content": "Open first door, new tools will become available, then use a tool to talk to the animal and ask what it is."
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "tool_use",
+              "id": "toolu_01KZntsgRzdvMsjunZuwokSo",
+              "name": "webmcp_execute",
+              "input": {
+                "code": "const r1 = await tools.openDoor1();\nconst r2 = await tools.talk({choice: \"What are you?\"});\nreturn {r1, r2};"
+              },
+              "caller": {
+                "type": "direct"
+              }
+            }
+          ]
+        },
+        {
+          "role": "user",
+          "content": [
+            {
+              "type": "tool_result",
+              "tool_use_id": "toolu_01KZntsgRzdvMsjunZuwokSo",
+              "content": "Result:\n{\n  \"r1\": {\n    \"navigated\": true,\n    \"url\": \"https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\"\n  },\n  \"r2\": \"I am the keeper of the ferns.\"\n}\n\nTool calls (2):\n- openDoor1({}) → navigated [42 ms]\n- talk({\"choice\":\"What are you?\"}) → completed [1004 ms]\n\nPage navigated: https://googlechromelabs.github.io/webmcp-tools/demos/doors/ → https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\n\nTools changed: +talk, +returnToHallway, -openDoor1, -openDoor2, -openDoor3\n\nUpdated API:\n// Page: https://googlechromelabs.github.io/webmcp-tools/demos/doors/forest.html?\ndeclare const tools: {\n  /** Talk with the animal. You can ask \"What are you?\" or say \"Give me a gift\" */\n  talk(args?: {\n    /** What the user has chosen to say to the animal. */\n    choice?: string;\n  }): Promise<unknown>;\n  /** Return to Hallway. */\n  returnToHallway(args?: {}): Promise<unknown>;\n  [name: string]: (args?: Record<string, unknown>) => Promise<unknown>;\n};\n"
+            }
+          ]
+        },
+        {
+          "role": "assistant",
+          "content": [
+            {
+              "type": "text",
+              "text": "I opened the first door, which led to a forest. When I asked the animal what it is, it said: **\"I am the keeper of the ferns.\"**"
+            }
+          ]
+        }
+      ],
+      "lenient": true
+    }
+  ]
+}
