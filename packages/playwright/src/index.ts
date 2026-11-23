@@ -43,5 +43,6 @@ export {
 export { fakeLanguageModelSource, type FakeLanguageModelPlan, type FakeTurn } from "./fake-language-model.js";
 export { expect, type ToolExpectation, type LintExpectation, type SmokeExpectation, type NativeWebMCP } from "./matchers.js";
 export { RECORDER_SOURCE } from "./recorder.js";
+export { inPage, type PageApi, type PageTool, type PageExecuteOptions, type PageExecuteOutcome } from "./page-api.js";
 export type * from "@swissspidy/webmcp-lint";
 export type { WebMCP as WebMCPTypes } from "webmcp-types";

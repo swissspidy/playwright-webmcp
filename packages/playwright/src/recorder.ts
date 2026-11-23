@@ -1,12 +1,22 @@
+import { PAGE_API_SOURCE } from "./page-api.js";
+
 /**
  * In-page recorder. Wraps registerTool / executeTool on `document.modelContext`
  * so tool executions triggered from inside the page are reported to
  * Playwright through the `__webmcpReport` binding. Calls made through the
  * fixture's `call()` are recorded on the Node side instead and are skipped
  * here.
+ *
+ * Intercepting the API is shape-specific by nature, so this stays separate
+ * from the page API; it builds on it for everything else and installs it
+ * first, so the fixture's later evaluations find it ready.
  */
-export const RECORDER_SOURCE = String.raw`(() => {
+export const RECORDER_SOURCE =
+  PAGE_API_SOURCE +
+  String.raw`
+(() => {
   const marker = "__webmcpRecorderInstalled";
+  const pageApi = window.__webmcpPage;
   let suppress = 0;
   function report(entry) {
     try {
@@ -14,15 +24,9 @@ export const RECORDER_SOURCE = String.raw`(() => {
       if (typeof fn === "function") fn(JSON.stringify(entry));
     } catch {}
   }
-  function safe(v) {
-    try { return JSON.parse(JSON.stringify(v === undefined ? null : v)); } catch { return String(v); }
-  }
-  // executeTool() resolves with the result serialized to a JSON string; record the value it encodes.
-  function fromExecuteTool(v) {
-    if (typeof v !== "string") return safe(v);
-    if (v === "undefined") return undefined;
-    try { return JSON.parse(v); } catch { return v; }
-  }
+  const safe = pageApi.toJson;
+  // executeTool() resolves with the result serialized to a string; record the value it encodes.
+  const fromExecuteTool = pageApi.decodeResult;
   // Mocks installed from the test take over inside the execute wrapper, so no
   // re-registration is needed (the API rejects duplicate names).
   const mocks = (window.__webmcpMocks = window.__webmcpMocks || Object.create(null));
@@ -128,10 +132,8 @@ export const RECORDER_SOURCE = String.raw`(() => {
     }
   }
   window.__webmcpInstallMock = async function (name) {
-    const mc = document.modelContext;
-    if (!mc) throw new Error("No modelContext to mock on");
-    const listed = await mc.getTools();
-    if (!listed.some((t) => t.name === name)) throw new Error("No tool named " + name + " to mock");
+    if (!pageApi.available()) throw new Error("No modelContext to mock on");
+    if (!(await pageApi.findTool(name))) throw new Error("No tool named " + name + " to mock");
     if (!wrappedNames.has(name)) throw new Error("Tool " + name + " cannot be mocked: it was not registered through document.modelContext.registerTool() in this frame");
     mocks[name] = true;
   };
