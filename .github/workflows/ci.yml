@@ -49,15 +49,15 @@ jobs:
         include:
           - channel: stable
             node: 24
-            install: chrome
+            package: google-chrome-stable
             executable: /opt/google/chrome/chrome
           - channel: stable
             node: 26
-            install: chrome
+            package: google-chrome-stable
             executable: /opt/google/chrome/chrome
           - channel: dev
             node: 26
-            install: chrome-dev
+            package: google-chrome-unstable
             executable: /opt/google/chrome-unstable/chrome
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -71,9 +71,13 @@ jobs:
           cache: true
           require-lockfile: true
       - run: pnpm run build
-      # --force: the runner image already ships Chrome Stable, which Playwright otherwise refuses
-      # to install over; this way both legs get the channel's current build.
-      - run: pnpm exec playwright install --with-deps --force ${{ matrix.install }}
+      # Google's own package for the channel, installed over whatever the runner image ships, so
+      # each leg gets the channel's current build. Playwright's installer has no Chrome Dev target.
+      - name: Install Chrome ${{ matrix.channel }}
+        run: |
+          curl -fsSLo "$RUNNER_TEMP/chrome.deb" "https://dl.google.com/linux/direct/${{ matrix.package }}_current_amd64.deb"
+          sudo apt-get update -qq
+          sudo apt-get install -y "$RUNNER_TEMP/chrome.deb"
       - run: ${{ matrix.executable }} --version
       - run: pnpm run test:e2e
         env:

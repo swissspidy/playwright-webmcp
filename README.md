@@ -298,7 +298,7 @@ WebMCP is behind a feature flag in Chromium, so the suites launch Playwright's C
 
 ```sh
 npx playwright install chromium                  # Playwright's Chromium, with the flag from the config
-npx playwright install chrome chrome-dev
+npx playwright install chrome                    # Chrome Stable; Chrome Dev comes from Google: https://www.google.com/chrome/dev/
 PW_CHROMIUM=/opt/google/chrome/chrome pnpm run test:e2e   # or: pnpm run test:stable, pnpm run test:dev
 npx @swissspidy/webmcp-audit https://shop.example --executable /opt/google/chrome-unstable/chrome
 ```
@@ -557,7 +557,7 @@ pnpm run typecheck
 pnpm run test:unit       # @swissspidy/webmcp-lint and @swissspidy/eslint-plugin-webmcp, node --test
 pnpm run test:e2e        # Playwright's Chromium with --enable-features=WebMCP; PW_CHROMIUM picks another binary, PW_ARGS adds flags
 pnpm run test:stable     # the same on Google Chrome Stable (npx playwright install chrome)
-pnpm run test:dev        # the same on Google Chrome Dev (npx playwright install chrome-dev)
+pnpm run test:dev        # the same on Google Chrome Dev (https://www.google.com/chrome/dev/)
 pnpm run lint            # @swissspidy/eslint-plugin-webmcp on examples/react-shop
 pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
