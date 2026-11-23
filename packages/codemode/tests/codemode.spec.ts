@@ -273,6 +273,14 @@ test.describe("known pages, review fixes", () => {
     expect(product?.tools.map((t) => t.name)).toEqual(expect.arrayContaining(["get_product", "add_to_cart"]));
   });
 
+  test("a browser.goto() still settling when the script ends does not navigate", async ({ codeMode, page }) => {
+    const cm = await codeMode();
+    // The product page registers its tools late, so goto's settle is still waiting when the script returns.
+    await cm.execute(`await tools.open_product({ id: 1 }); browser.goto("/cart"); return "done";`);
+    await page.waitForTimeout(1000);
+    expect(new URL(page.url()).pathname).toBe("/product");
+  });
+
   test("calls are numbered in the order the page received them", async ({ codeMode }) => {
     const cm = await codeMode();
     // get_product is requested first but waits for the product page, which open_product opens.

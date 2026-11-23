@@ -186,9 +186,11 @@ export class CodeMode {
   }
 
   /** Records the current page (once it has settled) before browser.goto/back/reload leaves it. */
-  private async rememberBeforeLeaving(): Promise<void> {
+  private async rememberBeforeLeaving(signal: AbortSignal, operation: string): Promise<void> {
     await this.registry.settle();
     this.remember();
+    // The script may have ended while the page settled; a navigation must not outlive it.
+    if (signal.aborted) throw hostError("NavigationCanceledError", `browser.${operation}() was not started: the script ended`);
   }
 
   /** Record the current page's tools, and the call that led here. */
@@ -271,15 +273,15 @@ export class CodeMode {
           const web = url.protocol === "http:" || url.protocol === "https:";
           if (!web || (this.options.canNavigate && !this.options.canNavigate(url)))
             throw hostError("NavigationDeniedError", `Navigation to ${url.href} is not allowed`);
-          await this.rememberBeforeLeaving();
+          await this.rememberBeforeLeaving(controller.signal, "goto");
           await registry.navigate(url.href);
           return null;
         }
         case "back":
-          await this.rememberBeforeLeaving();
+          await this.rememberBeforeLeaving(controller.signal, "back");
           return registry.back();
         case "reload":
-          await this.rememberBeforeLeaving();
+          await this.rememberBeforeLeaving(controller.signal, "reload");
           await registry.reload();
           return null;
         case "waitForTool":
