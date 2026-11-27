@@ -1,0 +1,32 @@
+{
+  "name": "angular-tasks",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "ng serve --port 4175",
+    "build": "ng build",
+    "lint": "eslint .",
+    "test": "playwright test"
+  },
+  "dependencies": {
+    "@angular/common": "^22.3.0",
+    "@angular/compiler": "^22.3.0",
+    "@angular/core": "^22.3.0",
+    "@angular/forms": "^22.3.0",
+    "@angular/platform-browser": "^22.3.0",
+    "rxjs": "~7.8.0",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@angular/build": "^22.3.0",
+    "@angular/cli": "^22.3.0",
+    "@angular/compiler-cli": "^22.3.0",
+    "@playwright/test": "1.65.1",
+    "@swissspidy/eslint-plugin-webmcp": "workspace:*",
+    "@swissspidy/playwright-webmcp": "workspace:*",
+    "eslint": "^10.15.0",
+    "typescript": "~6.0.3",
+    "typescript-eslint": "^8.74.0"
+  }
+}

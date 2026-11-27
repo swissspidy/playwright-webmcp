@@ -1,6 +1,7 @@
 node_modules/
 dist/
 dist-test/
+.angular/
 pnpm-lock.yaml
 test-results/
 playwright-report/

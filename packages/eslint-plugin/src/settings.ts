@@ -13,13 +13,28 @@ export interface DefinitionSite {
    * bare call `useWebMCP(...)` and a member call `x.registerTool(...)`.
    */
   call: string;
-  /** Index of the argument holding the definition. Default 0. */
+  /**
+   * Index of the argument holding the definition: one tool object, or an array
+   * of them like `provideTools([{...}, {...}])`. Default 0; with `property` and
+   * no `argument`, every argument is looked at.
+   */
   argument?: number;
   /**
    * When set, the argument is a context object and this property holds an
    * array of tool definitions, like `addTools({ items: [...] })`.
    */
   tools?: string;
+  /**
+   * When set, the argument is an options object and this property holds one
+   * tool definition, like `form(model, { webMcpTool: {...} })`.
+   */
+  property?: string;
+  /**
+   * Tool fields the framework fills in itself at this site, such as an input
+   * schema derived from a form model. Findings about them are dropped, since
+   * the definition cannot change them.
+   */
+  derived?: string[];
   /** Index of an options argument that may carry `exposedTo`. */
   options?: number;
 }
@@ -44,16 +59,31 @@ export const DEFAULT_DEFINITION_SITES: DefinitionSite[] = [
   { call: "registerTool", argument: 0, options: 1 },
   // The React hook from `use-webmcp-tool`; same object shape as registerTool.
   { call: "useWebMCP", argument: 0 },
+  // Angular (@angular/core, v22): an array of tools for bootstrapApplication or route providers,
+  // and one tool declared in an injection context.
+  { call: "provideExperimentalWebMcpTools", argument: 0 },
+  { call: "declareExperimentalWebMcpTool", argument: 0 },
+  // Angular Signal Forms (@angular/forms/signals): form(model, schema?, { experimentalWebMcpTool: {...} }).
+  // Angular builds the input schema from the form model, and the option takes no title and only
+  // consequentialHint, so those are not the definition's to fix.
+  { call: "form", property: "experimentalWebMcpTool", derived: ["inputSchema", "title", "annotations"] },
 ];
 
 export function normalizeSite(entry: DefinitionSiteSetting): DefinitionSite | undefined {
   if (typeof entry === "string") return entry ? { call: entry, argument: 0 } : undefined;
   if (!entry || typeof entry !== "object" || typeof entry.call !== "string" || !entry.call) return undefined;
+  const tools = typeof entry.tools === "string" && entry.tools ? entry.tools : undefined;
+  // `tools` wins when both are given: an array is the more specific shape.
+  const property = !tools && typeof entry.property === "string" && entry.property ? entry.property : undefined;
+  const derived = Array.isArray(entry.derived) ? entry.derived.filter((f): f is string => typeof f === "string" && !!f) : [];
   return {
     call: entry.call,
-    argument: typeof entry.argument === "number" ? entry.argument : 0,
-    tools: typeof entry.tools === "string" && entry.tools ? entry.tools : undefined,
+    // A property site without an index looks at every argument, as an options object can sit in different places.
+    argument: typeof entry.argument === "number" ? entry.argument : property ? undefined : 0,
+    tools,
+    property,
     options: typeof entry.options === "number" ? entry.options : undefined,
+    ...(derived.length ? { derived } : {}),
   };
 }
 
@@ -61,12 +91,12 @@ export function normalizeSite(entry: DefinitionSiteSetting): DefinitionSite | un
 export function definitionSites(settings: unknown): DefinitionSite[] {
   const extra = ((settings as { webmcp?: WebMCPSettings } | undefined)?.webmcp?.definitions ?? []) as DefinitionSiteSetting[];
   // The same definition location listed twice (a default repeated in settings, say) would report
-  // every finding twice; keep one entry per call/argument/tools and let a later entry add `options`.
+  // every finding twice; keep one entry per call/argument/tools/property and let a later entry add `options`.
   const byLocation = new Map<string, DefinitionSite>();
   for (const entry of [...DEFAULT_DEFINITION_SITES, ...(Array.isArray(extra) ? extra : [])]) {
     const site = normalizeSite(entry);
     if (!site) continue;
-    const key = JSON.stringify([site.call, site.argument ?? 0, site.tools ?? null]);
+    const key = JSON.stringify([site.call, site.argument ?? null, site.tools ?? null, site.property ?? null]);
     const existing = byLocation.get(key);
     if (!existing) byLocation.set(key, { ...site });
     else if (existing.options === undefined) existing.options = site.options;

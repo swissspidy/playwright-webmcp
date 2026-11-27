@@ -838,3 +838,134 @@ test("JSX forms: same-name controls are only grouped when they are radios, and a
     invalid: [{ code: form(`<input name="q" aria-label="Query" />`, `{...props} tooldescription={undefined}`), errors: 1 }],
   });
 });
+
+test("Angular's WebMCP APIs are definition sites out of the box", () => {
+  const description = "Search the product catalogue by keyword and return matching products.";
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [
+      // A form() call without the WebMCP option, and the option on some other call, are not tools.
+      `form(model, (f) => {}, { submission: { action } });`,
+      `configure({ experimentalWebMcpTool: { name: "bad name" } });`,
+    ],
+    invalid: [
+      // provideExperimentalWebMcpTools takes an array of tools; each one is judged.
+      {
+        code: `import { provideExperimentalWebMcpTools } from "@angular/core";
+bootstrapApplication(App, { providers: [provideExperimentalWebMcpTools([{ name: "bad name", execute }, { name: "also bad", execute }])] });`,
+        errors: [
+          { messageId: "finding", line: 2, column: 81 },
+          { messageId: "finding", line: 2, column: 112 },
+        ],
+      },
+      // The array through a const, and a tool through a const inside it.
+      {
+        code: `const search = { name: "bad name", execute }; const tools = [search]; provideExperimentalWebMcpTools(tools);`,
+        errors: [{ messageId: "finding", column: 24 }],
+      },
+      {
+        code: `class Counter { constructor() { declareExperimentalWebMcpTool({ name: "bad name", description: "${description}", execute }); } }`,
+        errors: [{ messageId: "finding", column: 71 }],
+      },
+      // Signal Forms: the option is the second argument without a schema, the third with one.
+      { code: `const f = form(this.model, { experimentalWebMcpTool: { name: "bad name", description: "${description}" } });`, errors: 1 },
+      {
+        code: `const f = form(this.model, (p) => { required(p.name); }, { experimentalWebMcpTool: { name: "bad name", description: "${description}" }, submission: { action } });`,
+        errors: 1,
+      },
+      { code: `const options = { experimentalWebMcpTool: { name: "bad name", description: "${description}" } }; form(model, schema, options);`, errors: 1 },
+    ],
+  });
+  tester.run("description-missing", plugin.rules["description-missing"], {
+    valid: [`form(model, { experimentalWebMcpTool: { name: "register_user", description: "${description}" } });`],
+    invalid: [{ code: `form(model, { experimentalWebMcpTool: { name: "register_user" } });`, errors: 1 }],
+  });
+  // Angular builds a form tool's schema from the model and accepts no title and only consequentialHint, so
+  // findings about those are not the author's to fix there. The same rules still apply to the other two APIs.
+  const formTool = `form(model, { experimentalWebMcpTool: { name: "register_user", description: "${description}" } });`;
+  tester.run("tool-title-missing", plugin.rules["tool-title-missing"], {
+    valid: [formTool],
+    invalid: [{ code: `declareExperimentalWebMcpTool({ name: "register_user", description: "${description}", execute });`, errors: 1 }],
+  });
+  tester.run("annotations-explicit", plugin.rules["annotations-explicit"], {
+    valid: [formTool],
+    invalid: [{ code: `provideExperimentalWebMcpTools([{ name: "register_user", description: "${description}", execute }]);`, errors: 2 }],
+  });
+});
+
+test("settings: array arguments, property sites and derived fields", () => {
+  const description = "Search the product catalogue by keyword and return matching products.";
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [
+      // With an explicit argument index, only that argument is looked at.
+      {
+        code: `expose({ webTool: { name: "bad name" } }, {});`,
+        settings: { webmcp: { definitions: [{ call: "expose", property: "webTool", argument: 1 }] } },
+      },
+    ],
+    invalid: [
+      // Any definition argument may be an array of tools.
+      { code: `defineTools([{ name: "bad name" }, { name: "fine" }]);`, settings: { webmcp: { definitions: ["defineTools"] } }, errors: 1 },
+      // A property site searches every argument unless told which.
+      {
+        code: `expose(model, rules, { webTool: { name: "bad name" } });`,
+        settings: { webmcp: { definitions: [{ call: "expose", property: "webTool" }] } },
+        errors: 1,
+      },
+      {
+        code: `expose({ webTool: { name: "bad name" } }, {});`,
+        settings: { webmcp: { definitions: [{ call: "expose", property: "webTool", argument: 0 }] } },
+        errors: 1,
+      },
+    ],
+  });
+  // Fields a site derives drop the findings about them; the rest still apply.
+  const derivedSite = { webmcp: { definitions: [{ call: "expose", property: "webTool", derived: ["title"] }] } };
+  tester.run("tool-title-missing", plugin.rules["tool-title-missing"], {
+    valid: [{ code: `expose({ webTool: { name: "search", description: "${description}" } });`, settings: derivedSite }],
+    invalid: [
+      {
+        code: `expose({ webTool: { name: "search", description: "${description}" } });`,
+        settings: { webmcp: { definitions: [{ call: "expose", property: "webTool" }] } },
+        errors: 1,
+      },
+    ],
+  });
+  tester.run("description-missing", plugin.rules["description-missing"], {
+    valid: [],
+    invalid: [{ code: `expose({ webTool: { name: "search" } });`, settings: derivedSite, errors: 1 }],
+  });
+});
+
+test("review: a literal registered at sites that derive different fields, options on property sites, a derived name", () => {
+  const description = "Search the product catalogue by keyword and return matching products.";
+  const shared = `const t = { name: "search", description: "${description}", execute };`;
+  // A field is only left alone when every site that registers the literal fills it in, in either order.
+  tester.run("tool-title-missing", plugin.rules["tool-title-missing"], {
+    valid: [`${shared} form(model, { experimentalWebMcpTool: t });`],
+    invalid: [
+      { code: `${shared} form(model, { experimentalWebMcpTool: t }); registerTool(t);`, errors: 1 },
+      { code: `${shared} registerTool(t); form(model, { experimentalWebMcpTool: t });`, errors: 1 },
+    ],
+  });
+  // Equivalent registrations are still judged once.
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [],
+    invalid: [{ code: `const t = { name: "bad name", execute }; form(model, { experimentalWebMcpTool: t }); registerTool(t);`, errors: 1 }],
+  });
+  // A property site with `options` reads exposedTo from that argument.
+  tester.run("exposed-to-secure-origins", plugin.rules["exposed-to-secure-origins"], {
+    valid: [],
+    invalid: [
+      {
+        code: `expose({ webTool: { name: "search", description: "${description}" } }, { exposedTo: ["http://example.com"] });`,
+        settings: { webmcp: { definitions: [{ call: "expose", property: "webTool", options: 1 }] } },
+        errors: 1,
+      },
+    ],
+  });
+  // A site that derives the name: the name rules leave it to the framework.
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [{ code: `defineTool({ name: "bad name" });`, settings: { webmcp: { definitions: [{ call: "defineTool", derived: ["name"] }] } } }],
+    invalid: [{ code: `defineTool({ name: "bad name" });`, settings: { webmcp: { definitions: ["defineTool"] } }, errors: 1 }],
+  });
+});

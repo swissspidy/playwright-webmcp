@@ -23,6 +23,7 @@ import { findVariable, type SourceCode } from "./scope.js";
 const EXPOSED_TO_RULES = new Set(["exposed-to-secure-origins", "exposed-to-origin-only"]);
 
 const NEEDS: Record<string, string[]> = {
+  name: ["tool-name-valid", "tool-name-style"],
   description: ["description-missing", "description-length", "description-when-to-use", "description-injection", "declarative-description"],
   inputSchema: ["param-description-missing", "schema-shape", "schema-no-null-literals", "schema-depth", "schema-unsupported-keywords", "sensitive-params"],
   exposedTo: [...EXPOSED_TO_RULES],
@@ -197,12 +198,12 @@ export function createRule(rule: LintRule): ESLintRule.RuleModule {
         ...discoverTools(
           context,
           resolve,
-          ({ node, exposedTo }, repeat) => {
+          ({ node, exposedTo, derived }, repeat) => {
             // A second registration of a judged literal only brings its own exposedTo.
             if (repeat && !EXPOSED_TO_RULES.has(rule.id)) return;
             let byExposedTo = cache.tools.get(node);
             if (!byExposedTo) cache.tools.set(node, (byExposedTo = new Map()));
-            if (!byExposedTo.has(exposedTo.node)) byExposedTo.set(exposedTo.node, toolFromObject(node, exposedTo, resolve));
+            if (!byExposedTo.has(exposedTo.node)) byExposedTo.set(exposedTo.node, toolFromObject(node, exposedTo, resolve, derived));
             const tool = byExposedTo.get(exposedTo.node);
             if (tool) report(tool.definition, tool.dynamic, (finding) => locate(tool, finding, resolve));
           },
