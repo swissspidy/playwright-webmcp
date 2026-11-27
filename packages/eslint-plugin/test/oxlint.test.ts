@@ -222,3 +222,80 @@ mc.registerTool({
     [["webmcp(consequential-abort-signal)", 10]],
   );
 });
+
+test("oxlint finds Angular's WebMCP tools in TypeScript sources without settings", () => {
+  const { status, stdout, stderr } = runOxlint(
+    {
+      "app.config.ts": `import { ApplicationConfig, inject, provideExperimentalWebMcpTools } from "@angular/core";
+import { Catalog } from "./catalog";
+
+export const appConfig: ApplicationConfig = {
+  providers: [
+    provideExperimentalWebMcpTools([
+      {
+        name: "search catalog",
+        description: "Searches the catalogue by keyword and returns matching products with prices.",
+        inputSchema: {
+          type: "object",
+          properties: { query: { type: "string", description: "Keyword to search for" } },
+          required: ["query"],
+          additionalProperties: false,
+        },
+        execute: ({ query }) => inject(Catalog).search(query),
+      },
+    ]),
+  ],
+};
+`,
+      "counter.service.ts": `import { Injectable, declareExperimentalWebMcpTool, signal } from "@angular/core";
+
+@Injectable({ providedIn: "root" })
+export class Counter {
+  readonly count = signal(0);
+  constructor() {
+    declareExperimentalWebMcpTool({
+      name: "getCounter",
+      description: "Reads.",
+      execute: () => ({ content: [{ type: "text", text: String(this.count()) }] }),
+    });
+  }
+}
+`,
+      "registration.component.ts": `import { Component, signal } from "@angular/core";
+import { form, required } from "@angular/forms/signals";
+
+@Component({ selector: "app-registration", template: "" })
+export class Registration {
+  readonly model = signal({ firstName: "", lastName: "", age: 0 });
+  readonly registration = form(
+    this.model,
+    (p) => {
+      required(p.firstName);
+    },
+    {
+      experimentalWebMcpTool: { name: "register user", description: "Registers a new user account with the details given." },
+      submission: { action: async (value) => console.log(value) },
+    },
+  );
+}
+`,
+    },
+    {
+      jsPlugins: [{ name: "webmcp", specifier: pluginPath }],
+      rules: { "webmcp/tool-name-valid": "error", "webmcp/description-length": "warn", "webmcp/tool-title-missing": "warn" },
+    },
+  );
+  assert.equal(status, 1, stderr);
+  const parsed = JSON.parse(stdout) as { diagnostics: Array<{ code: string; filename: string; labels: Array<{ span: { line: number } }> }> };
+  const found = parsed.diagnostics.map((d) => `${d.filename} ${d.code}`).sort();
+  assert.deepEqual(found, [
+    // The provider array's tool has an invalid name and no title.
+    "app.config.ts webmcp(tool-name-valid)",
+    "app.config.ts webmcp(tool-title-missing)",
+    // The declared tool's description is too short, and it has no title either.
+    "counter.service.ts webmcp(description-length)",
+    "counter.service.ts webmcp(tool-title-missing)",
+    // The form tool has an invalid name; a title is not asked of it, since Angular's option takes none.
+    "registration.component.ts webmcp(tool-name-valid)",
+  ]);
+});

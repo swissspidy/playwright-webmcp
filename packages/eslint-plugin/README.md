@@ -80,6 +80,29 @@ Rule options are the same objects `@swissspidy/webmcp-lint` accepts. `webmcp.con
 
 Out of the box the plugin looks at the argument of `registerTool()` and the argument of `useWebMCP()` from [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool), whose object has the same shape. Bare calls and member calls both match, so `useWebMCP({...})` and `document.modelContext.registerTool({...})` are found the same way.
 
+Angular's WebMCP APIs (v22) are recognised out of the box too:
+
+- `provideExperimentalWebMcpTools([...])` from `@angular/core`: each tool in the array.
+- `declareExperimentalWebMcpTool({...})` from `@angular/core`.
+- The `experimentalWebMcpTool` option of Signal Forms' `form()` from `@angular/forms/signals`, whether the options are the second argument or the third. Angular builds that tool's input schema from the form model, and the option takes no `title` and only `consequentialHint`, so findings about the schema, title and annotations are not reported for it. Its name and description are linted like any other tool's.
+
+```ts
+import { Component, signal } from "@angular/core";
+import { form, required } from "@angular/forms/signals";
+
+@Component({ selector: "app-registration", templateUrl: "./registration.html" })
+export class Registration {
+  readonly model = signal({ email: "", name: "" });
+  readonly registration = form(this.model, (p) => required(p.email), {
+    // Linted: name and description.
+    experimentalWebMcpTool: {
+      name: "register_user",
+      description: "Registers a new user account with the details given.",
+    },
+  });
+}
+```
+
 Wrappers of your own are declared once in ESLint's shared `settings`, and every rule picks them up:
 
 ```js
@@ -100,7 +123,15 @@ export default [
 ];
 ```
 
-An entry is a call name, or `{ call, argument = 0, tools?, options? }`: `argument` is the index of the definition, `tools` names the property holding an array of definitions, and `options` is the index of an argument that may carry `exposedTo`. Entries add to the defaults.
+An entry is a call name, or `{ call, argument = 0, tools?, property?, options?, derived? }`:
+
+- `argument` is the index of the definition: one tool object, or an array literal of them.
+- `tools` names a property of that argument holding an array of definitions.
+- `property` names a property of an options object holding one definition, like `form(model, { webMcpTool: {...} })`. Without an `argument`, every argument is checked, for APIs whose options object can move.
+- `options` is the index of an argument that may carry `exposedTo`.
+- `derived` lists tool fields the framework fills in itself at that site, such as `["inputSchema"]` for a schema built from a model. Findings about them are dropped, as for a field whose value is computed.
+
+Entries add to the defaults.
 
 The definition does not have to be inline. An identifier is followed to its initialiser when it is a `const` or `let` declared once in the same file and never reassigned, so this is linted too, with findings pointing into the literal:
 
