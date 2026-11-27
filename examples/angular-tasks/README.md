@@ -10,6 +10,7 @@ A small Angular 22 task board that exposes one WebMCP tool through each of Angul
 
 ```sh
 pnpm install
+pnpm run build                       # from the repository root: ESLint and Playwright load the workspace packages from dist/
 pnpm --filter angular-tasks lint     # static rules, in the editor and on CI
 pnpm --filter angular-tasks test     # starts the dev server, then runs the Playwright suite
 pnpm --filter angular-tasks dev      # open it in a browser at http://localhost:4175

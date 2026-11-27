@@ -49,6 +49,10 @@ test.describe("angular tasks", () => {
   test("the form's validation errors reach the agent", async ({ page, webmcp }) => {
     const missingTitle = await webmcp.call("add_task", { title: "", priority: "normal" });
     expect(missingTitle.content[0].text).toBe("Form submission failed:\ntitle: required");
+    // required() accepts whitespace; the board would trim it to an empty title, so the form rejects it.
+    const blankTitle = await webmcp.call("add_task", { title: "   ", priority: "normal" });
+    expect(blankTitle.content[0].text).toBe("Form submission failed:\ntitle: must not be blank");
+    await expect(page.locator("li")).toHaveCount(3);
 
     const badPriority = await webmcp.call("add_task", { title: "Plan the offsite", priority: "urgent" });
     expect(badPriority.content[0].text).toBe("Form submission failed:\npriority: must be low, normal or high");

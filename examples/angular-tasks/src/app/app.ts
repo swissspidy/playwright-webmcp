@@ -43,7 +43,9 @@ export class App {
   protected readonly taskForm = form(
     this.draft,
     (path) => {
+      // required() puts the field in the generated schema's `required`, but accepts whitespace, which the board trims away.
       required(path.title);
+      validate(path.title, ({ value }) => (value().trim() || !value() ? undefined : { kind: "blank", message: "must not be blank" }));
       // Angular's generated schema says only "string" for a select, so an agent can send anything; reject the rest.
       validate(path.priority, ({ value }) => (PRIORITIES.includes(value()) ? undefined : { kind: "priority", message: "must be low, normal or high" }));
     },
