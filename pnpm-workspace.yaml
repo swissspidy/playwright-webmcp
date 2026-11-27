@@ -1,3 +1,10 @@
 packages:
   - "packages/*"
   - "examples/*"
+# Dependencies of the Angular example's build tooling. Each ships a prebuilt binary for the platform as
+# an optional dependency, so their install scripts are not needed and do not run.
+allowBuilds:
+  "@parcel/watcher": false
+  esbuild: false
+  lmdb: false
+  msgpackr-extract: false

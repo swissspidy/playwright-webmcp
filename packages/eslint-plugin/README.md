@@ -84,7 +84,7 @@ Angular's WebMCP APIs (v22) are recognised out of the box too:
 
 - `provideExperimentalWebMcpTools([...])` from `@angular/core`: each tool in the array.
 - `declareExperimentalWebMcpTool({...})` from `@angular/core`.
-- The `experimentalWebMcpTool` option of Signal Forms' `form()` from `@angular/forms/signals`, whether the options are the second argument or the third. Angular builds that tool's input schema from the form model, and the option takes no `title` and only `consequentialHint`, so findings about the schema, title and annotations are not reported for it. Its name and description are linted like any other tool's.
+- The `experimentalWebMcpTool` option of Signal Forms' `form()` from `@angular/forms/signals`, whether the options are the second argument or the third. Angular builds that tool's input schema from the form model, and the option takes no `title` and only `consequentialHint`, so findings about the schema, title and annotations are not reported for it. Its name and description are linted like any other tool's. [`examples/angular-tasks`](https://github.com/swissspidy/playwright-webmcp/tree/main/examples/angular-tasks) uses all three, with ESLint and a Playwright suite.
 
 ```ts
 import { Component, signal } from "@angular/core";

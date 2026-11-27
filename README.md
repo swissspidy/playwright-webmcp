@@ -22,7 +22,7 @@ The shape is deliberately the same as axe-core: one engine that judges tool defi
 | Lint a `tools.json`, a snapshot, or definitions from your own driver or tests          | `@swissspidy/webmcp-lint`: `lintTools()`, the `@swissspidy/webmcp-lint` CLI, or `collectFrame` + `snapshotFromFrames()` with Puppeteer, WebDriver or jsdom. |
 | Let an agent use a site's WebMCP tools by writing scripts instead of one call per turn | `@swissspidy/webmcp-codemode`. Fewer turns across pages, and large tool results reduced in the sandbox before the model sees them.                          |
 
-The rule engine is the same in all four; only what feeds it differs. Page-level rules (duplicate names, similar descriptions, tool count, cross-origin frames) need a live page and are therefore not in the ESLint plugin. [`examples/react-shop`](examples/react-shop) shows the whole chain on a Vite + React app with [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool).
+The rule engine is the same in all four; only what feeds it differs. Page-level rules (duplicate names, similar descriptions, tool count, cross-origin frames) need a live page and are therefore not in the ESLint plugin. [`examples/react-shop`](examples/react-shop) shows the whole chain on a Vite + React app with [`use-webmcp-tool`](https://www.npmjs.com/package/use-webmcp-tool), and [`examples/angular-tasks`](examples/angular-tasks) on an Angular 22 app with Angular's own WebMCP APIs.
 
 Everything here runs against the browser's own WebMCP implementation: Playwright's Chromium with `--enable-features=WebMCP`, and Google Chrome Stable and Dev; see [Browsers](#browsers).
 
@@ -560,7 +560,7 @@ pnpm run test:unit       # @swissspidy/webmcp-lint and @swissspidy/eslint-plugin
 pnpm run test:e2e        # Playwright's Chromium with --enable-features=WebMCP; PW_CHROMIUM picks another binary, PW_ARGS adds flags
 pnpm run test:stable     # the same on Google Chrome Stable (npx playwright install chrome); Linux path by default, set PW_CHROMIUM elsewhere
 pnpm run test:dev        # the same on Google Chrome Dev (https://www.google.com/chrome/dev/); Linux path by default, set PW_CHROMIUM elsewhere
-pnpm run lint            # @swissspidy/eslint-plugin-webmcp on examples/react-shop
+pnpm run lint            # @swissspidy/eslint-plugin-webmcp on examples/react-shop and examples/angular-tasks
 pnpm run format          # Prettier; CI runs format:check
 pnpm run lint:publish    # publint on every package
 ```
