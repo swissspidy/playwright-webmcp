@@ -92,6 +92,11 @@ export interface SmokeWatch {
   requests?: () => () => Promise<SmokeRequest[]>;
 }
 
+/** How long no new request must arrive after a call before its requests are counted. */
+const SETTLE_QUIET_MS = 100;
+/** The most a call's request watch waits for that quiet period. */
+const SETTLE_MAX_MS = 1000;
+
 /**
  * Watch a Playwright page for smoke: its URL, and the requests sent from its
  * browser context during each call (so a popup or service worker the tool
@@ -109,9 +114,16 @@ export function watchPage(page: Page): SmokeWatch {
       const context = page.context();
       context.on("request", onRequest);
       return async () => {
-        // A request the tool fired without awaiting can still be on its way to this process
-        // when the call resolves; a round trip to the page lets it land.
+        // A request the tool fired without awaiting can still be on its way to this process when the
+        // call resolves: the page has sent it, but the browser's event for it has not reached Playwright,
+        // which takes longer when the request is routed or the machine is busy. A round trip to the page
+        // is not enough on its own, so keep listening until no request has arrived for a quiet period.
         await page.evaluate(() => new Promise((resolve) => setTimeout(resolve, 0))).catch(() => {});
+        const deadline = Date.now() + SETTLE_MAX_MS;
+        for (let count = -1; seen.length !== count && Date.now() < deadline;) {
+          count = seen.length;
+          await new Promise((resolve) => setTimeout(resolve, SETTLE_QUIET_MS));
+        }
         context.off("request", onRequest);
         return seen;
       };
