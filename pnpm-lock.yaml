@@ -292,8 +292,8 @@ importers:
         specifier: ^19.3.1
         version: 19.3.1(react@19.3.1)
       use-webmcp-tool:
-        specifier: ^0.3.0
-        version: 0.3.0(react@19.3.1)
+        specifier: ^0.3.1
+        version: 0.3.1(react@19.3.1)
     devDependencies:
       '@playwright/test':
         specifier: 1.65.1
@@ -3323,8 +3323,8 @@ packages:
   uri-js@4.4.1:
     resolution: {integrity: sha512-7rKUyy33Q1yc98pQ1DAmLtwX109F7TIfWlW1Ydo8Wl1ii1SeHieeh0HHfPeL2fMXK6z0s8ecKs9frCuLJvndBg==}
 
-  use-webmcp-tool@0.3.0:
-    resolution: {integrity: sha512-iwO5KbSdDzcV33PSCZw4baclCD3tEU4drdXAeeKfTCM/+F5t+LAug14UXbYKD3K3tWxBiYCuDuWXmm/q1ZSDjw==}
+  use-webmcp-tool@0.3.1:
+    resolution: {integrity: sha512-hCAzSt6KpiS3He7WmCq1bSg2nFsK3H17uzkTPqFNj3yS32IgSwQoY2LQ7ktgMQpBcNOQDQSf/5ElAns7p638gQ==}
     peerDependencies:
       react: '>=18'
 
@@ -5995,7 +5995,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  use-webmcp-tool@0.3.0(react@19.3.1):
+  use-webmcp-tool@0.3.1(react@19.3.1):
     dependencies:
       react: 19.3.1
       webmcp-types: 0.1.11
