@@ -143,7 +143,8 @@ export const Form = () => <form toolname="subscribe" tooldescription={\`Join \${
     { jsPlugins: [{ name: "webmcp", specifier: pluginPath }], rules: { "webmcp/no-interpolated-text": "error" } },
   );
   assert.equal(status, 1, stderr);
-  const found = diagnostics(stdout);
+  // oxlint lists diagnostics in the order rules report them, which is not source order: sort them.
+  const found = diagnostics(stdout).sort((a, b) => a.line - b.line);
   assert.deepEqual(
     found.map((d) => d.rule),
     ["webmcp(no-interpolated-text)", "webmcp(no-interpolated-text)"],

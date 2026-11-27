@@ -129,17 +129,17 @@ export function discoverTools(
 ): Required<Pick<ESLintRule.RuleListener, "CallExpression" | "ObjectExpression" | "Program:exit">> {
   const sites = definitionSites(context.settings);
   const shaped = toolObjectsEnabled(context.settings);
+  // Every registration of each literal, in source order. A literal is handed over once the whole file
+  // has been read, because a later registration can change what an earlier one made of it.
+  const registrations = new Map<ESTree.ObjectExpression, ToolObject[]>();
   const seen = new Set<ESTree.ObjectExpression>();
   const candidates: ESTree.ObjectExpression[] = [];
   return {
     CallExpression(node) {
       for (const tool of toolObjectsFromCall(node as ESTree.CallExpression, sites, resolve)) {
-        if (seen.has(tool.node)) {
-          if (repeats && tool.exposedTo.node) onTool(tool, true);
-          continue;
-        }
-        seen.add(tool.node);
-        onTool(tool, false);
+        const list = registrations.get(tool.node);
+        if (list) list.push(tool);
+        else registrations.set(tool.node, [tool]);
       }
     },
     ObjectExpression(node) {
@@ -148,6 +148,18 @@ export function discoverTools(
     // A literal defined above the call that registers it is only known to be a
     // definition site's argument once that call has been visited.
     "Program:exit"() {
+      for (const [obj, list] of registrations) {
+        // A field is the framework's only when every site that registers the literal fills it in:
+        // `form(model, { experimentalWebMcpTool: t })` and `registerTool(t)` still owe a title.
+        const derived = list.map((t) => t.derived ?? []).reduce((a, b) => a.filter((f) => b.includes(f)));
+        const withDerived = (t: ToolObject): ToolObject => {
+          const { derived: _ignored, ...rest } = t;
+          return derived.length ? { ...rest, derived } : rest;
+        };
+        seen.add(obj);
+        onTool(withDerived(list[0]), false);
+        if (repeats) for (const t of list.slice(1)) if (t.exposedTo.node) onTool(withDerived(t), true);
+      }
       for (const obj of candidates) {
         if (seen.has(obj) || !isToolShaped(obj, resolve) || initialisesMutatedBinding(obj, context.sourceCode)) continue;
         seen.add(obj);

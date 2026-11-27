@@ -23,6 +23,7 @@ import { findVariable, type SourceCode } from "./scope.js";
 const EXPOSED_TO_RULES = new Set(["exposed-to-secure-origins", "exposed-to-origin-only"]);
 
 const NEEDS: Record<string, string[]> = {
+  name: ["tool-name-valid", "tool-name-style"],
   description: ["description-missing", "description-length", "description-when-to-use", "description-injection", "declarative-description"],
   inputSchema: ["param-description-missing", "schema-shape", "schema-no-null-literals", "schema-depth", "schema-unsupported-keywords", "sensitive-params"],
   exposedTo: [...EXPOSED_TO_RULES],

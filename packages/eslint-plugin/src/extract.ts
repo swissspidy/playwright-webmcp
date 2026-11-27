@@ -243,23 +243,6 @@ export function toolObjectsFromCall(call: ESTree.CallExpression, sites: Definiti
   for (const site of sites) {
     if (site.call !== method) continue;
     const derived = site.derived ? { derived: site.derived } : {};
-    if (site.property) {
-      // An options object that may sit at different positions: each argument that is one and has the property.
-      const indexes = site.argument !== undefined ? [site.argument] : call.arguments.map((_a, i) => i);
-      for (const i of indexes) {
-        const candidate = argumentAt(call, i);
-        if (!candidate) continue;
-        const opts = unwrap(resolve(candidate));
-        if (opts.type !== "ObjectExpression") continue;
-        const prop = findProperty(opts, site.property);
-        if (!prop) continue;
-        const obj = unwrap(resolve(prop.value as Node));
-        if (obj.type === "ObjectExpression") out.push({ node: obj, exposedTo: { value: undefined }, ...derived });
-      }
-      continue;
-    }
-    const arg = argumentAt(call, site.argument ?? 0);
-    if (!arg) continue;
     const exposedTo: ExposedTo = { value: undefined };
     if (site.options !== undefined) {
       const options = argumentAt(call, site.options);
@@ -274,6 +257,23 @@ export function toolObjectsFromCall(call: ESTree.CallExpression, sites: Definiti
         } else exposedTo.value = DYNAMIC;
       }
     }
+    if (site.property) {
+      // An options object that may sit at different positions: each argument that is one and has the property.
+      const indexes = site.argument !== undefined ? [site.argument] : call.arguments.map((_a, i) => i);
+      for (const i of indexes) {
+        const candidate = argumentAt(call, i);
+        if (!candidate) continue;
+        const opts = unwrap(resolve(candidate));
+        if (opts.type !== "ObjectExpression") continue;
+        const prop = findProperty(opts, site.property);
+        if (!prop) continue;
+        const obj = unwrap(resolve(prop.value as Node));
+        if (obj.type === "ObjectExpression") out.push({ node: obj, exposedTo, ...derived });
+      }
+      continue;
+    }
+    const arg = argumentAt(call, site.argument ?? 0);
+    if (!arg) continue;
     const found = (obj: ESTree.ObjectExpression) => out.push({ node: obj, exposedTo, ...derived });
     if (site.tools) {
       const ctx = unwrap(resolve(arg));

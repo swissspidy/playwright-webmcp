@@ -935,3 +935,37 @@ test("settings: array arguments, property sites and derived fields", () => {
     invalid: [{ code: `expose({ webTool: { name: "search" } });`, settings: derivedSite, errors: 1 }],
   });
 });
+
+test("review: a literal registered at sites that derive different fields, options on property sites, a derived name", () => {
+  const description = "Search the product catalogue by keyword and return matching products.";
+  const shared = `const t = { name: "search", description: "${description}", execute };`;
+  // A field is only left alone when every site that registers the literal fills it in, in either order.
+  tester.run("tool-title-missing", plugin.rules["tool-title-missing"], {
+    valid: [`${shared} form(model, { experimentalWebMcpTool: t });`],
+    invalid: [
+      { code: `${shared} form(model, { experimentalWebMcpTool: t }); registerTool(t);`, errors: 1 },
+      { code: `${shared} registerTool(t); form(model, { experimentalWebMcpTool: t });`, errors: 1 },
+    ],
+  });
+  // Equivalent registrations are still judged once.
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [],
+    invalid: [{ code: `const t = { name: "bad name", execute }; form(model, { experimentalWebMcpTool: t }); registerTool(t);`, errors: 1 }],
+  });
+  // A property site with `options` reads exposedTo from that argument.
+  tester.run("exposed-to-secure-origins", plugin.rules["exposed-to-secure-origins"], {
+    valid: [],
+    invalid: [
+      {
+        code: `expose({ webTool: { name: "search", description: "${description}" } }, { exposedTo: ["http://example.com"] });`,
+        settings: { webmcp: { definitions: [{ call: "expose", property: "webTool", options: 1 }] } },
+        errors: 1,
+      },
+    ],
+  });
+  // A site that derives the name: the name rules leave it to the framework.
+  tester.run("tool-name-valid", plugin.rules["tool-name-valid"], {
+    valid: [{ code: `defineTool({ name: "bad name" });`, settings: { webmcp: { definitions: [{ call: "defineTool", derived: ["name"] }] } } }],
+    invalid: [{ code: `defineTool({ name: "bad name" });`, settings: { webmcp: { definitions: ["defineTool"] } }, errors: 1 }],
+  });
+});
