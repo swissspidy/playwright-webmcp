@@ -1,6 +1,6 @@
 {
   "name": "@swissspidy/webmcp-codemode",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Code mode for WebMCP: let a model write one script that calls a page's tools, in a QuickJS sandbox that survives navigations and tool re-registration. Drives Chromium through Playwright, Puppeteer or raw CDP.",
   "keywords": [
     "webmcp",
