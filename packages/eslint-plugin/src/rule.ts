@@ -78,6 +78,9 @@ function locate(tool: ExtractedTool, finding: Finding, resolve: Resolver): ESTre
   if (field) {
     const at = nodeAtPath(tool.node, finding.path!.slice(1), resolve) ?? findProperty(tool.node, field)?.value;
     if (at) return at as ESTree.Node;
+    // The tool does not have the field. Its path is about the tool, so it must not be looked up in the
+    // input schema, where a schema's own `title` would be mistaken for it: point at the tool's name.
+    return (findProperty(tool.node, "name")?.value as ESTree.Node | undefined) ?? tool.node;
   }
   if (finding.path) {
     const schema = findProperty(tool.node, "inputSchema");

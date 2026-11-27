@@ -838,3 +838,31 @@ test("JSX forms: same-name controls are only grouped when they are radios, and a
     invalid: [{ code: form(`<input name="q" aria-label="Query" />`, `{...props} tooldescription={undefined}`), errors: 1 }],
   });
 });
+
+test("a missing tool-level field is reported at the tool's name, not inside its input schema", () => {
+  // The schema's own `title` must not stand in for the tool's, and a missing field points at the name.
+  const tool = (extra = "") => `mc.registerTool({
+  name: "search",
+  description: "Search the product catalogue by keyword and return matching products.",
+  inputSchema: { type: "object", title: "Search input", properties: {} },${extra}
+});`;
+  tester.run("tool-title-missing", plugin.rules["tool-title-missing"], {
+    valid: [tool(`\n  title: "Search products",`)],
+    invalid: [{ code: tool(), errors: [{ messageId: "finding", line: 2, column: 9 }] }],
+  });
+  tester.run("annotations-explicit", plugin.rules["annotations-explicit"], {
+    valid: [],
+    invalid: [
+      // No annotations at all: both findings at the name.
+      {
+        code: tool(),
+        errors: [
+          { messageId: "finding", line: 2, column: 9 },
+          { messageId: "finding", line: 2, column: 9 },
+        ],
+      },
+      // Annotations written without the hint: the finding points at them.
+      { code: tool(`\n  annotations: { readOnlyHint: true },`), errors: [{ messageId: "finding", line: 5, column: 16 }] },
+    ],
+  });
+});
