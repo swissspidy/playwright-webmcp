@@ -5,6 +5,9 @@
  *
  *   x.registerTool({ name, description, inputSchema, annotations, execute }, { exposedTo })
  *   useWebMCP({ name, description, inputSchema, execute })
+ *   provideExperimentalWebMcpTools([{ name, ... }, ...])         (Angular)
+ *   declareExperimentalWebMcpTool({ name, ... })                  (Angular)
+ *   form(model, schema?, { experimentalWebMcpTool: { name, description } })   (Angular Signal Forms)
  *
  * Only literal values are read. An identifier that refers to a `const` or
  * `let` initialised with a literal in the same file is followed (`const tool =
@@ -155,10 +158,12 @@ export interface ExposedTo {
 export interface ToolObject {
   node: ESTree.ObjectExpression;
   exposedTo: ExposedTo;
+  /** Fields the framework fills in at this site; findings about them are dropped like those about computed fields. */
+  derived?: string[];
 }
 
 /** Reads one definition literal into data the lint rules can judge; undefined when its name is not static. */
-export function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: ExposedTo, resolve: Resolver): ExtractedTool | undefined {
+export function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: ExposedTo, resolve: Resolver, derived: string[] = []): ExtractedTool | undefined {
   const definition: ToolDefinitionLike = Object.assign(Object.create(null), { name: "" });
   const record = definition as Record<string, unknown>;
   const dynamic = new Set<string>();
@@ -185,6 +190,8 @@ export function toolFromObject(obj: ESTree.ObjectExpression, exposedTo: ExposedT
     }
   }
   if (dynamic.has("name") || typeof definition.name !== "string") return undefined;
+  // What the framework fills in is as unknown here as a computed field, whatever the literal says.
+  for (const field of derived) dynamic.add(field);
   if (exposedTo.value === DYNAMIC) dynamic.add("exposedTo");
   else if (Array.isArray(exposedTo.value)) definition.exposedTo = exposedTo.value.map(String);
   return { node: obj, definition, dynamic, exposedToNode: exposedTo.node };
@@ -200,6 +207,20 @@ function calleeName(callee: Node): string | undefined {
   const c = unwrap(callee);
   if (c.type === "Identifier") return c.name;
   return c.type === "MemberExpression" ? memberName(c) : undefined;
+}
+
+/** The tool object literals a value holds: the object itself, or each object in an array literal. */
+function objectsIn(value: Node, resolve: Resolver): ESTree.ObjectExpression[] {
+  const node = unwrap(resolve(value));
+  if (node.type === "ObjectExpression") return [node];
+  if (node.type !== "ArrayExpression") return [];
+  const out: ESTree.ObjectExpression[] = [];
+  for (const el of node.elements) {
+    if (!el || el.type === "SpreadElement") continue;
+    const item = unwrap(resolve(el));
+    if (item.type === "ObjectExpression") out.push(item);
+  }
+  return out;
 }
 
 function argumentAt(call: ESTree.CallExpression, index: number): Node | undefined {
@@ -221,8 +242,7 @@ export function toolObjectsFromCall(call: ESTree.CallExpression, sites: Definiti
   const out: ToolObject[] = [];
   for (const site of sites) {
     if (site.call !== method) continue;
-    const arg = argumentAt(call, site.argument ?? 0);
-    if (!arg) continue;
+    const derived = site.derived ? { derived: site.derived } : {};
     const exposedTo: ExposedTo = { value: undefined };
     if (site.options !== undefined) {
       const options = argumentAt(call, site.options);
@@ -237,22 +257,30 @@ export function toolObjectsFromCall(call: ESTree.CallExpression, sites: Definiti
         } else exposedTo.value = DYNAMIC;
       }
     }
+    if (site.property) {
+      // An options object that may sit at different positions: each argument that is one and has the property.
+      const indexes = site.argument !== undefined ? [site.argument] : call.arguments.map((_a, i) => i);
+      for (const i of indexes) {
+        const candidate = argumentAt(call, i);
+        if (!candidate) continue;
+        const opts = unwrap(resolve(candidate));
+        if (opts.type !== "ObjectExpression") continue;
+        const prop = findProperty(opts, site.property);
+        if (!prop) continue;
+        const obj = unwrap(resolve(prop.value as Node));
+        if (obj.type === "ObjectExpression") out.push({ node: obj, exposedTo, ...derived });
+      }
+      continue;
+    }
+    const arg = argumentAt(call, site.argument ?? 0);
+    if (!arg) continue;
+    const found = (obj: ESTree.ObjectExpression) => out.push({ node: obj, exposedTo, ...derived });
     if (site.tools) {
       const ctx = unwrap(resolve(arg));
       if (ctx.type !== "ObjectExpression") continue;
       const tools = findProperty(ctx, site.tools);
-      if (!tools) continue;
-      const arr = unwrap(resolve(tools.value as Node));
-      if (arr.type !== "ArrayExpression") continue;
-      for (const el of arr.elements) {
-        if (!el || el.type === "SpreadElement") continue;
-        const item = unwrap(resolve(el));
-        if (item.type === "ObjectExpression") out.push({ node: item, exposedTo });
-      }
-    } else {
-      const obj = unwrap(resolve(arg));
-      if (obj.type === "ObjectExpression") out.push({ node: obj, exposedTo });
-    }
+      if (tools) objectsIn(tools.value as Node, resolve).forEach(found);
+    } else objectsIn(arg, resolve).forEach(found);
   }
   return out;
 }
@@ -260,8 +288,8 @@ export function toolObjectsFromCall(call: ESTree.CallExpression, sites: Definiti
 /** Tool definitions passed to one call expression, as data the lint rules can judge. */
 export function toolsFromCall(call: ESTree.CallExpression, sites: DefinitionSite[], resolve: Resolver = identity): ExtractedTool[] {
   const out: ExtractedTool[] = [];
-  for (const { node, exposedTo } of toolObjectsFromCall(call, sites, resolve)) {
-    const extracted = toolFromObject(node, exposedTo, resolve);
+  for (const { node, exposedTo, derived } of toolObjectsFromCall(call, sites, resolve)) {
+    const extracted = toolFromObject(node, exposedTo, resolve, derived);
     if (extracted) out.push(extracted);
   }
   return out;
